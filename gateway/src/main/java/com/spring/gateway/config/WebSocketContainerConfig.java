@@ -15,8 +15,8 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 public class WebSocketContainerConfig {
 
-    /** WS 单帧大小上限：16MB */
-    private static final int MAX_WS_MESSAGE_BYTES = 16 * 1024 * 1024;
+    /** WS 单帧大小上限：256KB。Tomcat 按此上限为每条连接预分配收包缓冲，盲目调大会让内存随连接数膨胀 */
+    private static final int MAX_WS_MESSAGE_BYTES = 256 * 1024;
 
     /** 服务端 WS 容器在 ServletContext 中的属性名（jakarta.websocket 规范定义） */
     private static final String SERVER_CONTAINER_ATTR = "jakarta.websocket.server.ServerContainer";
