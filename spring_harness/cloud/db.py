@@ -287,7 +287,7 @@ class ModelDefinitionRow(Base):
     __tablename__ = "model_definitions"
     __table_args__ = (Index("ix_model_defs_provider", "provider"),)
 
-    id: Mapped[str] = mapped_column(String(128), primary_key=True)
+    id: Mapped[str] = mapped_column(String(256), primary_key=True)
     provider: Mapped[str] = mapped_column(
         String(64), ForeignKey("model_providers.name"), nullable=False,
     )

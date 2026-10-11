@@ -187,9 +187,7 @@ export function renderMcModels() {
 }
 
 export function fillMcModelForm(m) {
-  if (!$("mc-m-id")) return;
-  $("mc-m-id").value = m ? m.id : "";
-  $("mc-m-id").disabled = !!m;
+  if (!$("mc-m-provider")) return;
   if (m) $("mc-m-provider").value = m.provider;
   $("mc-m-model").value = m ? m.model : "";
   $("mc-m-display").value = m ? m.display_name : "";
@@ -208,7 +206,7 @@ export function fillMcModelForm(m) {
 export async function onMcModelSubmit(e) {
   e.preventDefault();
   const body = {
-    id: $("mc-m-id").value.trim(),
+    originalId: editingModelDefId,
     provider: $("mc-m-provider").value,
     model: $("mc-m-model").value.trim(),
     displayName: $("mc-m-display").value.trim(),
@@ -220,8 +218,8 @@ export async function onMcModelSubmit(e) {
     reasoningKey: $("mc-m-reasoning").value.trim(),
     enabled: $("mc-m-enabled").checked,
   };
-  if (!body.id || !body.provider || !body.model || !body.displayName) {
-    UI.toast("模型 ID / Provider / 实际模型名 / 展示名 必填", { type: "error" });
+  if (!body.provider || !body.model || !body.displayName) {
+    UI.toast("Provider / 实际模型名 / 展示名 必填", { type: "error" });
     return;
   }
   if (!Number.isFinite(body.maxContextSize) || body.maxContextSize < 1) {

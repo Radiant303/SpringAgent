@@ -27,6 +27,9 @@ import java.util.List;
 @RequiredArgsConstructor
 public class AdminModelConfigService {
 
+    /** 模型 ID 长度上限（与列宽一致） */
+    private static final int MAX_MODEL_ID_LENGTH = 256;
+
     private final ModelProviderMapper providerMapper;
     private final ModelDefinitionMapper modelMapper;
     private final SystemSettingService systemSettingService;
@@ -113,32 +116,55 @@ public class AdminModelConfigService {
     }
 
     /**
-     * 新建或更新模型定义（按主键 id upsert）。
-     * id 必须以 "provider/" 开头；停用默认模型会被拒绝。
+     * 新建或更新模型定义。ID 由服务端派生 = provider + "/" + model；
+     * originalId 非空且与派生 ID 不同时按改名处理（默认模型引用随之更新）。
      *
      * @param req 模型请求
-     * @throws BizException Provider 不存在（400）；id 与 provider 不匹配（400）；停用默认模型（409）
+     * @throws BizException Provider 不存在（400）；派生 ID 超长（400）；原模型不存在（404）；
+     *                      改名目标已存在（409）；停用默认模型（409）
      */
     @Transactional
     public void upsertModel(AdminModelDefRequest req) {
         if (providerMapper.selectById(req.provider()) == null) {
             throw new BizException(400, "Provider 不存在: " + req.provider());
         }
-        if (!req.id().startsWith(req.provider() + "/")) {
-            throw new BizException(400, "模型 ID 必须以 \"" + req.provider() + "/\" 开头");
+        String modelName = req.model().trim();
+        String derivedId = req.provider() + "/" + modelName;
+        if (derivedId.length() > MAX_MODEL_ID_LENGTH) {
+            throw new BizException(400, "模型 ID 超长: " + derivedId);
         }
-        if (systemSettingService.getDefaultModel().equals(req.id()) && !req.enabled()) {
+        String originalId = req.originalId() == null || req.originalId().isBlank()
+                ? null : req.originalId().trim();
+        boolean rename = originalId != null && !originalId.equals(derivedId);
+
+        String defaultModel = systemSettingService.getDefaultModel();
+        if (defaultModel.equals(rename ? originalId : derivedId) && !req.enabled()) {
             throw new BizException(409, "默认模型不可停用，请先切换默认模型");
         }
-        ModelDefinition row = modelMapper.selectById(req.id());
+
+        LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC);
+        LocalDateTime createdAt = now;
+        if (rename) {
+            ModelDefinition old = modelMapper.selectById(originalId);
+            if (old == null) {
+                throw new BizException(404, "原模型不存在: " + originalId);
+            }
+            if (modelMapper.selectById(derivedId) != null) {
+                throw new BizException(409, "目标 ID 已存在: " + derivedId);
+            }
+            createdAt = old.getCreatedAt();
+            modelMapper.deleteById(originalId);
+        }
+
+        ModelDefinition row = rename ? null : modelMapper.selectById(derivedId);
         boolean isNew = row == null;
         if (isNew) {
             row = new ModelDefinition();
-            row.setId(req.id());
-            row.setCreatedAt(LocalDateTime.now(ZoneOffset.UTC));
+            row.setId(derivedId);
+            row.setCreatedAt(createdAt);
         }
         row.setProvider(req.provider());
-        row.setModel(req.model());
+        row.setModel(modelName);
         row.setDisplayName(req.displayName());
         row.setMaxContextSize(req.maxContextSize());
         row.setMaxOutputSize(req.maxOutputSize());
@@ -148,11 +174,14 @@ public class AdminModelConfigService {
         String reasoningKey = req.reasoningKey() == null ? "" : req.reasoningKey().trim();
         row.setReasoningKey(reasoningKey.isEmpty() ? null : reasoningKey);
         row.setEnabled(req.enabled());
-        row.setUpdatedAt(LocalDateTime.now(ZoneOffset.UTC));
+        row.setUpdatedAt(now);
         if (isNew) {
             modelMapper.insert(row);
         } else {
             modelMapper.updateById(row);
+        }
+        if (rename && defaultModel.equals(originalId)) {
+            systemSettingService.set(SystemSetting.KEY_DEFAULT_MODEL, derivedId);
         }
         modelCatalogCache.invalidate();
     }

@@ -3,7 +3,6 @@ package com.spring.gateway.dto;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
 import java.util.List;
@@ -13,7 +12,7 @@ import java.util.List;
  *
  * @author hanbing
  * @since 2026-10-09
- * @param id             模型 ID（"provider/模型名"，新建后不可改）
+ * @param originalId     编辑锚点：被编辑模型的原 ID；null/空 = 新建。与原 ID 不同时按改名处理
  * @param provider       所属 Provider（必须已存在）
  * @param model          实际模型名（API 请求的 model 字段）
  * @param displayName    展示名
@@ -26,10 +25,8 @@ import java.util.List;
  * @param enabled        是否启用
  */
 public record AdminModelDefRequest(
-        @NotBlank(message = "模型 ID 不能为空")
-        @Size(max = 128, message = "模型 ID 长度不能超过 128")
-        @Pattern(regexp = "^[a-z0-9][a-z0-9-]*/\\S+$", message = "模型 ID 形如 provider/模型名")
-        String id,
+        @Size(max = 256, message = "原模型 ID 长度不能超过 256")
+        String originalId,
 
         @NotBlank(message = "Provider 不能为空")
         String provider,
