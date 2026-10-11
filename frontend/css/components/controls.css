@@ -1,0 +1,240 @@
+/* ================= 自绘表单增强控件（下拉框、日历选择器与浮层） ================= */
+
+.ui-native {
+  display: none !important;
+}
+
+.ui-select, .ui-date {
+  display: inline-flex;
+  min-width: 0;
+}
+
+.ui-select-btn, .ui-date-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 34px;
+  padding: 0 10px;
+  border: none;
+  border-radius: 10px;
+  outline: none;
+  background: #f2f2f2;
+  color: var(--text, rgba(0, 0, 0, 0.9));
+  font: inherit;
+  font-size: 14px;
+  text-align: left;
+  transition: background-color 0.15s;
+}
+.ui-select-btn:hover:not(:disabled), .ui-date-btn:hover:not(:disabled) {
+  background: #ebebeb;
+}
+.ui-select-btn[aria-expanded="true"], .ui-date-btn[aria-expanded="true"] {
+  background: #ebebeb;
+}
+.ui-select-btn:focus-visible, .ui-date-btn:focus-visible {
+  outline: 2px solid rgba(23, 131, 255, 0.4);
+  outline-offset: 1px;
+}
+.ui-select-btn:disabled, .ui-date-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.ui-select-caret, .ui-date-icon {
+  display: inline-flex;
+  flex-shrink: 0;
+  color: var(--text-faint, rgba(0, 0, 0, 0.45));
+}
+.ui-select-caret svg, .ui-date-icon svg {
+  display: block;
+  width: 16px;
+  height: 16px;
+}
+.ui-select-caret {
+  margin-left: auto;
+}
+
+.ui-select-label, .ui-date-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ui-date-btn {
+  justify-content: space-between;
+  min-width: 148px;
+}
+.ui-date-btn:not(.has-value) .ui-date-label {
+  color: var(--text-faint, rgba(0, 0, 0, 0.45));
+}
+
+/* ---- 浮层：挂在 body 上（fixed），不会被滚动容器裁切 ---- */
+.ui-popover {
+  position: fixed;
+  z-index: 250;
+  padding: 4px;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.1), 0 1px 3px rgba(0, 0, 0, 0.04);
+  animation: ui-pop 0.14s ease both;
+}
+
+.ui-listbox {
+  max-height: 280px;
+  overflow-y: auto;
+  outline: none;
+}
+
+.ui-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 34px;
+  padding: 0 10px;
+  border-radius: 8px;
+  font-size: 14px;
+  color: var(--text, rgba(0, 0, 0, 0.9));
+  white-space: nowrap;
+  cursor: pointer;
+}
+.ui-option-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ui-option-check {
+  display: inline-flex;
+  flex-shrink: 0;
+  width: 16px;
+  color: var(--text, rgba(0, 0, 0, 0.9));
+}
+.ui-option-check svg {
+  display: block;
+  width: 16px;
+  height: 16px;
+}
+.ui-option.active {
+  background: var(--hover-bg, rgba(0, 0, 0, 0.04));
+}
+.ui-option.disabled {
+  color: var(--text-faint, rgba(0, 0, 0, 0.45));
+  cursor: default;
+}
+.ui-option.disabled.active {
+  background: transparent;
+}
+
+/* ---- 日历 ---- */
+.ui-cal {
+  min-width: 236px;
+  padding: 8px 8px 4px;
+  user-select: none;
+}
+.ui-cal-head {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 0 6px;
+}
+.ui-cal-title {
+  flex: 1;
+  padding-left: 4px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text, rgba(0, 0, 0, 0.9));
+}
+.ui-cal-nav {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-dim, rgba(0, 0, 0, 0.6));
+}
+.ui-cal-nav:hover {
+  background: var(--hover-bg, rgba(0, 0, 0, 0.04));
+  color: var(--text, rgba(0, 0, 0, 0.9));
+}
+.ui-cal-nav svg {
+  width: 16px;
+  height: 16px;
+}
+
+.ui-cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+}
+.ui-cal-wd {
+  height: 28px;
+  font-size: 12px;
+  line-height: 28px;
+  color: var(--text-faint, rgba(0, 0, 0, 0.45));
+  text-align: center;
+}
+.ui-cal-day {
+  height: 32px;
+  padding: 0;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text, rgba(0, 0, 0, 0.9));
+  font: inherit;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+.ui-cal-day:hover:not(:disabled) {
+  background: var(--hover-bg, rgba(0, 0, 0, 0.04));
+}
+.ui-cal-day.out {
+  color: var(--text-faint, rgba(0, 0, 0, 0.45));
+}
+.ui-cal-day.today {
+  font-weight: 600;
+}
+.ui-cal-day:focus {
+  background: var(--sb-active, rgba(0, 0, 0, 0.06));
+  outline: none;
+}
+.ui-cal-day.selected {
+  background: #111;
+  color: #fff;
+  font-weight: 400;
+}
+.ui-cal-day:disabled {
+  color: var(--text-faint, rgba(0, 0, 0, 0.45));
+  opacity: 0.5;
+  cursor: default;
+}
+
+.ui-cal-foot {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 8px;
+  padding: 6px 2px 0;
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
+}
+.ui-cal-link {
+  padding: 4px 6px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  font-size: 13px;
+  color: var(--link, #1783ff);
+  cursor: pointer;
+}
+.ui-cal-link:hover:not(:disabled) {
+  background: rgba(23, 131, 255, 0.08);
+}
+.ui-cal-link:disabled {
+  color: var(--text-faint, rgba(0, 0, 0, 0.45));
+  cursor: default;
+}

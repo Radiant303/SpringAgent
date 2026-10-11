@@ -1,0 +1,49 @@
+/**
+ * 用量统计查询与报表
+ */
+
+import { $ } from "../../utils/dom.js";
+import { fmtNum } from "../../utils/format.js";
+import { api } from "../../api/client.js";
+import { UI } from "../../components/ui.js";
+import { users } from "./users.js";
+
+export function renderUsageUserOptions(list = users) {
+  const sel = $("usage-user");
+  if (!sel) return;
+  const current = sel.value;
+  sel.innerHTML = `<option value="">全部用户</option>`;
+  for (const u of list) {
+    const opt = document.createElement("option");
+    opt.value = u.user_id;
+    opt.textContent = u.username;
+    sel.appendChild(opt);
+  }
+  sel.value = current;
+}
+
+export async function loadUsage() {
+  if (users && users.length) renderUsageUserOptions(users);
+  const params = new URLSearchParams();
+  if ($("usage-user")?.value) params.set("userId", $("usage-user").value);
+  if ($("usage-from")?.value) params.set("from", $("usage-from").value);
+  if ($("usage-to")?.value) {
+    const end = new Date($("usage-to").value + "T00:00:00");
+    end.setDate(end.getDate() + 1);
+    params.set("to", end.toISOString().slice(0, 10));
+  }
+  const rows = await UI.loadTable("usage-tbody", () => api("/api/admin/usage?" + params.toString())) || [];
+  UI.renderRows("usage-tbody", rows, (tr, r) => {
+    tr.className = "";
+    tr.innerHTML = `
+      <td></td>
+      <td>${r.modelName || "-"}</td>
+      <td class="num">${fmtNum(r.turns)}</td>
+      <td class="num">${fmtNum(r.requests)}</td>
+      <td class="num">${fmtNum(r.inputTokens)}</td>
+      <td class="num">${fmtNum(r.cacheReadTokens)}</td>
+      <td class="num">${fmtNum(r.cacheWriteTokens)}</td>
+      <td class="num">${fmtNum(r.outputTokens)}</td>`;
+    tr.cells[0].textContent = r.username || r.userId;
+  }, "暂无用量记录");
+}

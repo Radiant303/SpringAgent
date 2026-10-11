@@ -12,9 +12,14 @@
       }
     } catch (e) { /* 存储不可用时交给 admin.js 处理 */ }
   </script>
-  <link rel="stylesheet" href="/static/index.css?v=20261011">
-  <link rel="stylesheet" href="/static/ui.css?v=20261011">
-  <link rel="stylesheet" href="/static/admin.css?v=20261011">
+  <link rel="stylesheet" href="/static/css/variables.css">
+  <link rel="stylesheet" href="/static/css/base.css">
+  <link rel="stylesheet" href="/static/css/ui.css">
+  <link rel="stylesheet" href="/static/css/components/dialog.css">
+  <link rel="stylesheet" href="/static/css/components/skeleton.css">
+  <link rel="stylesheet" href="/static/css/components/controls.css">
+  <link rel="stylesheet" href="/static/css/components/table.css">
+  <link rel="stylesheet" href="/static/css/pages/admin.css">
 </head>
 <body>
   <div id="admin-app">
@@ -567,7 +572,6 @@
       </section>
     </main>
   </div>
-  <script src="/static/ui.js?v=20261011"></script>
-  <script src="/static/admin.js?v=20261011b"></script>
+  <script type="module" src="/static/js/pages/admin.js"></script>
 </body>
 </html>

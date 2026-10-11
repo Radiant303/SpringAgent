@@ -1,0 +1,221 @@
+/* ================= 数据表格组件 ================= */
+
+.table-wrap,
+.table-card {
+  margin-top: 16px;
+  border: 1px solid var(--admin-border, rgba(0, 0, 0, 0.08));
+  border-radius: 12px;
+  background: #fff;
+  overflow-x: auto;
+  overflow-y: hidden;
+  transition: opacity 150ms;
+}
+
+.table-wrap.fetching,
+.table-card.fetching,
+.table-card.is-loading {
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+.admin-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+  line-height: 20px;
+  table-layout: auto;
+}
+
+.admin-table th,
+.admin-table td {
+  padding: 13px 16px;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.admin-table th {
+  border-bottom: 1px solid var(--admin-border, rgba(0, 0, 0, 0.08));
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--text-faint, rgba(0, 0, 0, 0.45));
+  background: transparent;
+}
+
+.admin-table td {
+  border-bottom: 1px solid var(--admin-line, rgba(0, 0, 0, 0.06));
+  color: var(--text, rgba(0, 0, 0, 0.9));
+  vertical-align: middle;
+}
+
+.admin-table tbody tr {
+  height: 52px;
+  box-sizing: border-box;
+  transition: background-color 120ms ease;
+}
+.admin-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+.admin-table tbody tr:hover td {
+  background: rgba(0, 0, 0, 0.015);
+}
+.admin-table tbody tr.disabled {
+  background: var(--table-disabled, #f7f7f8);
+}
+.admin-table tbody tr.disabled:hover td {
+  background: var(--table-disabled-hover, #f4f4f5);
+}
+
+.admin-table .num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.admin-table .empty-row td {
+  padding: 40px 16px;
+  text-align: center;
+  color: var(--text-faint, rgba(0, 0, 0, 0.45));
+}
+.admin-table .empty-row:hover td {
+  background: transparent;
+}
+
+/* 表格骨架：每格一根浅灰胶囊条，行高与真实行一致 52px */
+.admin-table .sk-tr:hover td {
+  background: transparent;
+}
+.admin-table .sk-tr .sk {
+  min-width: 28px;
+}
+
+/* 行级交错入场动画 */
+@media (prefers-reduced-motion: no-preference) {
+  [data-slot='table'] tbody tr,
+  .admin-table tbody tr {
+    animation: tableRowEnter 0.2s cubic-bezier(0.33, 1, 0.68, 1) both;
+  }
+  [data-slot='table'] tbody tr:nth-child(2),
+  .admin-table tbody tr:nth-child(2)  { animation-delay: 25ms; }
+  [data-slot='table'] tbody tr:nth-child(3),
+  .admin-table tbody tr:nth-child(3)  { animation-delay: 50ms; }
+  [data-slot='table'] tbody tr:nth-child(4),
+  .admin-table tbody tr:nth-child(4)  { animation-delay: 75ms; }
+  [data-slot='table'] tbody tr:nth-child(5),
+  .admin-table tbody tr:nth-child(5)  { animation-delay: 100ms; }
+  [data-slot='table'] tbody tr:nth-child(6),
+  .admin-table tbody tr:nth-child(6)  { animation-delay: 125ms; }
+  [data-slot='table'] tbody tr:nth-child(7),
+  .admin-table tbody tr:nth-child(7)  { animation-delay: 150ms; }
+  [data-slot='table'] tbody tr:nth-child(8),
+  .admin-table tbody tr:nth-child(8)  { animation-delay: 150ms; }
+  [data-slot='table'] tbody tr:nth-child(9),
+  .admin-table tbody tr:nth-child(9)  { animation-delay: 175ms; }
+  [data-slot='table'] tbody tr:nth-child(10),
+  .admin-table tbody tr:nth-child(10) { animation-delay: 200ms; }
+  [data-slot='table'] tbody tr:nth-child(n + 11),
+  .admin-table tbody tr:nth-child(n + 11) { animation-delay: 225ms; }
+  [data-slot='table'] tbody tr.sk-tr,
+  .admin-table tbody tr.sk-tr { animation: none; }
+}
+
+@keyframes tableRowEnter {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* 表格内操作：蓝色文字按钮；主按钮黑色实底 */
+.row-actions {
+  display: flex;
+  gap: 2px;
+  flex-wrap: wrap;
+  margin: 0 -8px;
+}
+#mc-model-table .row-actions,
+#mc-provider-table .row-actions {
+  flex-wrap: nowrap;
+}
+
+.admin-btn {
+  height: 28px;
+  padding: 0 8px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--link, #1783ff);
+  font-size: 13px;
+  white-space: nowrap;
+  text-decoration: none;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.15s, color 0.15s;
+}
+.admin-btn:hover {
+  background: rgba(23, 131, 255, 0.08);
+  text-decoration: none;
+}
+.admin-btn.danger {
+  color: var(--danger, #c0392b);
+}
+.admin-btn.danger:hover {
+  background: rgba(192, 57, 43, 0.08);
+  text-decoration: none;
+}
+.admin-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.admin-btn.primary {
+  height: 34px;
+  padding: 0 16px;
+  border-radius: 10px;
+  background: #111;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 400;
+  text-decoration: none;
+}
+.admin-btn.primary:hover {
+  background: #000;
+  text-decoration: none;
+}
+.usage-filter .admin-btn:not(.primary),
+.model-form .admin-btn:not(.primary) {
+  height: 34px;
+  padding: 0 16px;
+  border-radius: 10px;
+  background: #f2f2f2;
+  color: var(--text, rgba(0, 0, 0, 0.9));
+  font-size: 14px;
+  text-decoration: none;
+}
+.usage-filter .admin-btn:not(.primary):hover,
+.model-form .admin-btn:not(.primary):hover {
+  background: #ebebeb;
+  text-decoration: none;
+}
+
+/* 表格状态文字 */
+.status-active { color: var(--admin-green, #2fb36d); }
+.status-disabled { color: var(--danger, #c0392b); }
+.status-warn { color: var(--warn, #a9610a); }
+.points-in { color: var(--admin-green, #2fb36d); }
+.points-out { color: var(--danger, #c0392b); }
+
+/* 分页器 */
+.table-pager {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-top: 1px solid var(--admin-line, rgba(0, 0, 0, 0.06));
+  font-size: 13px;
+  color: var(--text-dim, rgba(0, 0, 0, 0.6));
+}
+
+.pager-btns {
+  display: flex;
+  gap: 8px;
+}

@@ -1,0 +1,67 @@
+* {
+  box-sizing: border-box;
+}
+
+html, body {
+  margin: 0;
+  height: 100%;
+  font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  font-size: var(--fs-sm, 16px);
+  color: var(--text, rgba(0, 0, 0, 0.9));
+  background: var(--bg, #ffffff);
+  -webkit-font-smoothing: antialiased;
+}
+
+a {
+  color: var(--link, #1783ff);
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: none;
+}
+
+button, input, select, textarea {
+  font: inherit;
+}
+
+button {
+  font: inherit;
+  cursor: pointer;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  background: #f2f2f2;
+  color: var(--text, rgba(0, 0, 0, 0.9));
+  padding: 7px 16px;
+  text-decoration: none;
+  transition: background-color 0.15s, opacity 0.15s;
+}
+
+button:hover {
+  background: #ebebeb;
+  text-decoration: none;
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* 统一极简滚动条 */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb, #c8c8c8);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover, #a8a8a8);
+}

@@ -1,0 +1,81 @@
+:root {
+  /* ================= 基础设计令牌 ================= */
+  --color-bg: #ffffff;
+  --color-surface: #f5f5f5;
+  --color-text: rgba(0, 0, 0, 0.9);
+  --color-text-muted: rgba(0, 0, 0, 0.6);
+  --color-text-faint: rgba(0, 0, 0, 0.45);
+  --color-success: #0e7a38;
+  --color-warning: #a9610a;
+  --color-danger: #c0392b;
+
+  /* ================= 语义表面与底色 ================= */
+  --bg: var(--color-bg);
+  --panel: var(--color-bg);
+  --surface: var(--color-surface);
+  --muted: #ebebee;
+  --ground: #fefefe;               /* 侧栏/页面底色 */
+  --hover-bg: rgba(0, 0, 0, 0.04);
+  --active-bg: var(--color-surface);
+  --sb-hover: rgba(0, 0, 0, 0.04);
+  --sb-active: rgba(0, 0, 0, 0.06);
+
+  /* ================= 文字分级 ================= */
+  --text: var(--color-text);
+  --text-dim: var(--color-text-muted);
+  --text-faint: var(--color-text-faint);
+
+  /* ================= 边框与分割线 ================= */
+  --border: rgba(0, 0, 0, 0.08);
+  --border-soft: rgba(0, 0, 0, 0.05);
+
+  /* ================= 动作与状态颜色 ================= */
+  --accent: #1f1f1f;
+  --accent-hover: #000000;
+  --link: #1783ff;
+  --success: var(--color-success);
+  --ok: var(--color-success);
+  --warn: var(--color-warning);
+  --danger: var(--color-danger);
+  --err: var(--color-danger);
+
+  /* ================= 差异对比 & 提示 ================= */
+  --code-bg: var(--color-surface);
+  --diff-add-bg: rgba(14, 122, 56, 0.08);
+  --diff-add-text: var(--color-success);
+  --diff-del-bg: rgba(192, 57, 43, 0.07);
+  --diff-del-text: var(--color-danger);
+  --notice-bg: rgba(169, 97, 10, 0.06);
+  --notice-border: rgba(169, 97, 10, 0.25);
+
+  /* ================= 尺寸、圆角与阴影 ================= */
+  --radius: 12px;
+  --shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  --content-max: 780px;
+
+  /* ================= 字号与图标尺寸 ================= */
+  --fs-sm: 16px;
+  --fs-md: 16px;
+  --fs-lg: 16px;
+  --ic-sm: 16px;
+  --ic-md: 20px;
+
+  /* ================= 滚动条 ================= */
+  --scrollbar-thumb: #c8c8c8;
+  --scrollbar-thumb-hover: #a8a8a8;
+  --scrollbar-menu-thumb: #c8c8c8;
+  --scrollbar-menu-thumb-hover: #a8a8a8;
+
+  /* ================= 动态计算变量 ================= */
+  --plan-h: 0px;
+  --scroll-b: 140px;
+
+  /* ================= 管理后台专用变量 ================= */
+  --admin-card: #f7f7f7;
+  --admin-line: rgba(0, 0, 0, 0.06);
+  --admin-border: rgba(0, 0, 0, 0.08);
+  --admin-green: #2fb36d;
+  --table-disabled: #f7f7f8;
+  --table-disabled-hover: #f4f4f5;
+  --table-disabled-border: #d4d4d8;
+}

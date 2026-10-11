@@ -8,9 +8,14 @@
     /* 未登录直接去登录页，避免先闪出聊天界面 */
     try { if (!localStorage.getItem("sh.token")) location.replace("/static/login.html"); } catch (e) { /* 存储不可用时交给 index.js 处理 */ }
   </script>
-  <link rel="stylesheet" href="/static/index.css?v=20261006">
-  <link rel="stylesheet" href="/static/ui.css?v=20261010">
-  <link rel="stylesheet" href="/static/sprout.css?v=20261006">
+  <link rel="stylesheet" href="/static/css/variables.css">
+  <link rel="stylesheet" href="/static/css/base.css">
+  <link rel="stylesheet" href="/static/css/ui.css">
+  <link rel="stylesheet" href="/static/css/components/dialog.css">
+  <link rel="stylesheet" href="/static/css/components/skeleton.css">
+  <link rel="stylesheet" href="/static/css/components/controls.css">
+  <link rel="stylesheet" href="/static/css/components/sprout.css">
+  <link rel="stylesheet" href="/static/css/pages/chat.css">
 </head>
 <body>
   <div id="app">
@@ -232,8 +237,6 @@
 
   <script src="/static/vendor/marked.min.js"></script>
   <script src="/static/vendor/purify.min.js"></script>
-  <script src="/static/sprout.js?v=20261006"></script>
-  <script src="/static/ui.js?v=20261010"></script>
-  <script src="/static/index.js?v=20261009"></script>
+  <script type="module" src="/static/js/pages/index.js"></script>
 </body>
 </html>
