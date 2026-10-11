@@ -428,13 +428,6 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-#breadcrumb .crumb-sep {
-  color: var(--text-faint, rgba(0, 0, 0, 0.45));
-  margin: 0 6px;
-}
-#ws-name {
-  color: var(--text-dim, rgba(0, 0, 0, 0.6));
-}
 #session-title {
   color: var(--text, rgba(0, 0, 0, 0.9));
 }

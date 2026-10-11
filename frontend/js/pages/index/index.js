@@ -61,8 +61,6 @@ export async function connectAndSetup() {
   state.models = info.models || [];
   if (!state.model) state.model = info.defaultModel || null;
   populateModelSelect();
-  const wsName = state.workspace.replace(/[\\/]+$/, "").split(/[\\/]/).pop() || state.workspace;
-  if ($("ws-name")) $("ws-name").textContent = localStorage.getItem(USER_KEY) || wsName;
   if ($("input-ws")) $("input-ws").title = state.workspace;
   setConnected(true);
   await loadWorks();
