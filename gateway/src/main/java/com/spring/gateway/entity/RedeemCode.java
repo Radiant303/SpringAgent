@@ -9,12 +9,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 /**
- * redeem_codes 表的实体：兑换码（一次性）。
- *
- * <p>兑换经条件 UPDATE 抢占（ACTIVE 且未过期 → REDEEMED），同时置
- * redeemed_by/redeemed_at/deleted_at（软删除）；code 唯一索引永不释放，
- * 软删行仍占位保证同码不重发。过期只在兑换时按 expires_at 判定，
- * 不建 EXPIRED 状态。
+ * redeem_codes 表的实体。
  *
  * @author hanbing
  * @since 2026-10-06

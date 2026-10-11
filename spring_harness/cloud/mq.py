@@ -1,16 +1,4 @@
-"""MQ 消费者：turn 派发/取消消费，生命周期事件回传。
-
-拓扑：direct 交换机 harness.turn，队列 turn.dispatch（派发）、turn.cancel（取消）、
-turn.lifecycle（完成回传），各自挂死信交换机 harness.turn.dlx（同名 .dlq 队列）。
-队列声明参数必须与 broker 上已有的定义保持一致，否则报 406 PRECONDITION_FAILED。
-
-可靠性：manual ack；消费失败按自定义头计数有限重投（≤3 次），超限进 DLQ；
-派发按 turnId 幂等去重。
-
-消费者与引擎同进程同事件循环运行，经进程级会话注册表驱动 turn。
-
-也可独立运行（调试 MQ 链路用）：python -m spring_harness.cloud.mq
-"""
+"""MQ 消费者：turn 派发/取消消费，生命周期事件回传。"""
 
 from __future__ import annotations
 

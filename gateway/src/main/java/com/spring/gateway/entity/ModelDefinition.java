@@ -8,10 +8,7 @@ import lombok.Data;
 import java.time.LocalDateTime;
 
 /**
- * model_definitions 表的实体：可供用户选择的模型定义（站长在管理后台维护）。
- *
- * <p>id 形如 "provider/模型名"，是全局唯一标识：前端模型 picker、usage_records.model_name
- * 计费匹配都用它。
+ * model_definitions 表的实体。
  *
  * @author hanbing
  * @since 2026-10-09

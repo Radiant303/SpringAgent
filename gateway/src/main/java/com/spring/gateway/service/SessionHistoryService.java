@@ -18,13 +18,7 @@ import java.util.Base64;
 import java.util.List;
 
 /**
- * 会话历史分页：跨段去重、游标编解码、raw_segments 切片，
- * 供 WS 的 session/history 本地应答。
- *
- * <p>段装载语义：段数 = current_segment + 1（含空段），messages 按 (segment_no, id)
- * 升序装入对应段；段内消息即 payload 原文，不解析其结构。
- *
- * <p>分页核心是包私有的纯静态方法：不依赖 DB 与 Spring，单元测试直接喂构造的段数据。
+ * 会话历史分页。
  *
  * @author hanbing
  * @since 2026-10-03

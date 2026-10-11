@@ -15,10 +15,7 @@ import java.time.ZoneOffset;
 import java.util.List;
 
 /**
- * 模型资费卡管理：增删改仅站长，查看对 owner/admin 开放。
- *
- * <p>兜底卡（model_name = "default"）受保护：不可删除、不可改名、不可停用——
- * 它是预扣估算与未知模型结算的最后依据。
+ * 模型资费卡管理。
  *
  * @author hanbing
  * @since 2026-10-05

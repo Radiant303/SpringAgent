@@ -21,9 +21,6 @@ public interface UserMapper extends BaseMapper<User> {
     /**
      * 行锁读积分余额（SELECT ... FOR UPDATE）。
      *
-     * <p>积分变动的第一步：同事务内后续的余额写回以此快照为基，
-     * 并发的两笔积分交易在行锁上串行，杜绝丢失更新。
-     *
      * @param id 用户 ID
      * @return 当前积分余额
      */

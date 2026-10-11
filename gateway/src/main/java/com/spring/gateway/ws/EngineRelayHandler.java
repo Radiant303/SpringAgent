@@ -30,15 +30,7 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 /**
- * 聊天 WS 中继：浏览器 ↔ 网关 ↔ 引擎。
- *
- * <p>每条浏览器连接建立一条到引擎 /ws 的客户端连接，文本帧双向透传；
- * token 由握手拦截器校验后原样透传（引擎侧再做一次验签）。
- *
- * <p>turn/start、turn/cancel 请求帧不透传，转为 MQ 消息并本地合成 JSON-RPC 应答，
- * 发布失败时回退为透传；token 流仍由引擎经既有 WS 泵推回。
- *
- * <p>session/list、session/history 为只读查询，网关本地查库合成应答，不再透传。
+ * 聊天 WS 中继。
  *
  * @author hanbing
  * @since 2026-10-02

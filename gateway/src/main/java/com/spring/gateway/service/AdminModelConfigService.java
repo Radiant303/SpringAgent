@@ -18,10 +18,7 @@ import java.time.ZoneOffset;
 import java.util.List;
 
 /**
- * 模型配置管理：Provider 与模型定义的增删改 + 默认模型设置（均仅站长）。
- *
- * <p>配置存 model_providers / model_definitions 两张表。
- * 保护规则：被模型引用的 Provider 不可删；默认模型不可停用/删除。
+ * 模型配置管理。
  *
  * @author hanbing
  * @since 2026-10-09

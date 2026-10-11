@@ -13,12 +13,6 @@ import java.util.Properties;
 /**
  * QQ 邮箱 SMTP 发信器。
  *
- * <p>账号与授权码存数据库，所以不走 spring.mail.* 自动装配，
- * 每次发信按传入参数现场构建 {@link JavaMailSenderImpl}（发码已被限流，频率极低，无需缓存连接）。
- *
- * <p>邮件体为 multipart/alternative：同封邮件携带纯文本与 HTML 两个版本，
- * 邮件客户端按自身渲染能力选择——支持 HTML 的渲染 HTML，纯文本客户端读文本部分。
- *
  * @author hanbing
  * @since 2026-10-09
  */

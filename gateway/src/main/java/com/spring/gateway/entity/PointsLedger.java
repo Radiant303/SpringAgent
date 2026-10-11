@@ -9,10 +9,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 /**
- * points_ledger 表的实体：积分流水（append-only）。
- *
- * <p>余额永远可由流水推出；只插不改。(type, ref_id) 唯一约束是幂等锚
- * （ref_id 为 NULL 的行不受约束，MySQL 视 NULL 互不相等）。
+ * points_ledger 表的实体。
  *
  * @author hanbing
  * @since 2026-10-05

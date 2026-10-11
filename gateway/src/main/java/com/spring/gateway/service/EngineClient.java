@@ -6,7 +6,7 @@ import org.springframework.web.client.RestClient;
 import tools.jackson.databind.JsonNode;
 
 /**
- * 引擎 HTTP 客户端：仅承载网关需要反向询问引擎的少量端点（如 work 活跃会话数）。
+ * 引擎 HTTP 客户端。
  *
  * @author hanbing
  * @since 2026-10-04

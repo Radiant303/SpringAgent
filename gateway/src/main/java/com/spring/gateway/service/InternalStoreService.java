@@ -24,9 +24,6 @@ import java.util.List;
 /**
  * sessions / messages 两表的读写服务，供内部接口调用。
  *
- * <p>会话摘要里的 workspacePath 由所属 work 派生（{data-root}/works/{workId}），
- * 路径权威在本服务。时间戳统一使用 UTC。
- *
  * @author hanbing
  * @since 2026-10-03
  */

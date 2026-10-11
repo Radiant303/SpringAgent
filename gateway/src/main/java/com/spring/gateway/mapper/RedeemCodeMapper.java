@@ -18,10 +18,6 @@ public interface RedeemCodeMapper extends BaseMapper<RedeemCode> {
     /**
      * 兑换抢占：ACTIVE 且未过期的码原子地转为 REDEEMED，并置兑换人/兑换时间/软删除。
      *
-     * <p>影响行数 = 1 表示当前调用是唯一的赢家；并发的重复兑换、双击、
-     * 重放全部因条件不满足返回 0，无需分布式锁。过期判定在 SQL 内完成，
-     * 正确性不依赖任何扫描器时效。
-     *
      * @param code   规范形兑换码（大写、无连字符）
      * @param userId 兑换人用户 ID
      * @return 受影响行数（1 = 抢占成功）

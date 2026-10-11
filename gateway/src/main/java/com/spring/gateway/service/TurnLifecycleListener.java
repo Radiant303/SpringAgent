@@ -14,13 +14,7 @@ import java.time.ZoneOffset;
 import java.util.Map;
 
 /**
- * turn 生命周期事件监听：把每轮对话的 token 消耗落进 usage_records（计费底账），
- * 并在同一事务内完成积分结算。
- *
- * <p>幂等：usage 落账与结算是一个事务，重放（MQ 重投 / DLQ 重放）撞 turn_id
- * 唯一键即整单跳过。无 usage 块的事件（会话未挂载、引擎繁忙等未真正运行的轮次）
- * 不入账，但要释放派发时的积分预扣。
- * 除撞键外的异常向上抛：listener 配置为不 requeue，消息进 DLQ 由人工重放，计费不丢。
+ * turn 生命周期事件监听：token 消耗落账与积分结算。
  *
  * @author hanbing
  * @since 2026-10-02

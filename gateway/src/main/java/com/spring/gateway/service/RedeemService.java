@@ -24,11 +24,7 @@ import java.util.List;
 import java.util.Locale;
 
 /**
- * 兑换码：站长生成 → 用户兑换（积分 + 存储配额增量 + work 区上限增量）。
- *
- * <p>一次性靠条件 UPDATE 抢占保证（影响行数唯一赢家），发奖与抢占同事务，
- * 失败整体回滚；积分部分经 BillingService 写 REDEEM 流水，(type, ref_id)
- * 唯一约束兜底幂等。过期只在兑换时按 expires_at 判定，不建 EXPIRED 状态。
+ * 兑换码：站长生成，用户兑换。
  *
  * @author hanbing
  * @since 2026-10-06
@@ -88,9 +84,6 @@ public class RedeemService {
 
     /**
      * 用户兑换：限流探查 → 抢占 → 同事务发奖。
-     *
-     * <p>失败限流：进入时探查桶余量，失败由限流器计数、成功清零；
-     * 桶空直接 429，连有效码也挡——暴力枚举场景下不再透传任何码状态信息。
      *
      * @param userId  当前用户 ID
      * @param rawCode 用户输入的兑换码

@@ -6,9 +6,7 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * 站长专属接口：标注在 Controller 方法上，由 AuthInterceptor 统一校验——
- * 角色权威在数据库，拦截器查用户行后顺手完成判断，非站长访问直接 403。
- * 方法体内不再重复 if/throw，漏标注解比漏写 if 更容易在评审中发现。
+ * 站长专属接口注解。
  *
  * @author hanbing
  * @since 2026-10-11

@@ -9,7 +9,7 @@ import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 
 /**
- * 运行时系统设置：直读直写 system_settings 小表，不缓存（改动频率极低，读取都在管理路径上）。
+ * 运行时系统设置。
  *
  * @author hanbing
  * @since 2026-10-05

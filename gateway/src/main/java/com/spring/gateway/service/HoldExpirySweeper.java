@@ -13,11 +13,7 @@ import java.time.ZoneOffset;
 import java.util.List;
 
 /**
- * 在途预扣的过期扫描：引擎崩溃等导致 lifecycle 事件永远不到达时，
- * 超时预扣由这里兜底释放退回，积分不悬挂。
- *
- * <p>独立成 bean：逐笔调 BillingService.releaseHold（各自独立事务），
- * 避免自调用丢事务；单笔失败不拖累其余。
+ * 在途预扣的过期扫描。
  *
  * @author hanbing
  * @since 2026-10-05

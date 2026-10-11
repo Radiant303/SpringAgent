@@ -1,6 +1,7 @@
 package com.spring.gateway.ws;
 
 import com.spring.gateway.common.JwtUtils;
+import com.spring.gateway.config.WebSocketContainerConfig;
 import com.spring.gateway.mapper.UserMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -12,13 +13,10 @@ import org.springframework.web.socket.WebSocketHandler;
 import org.springframework.web.socket.server.HandshakeInterceptor;
 
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * WS 握手鉴权：从 query 参数取 token 并验签，
- * 通过后把用户 ID 与原始 token 存入会话属性。
- *
- * <p>令牌无状态：签名有效但用户已不存在（库重建后旧 token 的幽灵用户）时不拒绝握手，
- * 而是打标记由中继端以 4401 关闭，前端据此清 token 回登录页。
+ * WS 握手鉴权：从 query 参数取 token 验签，通过后写入会话属性。
  *
  * @author hanbing
  * @since 2026-10-02
@@ -37,10 +35,17 @@ public class AuthHandshakeInterceptor implements HandshakeInterceptor {
     private final JwtUtils jwtUtils;
     private final UserMapper userMapper;
 
+    private static final AtomicBoolean SERVER_BUFFER_ENLARGED = new AtomicBoolean();
+
     @Override
     public boolean beforeHandshake(ServerHttpRequest request, ServerHttpResponse response,
                                    WebSocketHandler wsHandler, Map<String, Object> attributes) {
         if (request instanceof ServletServerHttpRequest servletRequest) {
+            if (!SERVER_BUFFER_ENLARGED.get()) {
+                boolean done = WebSocketContainerConfig.enlargeServerBuffer(
+                        servletRequest.getServletRequest().getServletContext());
+                SERVER_BUFFER_ENLARGED.compareAndSet(false, done);
+            }
             String token = servletRequest.getServletRequest().getParameter("token");
             Long userId = token == null ? null : jwtUtils.parseUserId(token);
             if (userId != null) {

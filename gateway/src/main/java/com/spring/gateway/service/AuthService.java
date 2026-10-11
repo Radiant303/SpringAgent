@@ -21,9 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 
 /**
- * 认证业务：用户注册与登录。
- *
- * <p>首个注册用户自动成为站长（owner），此后注册受 registration_open 系统设置约束。
+ * 认证业务。
  *
  * @author hanbing
  * @since 2026-09-26

@@ -25,10 +25,7 @@ import java.util.UUID;
 import java.util.stream.Stream;
 
 /**
- * 项目（work）业务：列表、新建、默认项目、硬删除、容量统计。
- *
- * <p>硬删除会物理删除 {data-root}/works/{workId} 目录及库内全部关联行，删除前
- * 先询问引擎该 work 下有无活跃会话；引擎不可达时拒绝删除。
+ * 项目（work）业务。
  *
  * @author hanbing
  * @since 2026-10-04
@@ -212,10 +209,7 @@ public class WorkService {
     }
 
     /**
-     * 用户的存储概览（账单页展示）：占用合计 / 总配额 / 生效的单工作区配额。
-     *
-     * <p>占用合计逐个 work 现算（{@link #refreshSize} 顺带写回快照），
-     * 不依赖外部上报，避免展示陈旧值。
+     * 用户的存储概览：占用合计 / 总配额 / 生效的单工作区配额。
      *
      * @param userId 用户 ID
      * @return 概览三元组

@@ -9,10 +9,7 @@ import org.springframework.stereotype.Component;
 import java.util.List;
 
 /**
- * 兑换失败限流器：Redis 令牌桶，每账号每分钟最多容忍 {@link #CAPACITY} 次兑换失败，
- * 防暴力枚举兑换码。
- *
- * <p>Redis 抖动时 fail-open：放行并告警。
+ * 兑换失败限流器。
  *
  * @author hanbing
  * @since 2026-10-07
@@ -38,8 +35,6 @@ public class RedeemFailRateLimiter {
      * 令牌桶原子操作。KEYS[1]=桶 key；ARGV=容量、每窗口补充数、窗口毫秒、本次扣减数（0=只探查）、当前毫秒。
      * 返回 1=有余量/扣减成功，0=桶空。
      *
-     * <p>时间戳由调用方传入（ARGV[5]），脚本行为确定可重放。
-     * key TTL = 一个窗口：闲置一个窗口后桶天然回满，到期删除与回满等价。
      */
     private static final DefaultRedisScript<Long> TRY_ACQUIRE = new DefaultRedisScript<>("""
             local capacity = tonumber(ARGV[1])

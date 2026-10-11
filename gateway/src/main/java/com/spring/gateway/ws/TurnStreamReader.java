@@ -26,17 +26,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
 /**
- * 事件流推送器：按订阅从 Redis Stream 阻塞读会话事件，推给浏览器 WS。
- *
- * <p>条目字段 event 为事件 JSON，推送帧在 params 上多带一个 seq（Stream 条目 ID）作为续读游标。
- *
- * <p>起始位置两种语义：
- * <ul>
- *   <li>lastSeq 非 null（同页断线重连）：从该条目之后精确续读，零重放；
- *   <li>lastSeq 为 null（整页刷新，内存游标丢失）：反向扫描找到最近一条
- *   turn_finished，从其之后重放——当前未完成的 turn 从它自己的开头完整重放，
- *   已完成的 turn 不会重放（历史由数据库负责）。
- * </ul>
+ * 事件流推送器：按订阅从 Redis Stream 读会话事件，推给浏览器 WS。
  *
  * @author hanbing
  * @since 2026-10-02

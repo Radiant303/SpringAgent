@@ -1,13 +1,4 @@
-"""work 容量配额：引擎侧写文件前的最后一道闸。
-
-云端会话挂载时把 workspace → work_id 登记进本模块（register_workspace）；
-全局 hooks 的 before_tool_execute 对登记过的 workspace 做容量检查，
-超出上限的写类工具调用以工具错误的形式回到模型侧，由模型告知用户。
-本地 CLI / ACP 会话不登记，天然不受配额约束。
-
-上限取值：经内部 API 取解析好的生效值（用户覆盖优先，否则全局设置），
-30 秒 TTL 缓存；网关不可达或响应缺值时 fail-open 放行，不阻断写工具。
-"""
+"""work 容量配额：写类工具调用前检查目录占用，超限拒绝写入。"""
 
 from __future__ import annotations
 

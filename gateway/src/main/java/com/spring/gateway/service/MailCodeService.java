@@ -11,16 +11,7 @@ import java.time.Duration;
 import java.util.regex.Pattern;
 
 /**
- * 注册邮箱验证码：生成、发送（QQ 邮箱 SMTP）与校验。
- *
- * <p>开关与 SMTP 配置都在数据库 system_settings 表。验证码与重发锁放 Redis，不落库：
- * <ul>
- *   <li>{@code mail:code:{email}} —— 6 位验证码，TTL = mail.code_ttl_seconds</li>
- *   <li>{@code mail:code:lock:{email}} —— 重发锁，SET NX PX 原子抢占，TTL = mail.resend_interval_seconds，
- *       保证同一邮箱一个间隔内只发一次</li>
- * </ul>
- *
- * <p>验证码一次性：校验通过即删除。Redis 不可用时 fail-closed（抛 500），验证码场景不能放行。
+ * 注册邮箱验证码：生成、发送与校验。
  *
  * @author hanbing
  * @since 2026-10-09
@@ -40,10 +31,7 @@ public class MailCodeService {
     private static final Pattern EMAIL_PATTERN = Pattern.compile("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$");
 
     /**
-     * HTML 邮件模板（text block 内联在代码里，{{code}}/{{ttlText}} 为占位符）。
-     * 设计要点：隐藏 preheader（收件箱预览文案）、药丸验证码容器、深色模式 media query、
-     * 全部样式 inline（多数邮件客户端会剥离 &lt;style&gt; 块，深色模式只是渐进增强）、
-     * Outlook 桌面版降级为直角灰块但可读性不受影响。
+     * HTML 邮件模板。
      */
     private static final String HTML_TEMPLATE = """
             <!DOCTYPE html>
@@ -106,8 +94,7 @@ public class MailCodeService {
     }
 
     /**
-     * 验证码用途。Redis key 按用途分命名空间（mail:code:{scene}:{email}），
-     * 防串用——注册码不能拿去重置密码；限流锁按邮箱共享（防骚扰针对的是收件箱）。
+     * 验证码用途。
      */
     public enum Scene {
         /** 注册验证 */

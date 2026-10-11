@@ -6,9 +6,6 @@ import jakarta.validation.constraints.Size;
 /**
  * 注册请求。用户名长度 2~64，密码至少 6 位。
  *
- * <p>邮箱与验证码是否必填由系统设置 mail.register_enabled 决定：
- * 开启时强制校验；关闭时忽略这两个字段。
- *
  * @author hanbing
  * @since 2026-09-26
  * @param username 用户名，长度 2~64

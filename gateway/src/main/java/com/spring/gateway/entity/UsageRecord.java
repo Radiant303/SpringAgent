@@ -8,10 +8,7 @@ import lombok.Data;
 import java.time.LocalDateTime;
 
 /**
- * usage_records 表的实体：一轮对话的模型 token 消耗（计费底账）。
- *
- * <p>只存原始 token 量与 model_name，不存金额。
- * turn_id 全局唯一，是重复消费时的幂等键。
+ * usage_records 表的实体。
  *
  * @author hanbing
  * @since 2026-10-05

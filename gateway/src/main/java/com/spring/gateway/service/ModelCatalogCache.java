@@ -14,18 +14,7 @@ import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 
 /**
- * 模型目录缓存的失效器：云端引擎把模型目录快照缓存在 Redis（{@link #CACHE_KEY}），
- * 站长改配置后由本组件负责失效。
- *
- * <p>策略 = 延迟双删：
- * <ol>
- *   <li>事务提交后删第一次（注册 afterCommit，避免"删了缓存但事务回滚"的脏删）；</li>
- *   <li>约 1s 后再删第二次——覆盖并发窗口：引擎恰好 cache miss 读了旧库、
- *       在第一次删除之后才把旧快照回填进 Redis 的情况。</li>
- * </ol>
- *
- * <p>残余风险与兜底：若引擎"读旧库 + 回填"耗时超过延迟窗口，缓存会脏到 TTL（60s）自然过期。
- * Redis 抖动时删除失败只告警，同样由 TTL 兜底——缓存只是提速，MySQL 才是真相。
+ * 模型目录缓存的失效器。
  *
  * @author hanbing
  * @since 2026-10-09

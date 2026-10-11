@@ -13,8 +13,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 队列深度监控：被动声明读取各队列的堆积量，非零即记告警日志。
- * 被动声明不会创建队列，只读元数据。
+ * 队列深度监控。
  *
  * @author hanbing
  * @since 2026-10-02

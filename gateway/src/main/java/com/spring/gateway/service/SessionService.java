@@ -13,10 +13,7 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * 会话业务：列表、详情、新建、删除。
- *
- * <p>写操作（新建、软删除）本地落库，读操作本地直查；会话挂在 work 下，
- * 不指定 work 时落默认 work。
+ * 会话业务。
  *
  * @author hanbing
  * @since 2026-09-26

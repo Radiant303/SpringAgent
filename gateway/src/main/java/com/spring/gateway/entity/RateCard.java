@@ -9,14 +9,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 /**
- * models 表的实体：模型资费卡（计费域，与运行时模型目录 ModelDefinition 无关）。
- *
- * <p>每项费率单位 = 积分/百万 tokens。model_name 与 usage_records.model_name
- * 精确匹配；model_name = "default" 的行是兜底卡：派发预扣估算用它，
- * 结算时实际模型匹配不到（或未启用）也回落到它。
- *
- * <p>表名 models 是历史遗留（先于模型目录占用），为避免迁移保留；
- * Java 侧统一以 RateCard 称呼，与 ModelDefinition 区分。
+ * models 表的实体：模型资费卡。
  *
  * @author hanbing
  * @since 2026-10-05

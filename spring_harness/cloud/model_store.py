@@ -1,11 +1,4 @@
-"""云端模型目录：MySQL 为权威数据（站长在网关后台维护），Redis 做缓存。
-
-缓存策略：Cache-Aside + 网关写后延迟双删。
-- 读：先查 Redis 快照（`modelconf:catalog`，TTL 60s 兜底），未命中回源 MySQL 并回填；
-  Redis 抖动时直接回源（fail-open，缓存只是提速，DB 才是真相）。
-- 写：管理侧改库后删缓存，~1s 后再删一次（覆盖
-  "读旧库 → 回填缓存"的并发窗口），由本模块的 TTL 兜住一切遗漏。
-"""
+"""云端模型目录：MySQL 为权威数据，Redis 快照缓存。"""
 
 from __future__ import annotations
 

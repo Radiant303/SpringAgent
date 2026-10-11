@@ -8,7 +8,7 @@ import lombok.Data;
 import java.time.LocalDateTime;
 
 /**
- * system_settings 表的实体：运行时系统设置（站长可在后台修改）。
+ * system_settings 表的实体。
  *
  * @author hanbing
  * @since 2026-10-05

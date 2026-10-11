@@ -15,10 +15,6 @@ import java.util.Map;
 /**
  * turn 派发：把拦下的 turn/start、turn/cancel 转为 MQ 消息。
  *
- * <p>turnId 为雪花 ID，同时是消费端的幂等键。
- * turn/start 发布前先完成积分预扣（余额不足当场抛 409，不消耗引擎资源）；
- * 发布同步等待 broker 确认，失败先补偿释放预扣再抛异常由调用方处理。
- *
  * @author hanbing
  * @since 2026-10-02
  */
@@ -29,6 +25,9 @@ public class TurnDispatchService {
 
     /** 同步确认超时：超过视为发布失败 */
     private static final long CONFIRM_TIMEOUT_MS = 5000;
+
+    /** 单轮输入长度上限（字符），超过直接拒绝不消耗积分 */
+    private static final int MAX_INPUT_CHARS = 64_000;
 
     private final RabbitTemplate rabbitTemplate;
     private final SnowflakeIdGenerator idGenerator;
@@ -41,9 +40,12 @@ public class TurnDispatchService {
      * @param sessionId 会话 ID
      * @param input     用户输入
      * @return turnId（雪花 ID，消费端幂等键）
-     * @throws BizException 积分不足（409），调用方应直接应答用户而非回退
+     * @throws BizException 积分不足（409）；输入超长（400），调用方应直接应答用户而非回退
      */
     public long dispatch(long userId, String sessionId, String input) {
+        if (input != null && input.length() > MAX_INPUT_CHARS) {
+            throw new BizException(400, "输入内容过长（最多 " + MAX_INPUT_CHARS + " 字符）");
+        }
         long turnId = idGenerator.nextId();
         billingService.preDeduct(userId, String.valueOf(turnId));
         Map<String, Object> message = new LinkedHashMap<>();

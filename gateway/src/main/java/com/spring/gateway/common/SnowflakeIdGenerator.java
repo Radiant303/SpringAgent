@@ -3,9 +3,7 @@ package com.spring.gateway.common;
 import java.util.function.LongSupplier;
 
 /**
- * 雪花 ID 生成器。64 位布局：1 位符号位（固定为 0）+ 41 位毫秒时间戳（相对自定义纪元）
- * + 10 位机器标识 + 12 位序列号。
- * 单实例内通过 synchronized 保证线程安全；多实例之间通过不同的 workerId 保证 ID 唯一。
+ * 雪花 ID 生成器。
  *
  * @author hanbing
  * @since 2026-09-25

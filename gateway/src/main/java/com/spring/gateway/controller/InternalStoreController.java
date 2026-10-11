@@ -26,9 +26,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
 
 /**
- * 内部接口：会话与消息两表、work 的增查删，鉴权走共享静态令牌。
- *
- * <p>成功响应直接返回业务数据，不套统一返回体；错误仍走 BizException。</p>
+ * 内部接口。
  *
  * @author hanbing
  * @since 2026-10-03

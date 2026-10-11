@@ -9,11 +9,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 /**
- * points_holds 表的实体：积分预扣。
- *
- * <p>turn 派发时建立（HELD），收口二选一：结算（SETTLED，多退少补）或
- * 释放（RELEASED，全额退回）。状态迁移必须走带 status='HELD' 条件的 UPDATE，
- * 让结算与过期扫描等并发路径只有一个赢家。
+ * points_holds 表的实体。
  *
  * @author hanbing
  * @since 2026-10-05

@@ -26,14 +26,7 @@ import java.time.ZoneOffset;
 import java.util.List;
 
 /**
- * 积分计费：预扣-结算交易系统。
- *
- * <p>资金流：turn 派发时 {@link #preDeduct} 按兜底资费卡 × 预估档位建预扣（同步拦余额不足）；
- * turn 结束的 lifecycle 事件驱动 {@link #recordUsageAndSettle} 按实际模型资费多退少补；
- * 未真正运行的轮次与过期在途预扣经 {@link #releaseHold} 全额退回。
- *
- * <p>不变量：余额只经 {@link #applyDelta} 变动（行锁串行），每次变动必配一条流水；
- * 预扣收口（结算/释放）靠条件状态迁移保证全局只有一个赢家。
+ * 积分计费。
  *
  * @author hanbing
  * @since 2026-10-05

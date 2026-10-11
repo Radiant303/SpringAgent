@@ -8,9 +8,7 @@ import lombok.Data;
 import java.time.LocalDateTime;
 
 /**
- * model_providers 表的实体：模型 Provider（站长在管理后台维护）。
- *
- * <p>api_key 敏感：接口只写不读，GET 只回"是否已配置"。
+ * model_providers 表的实体。
  *
  * @author hanbing
  * @since 2026-10-09

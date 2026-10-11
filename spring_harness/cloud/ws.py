@@ -60,11 +60,7 @@ def _user_close_code(user_id: int) -> int | None:
 
 
 class CloudAppServer(AppServer):
-    """按 user_id 隔离的 JSON-RPC 协议面：会话数据经内部 HTTP API 读写，工作区由服务端分配。
-
-    会话本体由进程级注册表持有：本连接只做挂载/卸载，断开不销毁会话、
-    不取消 turn（断线续传的前提）；事件流经扇出任务写 Redis Stream，不由本连接直推。
-    """
+    """按 user_id 隔离的 JSON-RPC 协议面。"""
 
     # 类级别注册表：session_id -> 持有它的连接（进程内"同会话串行"锁）
     _active_owners: ClassVar[dict[str, CloudAppServer]] = {}

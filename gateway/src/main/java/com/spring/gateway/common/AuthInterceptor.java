@@ -16,12 +16,7 @@ import tools.jackson.databind.ObjectMapper;
 import java.nio.charset.StandardCharsets;
 
 /**
- * 会话接口鉴权拦截器：校验 Bearer token 并按用户行实时收口权限。
- *
- * <p>角色权威在数据库（不进 JWT）：每次请求按 sub 主键查一次 users 行——
- * 禁用账号、调整角色立即生效，不必等 token 过期。通过后把用户 ID 与角色存入请求属性；
- * /api/admin/** 路径在此统一要求 owner/admin 角色，@RequiresOwner 标注的方法进一步
- * 收口为仅站长（复用本次查库结果，不产生额外查询）。
+ * 会话接口鉴权拦截器。
  *
  * @author hanbing
  * @since 2026-09-26
