@@ -400,7 +400,7 @@ button.row-link:hover { text-decoration: none; }
 .mc-field .ui-select-btn[aria-expanded="true"] { background: #fff; border-color: rgba(0, 0, 0, 0.16); }
 .mc-field .ui-select-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mc-switch { display: inline-flex; align-items: center; gap: 8px; height: 34px; font-size: 14px; color: var(--text-dim, rgba(0, 0, 0, 0.6)); cursor: pointer; }
-.mc-actions { display: flex; align-items: flex-end; gap: 8px; padding-bottom: 1px; }
+.mc-actions { display: flex; align-items: center; gap: 10px; height: 34px; align-self: flex-end; }
 .mc-ellipsis { max-width: 160px; overflow: hidden; text-overflow: ellipsis; }
 .table-hint { display: block; margin: 10px 4px 0; }
 

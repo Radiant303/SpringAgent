@@ -124,63 +124,90 @@
   to   { opacity: 1; }
 }
 
-/* 表格内操作：蓝色文字按钮；主按钮黑色实底 */
+/* 表格内操作：文字按钮 */
 .row-actions {
   display: flex;
-  gap: 2px;
-  flex-wrap: wrap;
-  margin: 0 -8px;
-}
-#user-table .row-actions,
-#mc-model-table .row-actions,
-#mc-provider-table .row-actions {
-  flex-wrap: nowrap;
   align-items: center;
+  gap: 12px;
+  flex-wrap: nowrap;
 }
 
-.admin-btn {
-  height: 28px;
-  padding: 0 8px;
-  border: none;
-  border-radius: 8px;
-  background: transparent;
-  color: var(--link, #1783ff);
-  font-size: 13px;
-  white-space: nowrap;
-  text-decoration: none;
-  cursor: pointer;
+.admin-btn:not(.primary),
+button.admin-btn:not(.primary) {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  transition: background-color 0.15s, color 0.15s;
-}
-.admin-btn:hover {
-  background: rgba(23, 131, 255, 0.08);
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--link, #1783ff);
+  font: inherit;
+  font-size: 14px;
+  line-height: inherit;
+  white-space: nowrap;
   text-decoration: none;
+  cursor: pointer;
+  transition: none;
 }
-.admin-btn.danger {
+.admin-btn:not(.primary):hover,
+button.admin-btn:not(.primary):hover,
+.admin-btn:not(.primary):active,
+button.admin-btn:not(.primary):active,
+.admin-btn:not(.primary):focus,
+button.admin-btn:not(.primary):focus {
+  background: none;
+  border: none;
+  outline: none;
+  text-decoration: none;
+  color: var(--link, #1783ff);
+}
+.admin-btn.danger,
+button.admin-btn.danger {
   color: var(--danger, #c0392b);
 }
-.admin-btn.danger:hover {
-  background: rgba(192, 57, 43, 0.08);
+.admin-btn.danger:hover,
+button.admin-btn.danger:hover,
+.admin-btn.danger:active,
+button.admin-btn.danger:active,
+.admin-btn.danger:focus,
+button.admin-btn.danger:focus {
+  background: none;
+  border: none;
+  outline: none;
   text-decoration: none;
+  color: var(--danger, #c0392b);
 }
-.admin-btn.more-btn {
-  width: 28px;
-  height: 28px;
-  padding: 0;
-  color: var(--text-dim, rgba(0, 0, 0, 0.55));
+.admin-btn.more-btn,
+button.admin-btn.more-btn {
+  color: var(--link, #1783ff);
 }
 .admin-btn.more-btn:hover,
-.admin-btn.more-btn.active,
-.admin-btn.more-btn[aria-expanded="true"] {
-  background: rgba(0, 0, 0, 0.06);
-  color: var(--text, rgba(0, 0, 0, 0.9));
+button.admin-btn.more-btn:hover,
+.admin-btn.more-btn:active,
+button.admin-btn.more-btn:active,
+.admin-btn.more-btn:focus,
+button.admin-btn.more-btn:focus,
+.admin-btn.more-btn[aria-expanded="true"],
+button.admin-btn.more-btn[aria-expanded="true"] {
+  background: none;
+  border: none;
+  outline: none;
+  color: var(--link, #1783ff);
 }
 .admin-btn.more-btn .more-icon {
   display: block;
   width: 16px;
   height: 16px;
+}
+
+.mc-actions .admin-btn:not(.primary),
+.model-form .admin-btn:not(.primary) {
+  height: 34px;
+  line-height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px;
 }
 
 .admin-action-menu {
@@ -213,22 +240,35 @@
   opacity: 0.5;
   cursor: default;
 }
-.admin-btn.primary {
+.admin-btn.primary,
+button.admin-btn.primary {
   height: 34px;
   padding: 0 16px;
+  border: none;
   border-radius: 10px;
   background: #111;
-  color: #fff;
+  color: #fff !important;
   font-size: 14px;
   font-weight: 400;
   text-decoration: none;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.15s;
 }
-.admin-btn.primary:hover {
+.admin-btn.primary:hover,
+button.admin-btn.primary:hover {
   background: #000;
+  color: #fff !important;
   text-decoration: none;
 }
-.usage-filter .admin-btn:not(.primary),
-.model-form .admin-btn:not(.primary) {
+.admin-btn.primary:active,
+button.admin-btn.primary:active {
+  background: #1a1a1a;
+  color: #fff !important;
+}
+.usage-filter .admin-btn:not(.primary) {
   height: 34px;
   padding: 0 16px;
   border-radius: 10px;
@@ -237,8 +277,7 @@
   font-size: 14px;
   text-decoration: none;
 }
-.usage-filter .admin-btn:not(.primary):hover,
-.model-form .admin-btn:not(.primary):hover {
+.usage-filter .admin-btn:not(.primary):hover {
   background: #ebebeb;
   text-decoration: none;
 }
