@@ -28,6 +28,7 @@ export async function loadUsers() {
 }
 
 export function renderUsers() {
+  UI.closePopover();
   const myRole = getRole();
   UI.renderRows("user-tbody", users, (tr, u) => {
     const isOwnerRow = u.role === "owner";
@@ -35,18 +36,12 @@ export function renderUsers() {
     const disabled = u.status === "disabled";
 
     const actions = [];
-    if (operable && !isOwnerRow) {
-      actions.push(`<button class="admin-btn ${disabled ? "" : "danger"}" data-act="status" data-id="${u.user_id}" data-name="${u.username}" data-next="${disabled ? "active" : "disabled"}">${disabled ? "启用" : "禁用"}</button>`);
-    }
     if (operable) {
+      if (!isOwnerRow) {
+        actions.push(`<button class="admin-btn ${disabled ? "" : "danger"}" data-act="status" data-id="${u.user_id}" data-name="${u.username}" data-next="${disabled ? "active" : "disabled"}">${disabled ? "启用" : "禁用"}</button>`);
+      }
       actions.push(`<button class="admin-btn" data-act="password" data-id="${u.user_id}" data-name="${u.username}">重置密码</button>`);
-      actions.push(`<button class="admin-btn" data-act="quota" data-id="${u.user_id}" data-name="${u.username}" data-quota="${u.quota_bytes}">设配额</button>`);
-      actions.push(`<button class="admin-btn" data-act="workquota" data-id="${u.user_id}" data-name="${u.username}" data-quota="${u.work_quota_bytes == null ? "" : u.work_quota_bytes}">work配额</button>`);
-    }
-    if (myRole === "owner" && !isOwnerRow) {
-      actions.push(`<button class="admin-btn" data-act="points" data-id="${u.user_id}" data-name="${u.username}">调账</button>`);
-      const toAdmin = u.role !== "admin";
-      actions.push(`<button class="admin-btn" data-act="role" data-id="${u.user_id}" data-next="${toAdmin ? "admin" : "user"}">${toAdmin ? "设为管理员" : "取消管理员"}</button>`);
+      actions.push(`<button class="admin-btn more-btn" data-act="more" data-id="${u.user_id}" aria-label="更多操作" aria-expanded="false" title="更多"><svg class="more-icon" viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg></button>`);
     }
 
     tr.className = disabled ? "disabled" : "";
@@ -74,7 +69,52 @@ export async function onUserAction(btn) {
 
   try {
     let done;
-    if (act === "status") {
+    if (act === "more") {
+      if (btn.getAttribute("aria-expanded") === "true") {
+        UI.closePopover();
+        return;
+      }
+      const myRole = getRole();
+      const u = users.find((x) => String(x.user_id) === String(id));
+      if (!u) return;
+
+      const items = [
+        { act: "quota", label: "设配额", quota: u.quota_bytes },
+        { act: "workquota", label: "work配额", quota: u.work_quota_bytes == null ? "" : u.work_quota_bytes },
+      ];
+      if (myRole === "owner" && u.role !== "owner") {
+        items.push({ act: "points", label: "调账" });
+        const toAdmin = u.role !== "admin";
+        items.push({ act: "role", label: toAdmin ? "设为管理员" : "取消管理员", next: toAdmin ? "admin" : "user" });
+      }
+
+      const menu = document.createElement("div");
+      menu.className = "admin-action-menu";
+      items.forEach((it) => {
+        const itemBtn = document.createElement("button");
+        itemBtn.type = "button";
+        itemBtn.className = "admin-action-item";
+        itemBtn.textContent = it.label;
+        itemBtn.dataset.act = it.act;
+        itemBtn.dataset.id = u.user_id;
+        itemBtn.dataset.name = u.username;
+        if (it.quota !== undefined) itemBtn.dataset.quota = it.quota;
+        if (it.next !== undefined) itemBtn.dataset.next = it.next;
+        itemBtn.onclick = () => {
+          UI.closePopover();
+          onUserAction(itemBtn);
+        };
+        menu.appendChild(itemBtn);
+      });
+
+      btn.setAttribute("aria-expanded", "true");
+      btn.classList.add("active");
+      UI.openPopover(btn, menu, () => {
+        btn.setAttribute("aria-expanded", "false");
+        btn.classList.remove("active");
+      }, { align: "center", minWidth: 96 });
+      return;
+    } else if (act === "status") {
       const next = btn.dataset.next;
       if (next === "disabled") {
         const ok = await UI.confirm({

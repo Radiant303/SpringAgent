@@ -131,9 +131,11 @@
   flex-wrap: wrap;
   margin: 0 -8px;
 }
+#user-table .row-actions,
 #mc-model-table .row-actions,
 #mc-provider-table .row-actions {
   flex-wrap: nowrap;
+  align-items: center;
 }
 
 .admin-btn {
@@ -162,6 +164,50 @@
 .admin-btn.danger:hover {
   background: rgba(192, 57, 43, 0.08);
   text-decoration: none;
+}
+.admin-btn.more-btn {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  color: var(--text-dim, rgba(0, 0, 0, 0.55));
+}
+.admin-btn.more-btn:hover,
+.admin-btn.more-btn.active,
+.admin-btn.more-btn[aria-expanded="true"] {
+  background: rgba(0, 0, 0, 0.06);
+  color: var(--text, rgba(0, 0, 0, 0.9));
+}
+.admin-btn.more-btn .more-icon {
+  display: block;
+  width: 16px;
+  height: 16px;
+}
+
+.admin-action-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 96px;
+}
+.admin-action-item {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  height: 32px;
+  padding: 0 10px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text, rgba(0, 0, 0, 0.9));
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color 0.12s, color 0.12s;
+}
+.admin-action-item:hover {
+  background: rgba(0, 0, 0, 0.05);
+  color: var(--text, rgba(0, 0, 0, 0.95));
 }
 .admin-btn:disabled {
   opacity: 0.5;

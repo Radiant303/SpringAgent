@@ -9,17 +9,17 @@ let currentPop = null;
 
 const resolve = (x) => (typeof x === "string" ? $(x) : x);
 
-/** 在 anchor 下方打开浮层（下方放不下时翻到上方） */
-export function openPopover(anchor, content, onClose) {
+export function openPopover(anchor, content, onClose, options = {}) {
   closePopover();
   const pop = h("div", "ui-popover");
+  if (options.className) pop.classList.add(options.className);
   pop.appendChild(content);
   document.body.appendChild(pop);
 
   const r = anchor.getBoundingClientRect();
-  const gap = 6;
+  const gap = options.gap ?? 6;
   const margin = 8;
-  pop.style.minWidth = r.width + "px";
+  pop.style.minWidth = (options.minWidth != null ? options.minWidth : r.width) + "px";
   const w = pop.offsetWidth;
   const ht = pop.offsetHeight;
   let top = r.bottom + gap;
@@ -28,7 +28,14 @@ export function openPopover(anchor, content, onClose) {
     pop.classList.add("above");
   }
   pop.style.top = top + "px";
-  pop.style.left = Math.max(margin, Math.min(r.left, innerWidth - w - margin)) + "px";
+
+  let left = r.left;
+  if (options.align === "center") {
+    left = r.left + (r.width - w) / 2;
+  } else if (options.align === "right") {
+    left = r.right - w;
+  }
+  pop.style.left = Math.max(margin, Math.min(left, innerWidth - w - margin)) + "px";
 
   const onDown = (e) => {
     if (!pop.contains(e.target) && !anchor.contains(e.target)) closePopover();
@@ -53,6 +60,7 @@ export function openPopover(anchor, content, onClose) {
   };
   return pop;
 }
+
 
 export function closePopover() {
   const p = currentPop;
