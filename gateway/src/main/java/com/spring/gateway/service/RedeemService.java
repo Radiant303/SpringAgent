@@ -5,6 +5,8 @@ import com.spring.gateway.common.BizException;
 import com.spring.gateway.common.RedeemFailRateLimiter;
 import com.spring.gateway.common.SnowflakeIdGenerator;
 import com.spring.gateway.dto.AdminRedeemCreateRequest;
+import com.spring.gateway.dto.PageQuery;
+import com.spring.gateway.dto.PageResult;
 import com.spring.gateway.dto.RedeemResultView;
 import com.spring.gateway.entity.RedeemCode;
 import com.spring.gateway.mapper.RedeemCodeMapper;
@@ -148,18 +150,19 @@ public class RedeemService {
     }
 
     /**
-     * 管理侧列表。
+     * 管理侧分页列表。
      *
-     * @param statusFilter 状态过滤（null = 全部；须为 ACTIVE/REDEEMED/REVOKED）
-     * @return 码行列表
+     * @param statusFilter 状态过滤（null/空 = 全部；须为 ACTIVE/REDEEMED/REVOKED）
+     * @param q            分页参数
+     * @return 分页码行
      */
-    public List<RedeemCode> list(String statusFilter) {
-        LambdaQueryWrapper<RedeemCode> q = new LambdaQueryWrapper<RedeemCode>()
+    public PageResult<RedeemCode> page(String statusFilter, PageQuery q) {
+        LambdaQueryWrapper<RedeemCode> qw = new LambdaQueryWrapper<RedeemCode>()
                 .orderByDesc(RedeemCode::getId);
         if (statusFilter != null && !statusFilter.isBlank()) {
-            q.eq(RedeemCode::getStatus, statusFilter);
+            qw.eq(RedeemCode::getStatus, statusFilter);
         }
-        return redeemCodeMapper.selectList(q);
+        return PageResult.of(redeemCodeMapper.selectPage(q.toPage(), qw));
     }
 
     /**

@@ -8,12 +8,14 @@ import {
   tableSkeleton, emptyRow, loadTable, renderRows, settleSkeletons
 } from "./skeleton.js";
 import { enhance, enhanceSelect, enhanceDate, openPopover, closePopover } from "./controls.js";
+import { renderPager } from "./pager.js";
 
 export const UI = {
   dialog, confirm, prompt, toast,
   saveSkeleton, showSkeleton, clearSkeleton,
   tableSkeleton, emptyRow, loadTable, renderRows, settleSkeletons,
   enhance, enhanceSelect, enhanceDate, openPopover, closePopover,
+  renderPager,
 };
 
 if (typeof window !== "undefined") {
@@ -25,6 +27,7 @@ export {
   saveSkeleton, showSkeleton, clearSkeleton,
   tableSkeleton, emptyRow, loadTable, renderRows, settleSkeletons,
   enhance, enhanceSelect, enhanceDate, openPopover, closePopover,
+  renderPager,
 };
 
 export default UI;

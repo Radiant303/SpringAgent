@@ -3,6 +3,9 @@ package com.spring.gateway.service;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.spring.gateway.common.BizException;
+import com.spring.gateway.dto.AdminUserOption;
+import com.spring.gateway.dto.PageQuery;
+import com.spring.gateway.dto.PageResult;
 import com.spring.gateway.entity.User;
 import com.spring.gateway.mapper.UserMapper;
 import lombok.RequiredArgsConstructor;
@@ -25,14 +28,30 @@ public class AdminUserService {
     private final BCryptPasswordEncoder passwordEncoder;
 
     /**
-     * 全部用户，按注册时间升序
+     * 用户分页列表，按注册时间升序
      *
-     * @return 用户列表
+     * @param q 分页参数
+     * @return 分页用户列表
      */
-    public List<User> list() {
-        return userMapper.selectList(new LambdaQueryWrapper<User>()
+    public PageResult<User> page(PageQuery q) {
+        return PageResult.of(userMapper.selectPage(q.toPage(), new LambdaQueryWrapper<User>()
                 .orderByAsc(User::getCreatedAt)
-                .orderByAsc(User::getId));
+                .orderByAsc(User::getId)));
+    }
+
+    /**
+     * 筛选下拉选项：全部用户的 ID + 用户名
+     *
+     * @return 选项列表
+     */
+    public List<AdminUserOption> options() {
+        return userMapper.selectList(new LambdaQueryWrapper<User>()
+                        .select(User::getId, User::getUsername)
+                        .orderByAsc(User::getCreatedAt)
+                        .orderByAsc(User::getId))
+                .stream()
+                .map(u -> new AdminUserOption(String.valueOf(u.getId()), u.getUsername()))
+                .toList();
     }
 
     /**

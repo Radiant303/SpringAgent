@@ -92,9 +92,9 @@ export function init() {
       const btn = e.target.closest("button[data-act]");
       if (btn) onRedeemAction(btn);
     });
-    if ($("usage-query")) $("usage-query").onclick = () => loadUsage().catch((e) => UI.toast(e.message, { type: "error" }));
-    if ($("ledger-query")) $("ledger-query").onclick = () => loadLedger().catch((e) => UI.toast(e.message, { type: "error" }));
-    $("redeem-status")?.addEventListener("change", () => loadRedeemCodes().catch((e) => UI.toast(e.message, { type: "error" })));
+    if ($("usage-query")) $("usage-query").onclick = () => loadUsage(1).catch((e) => UI.toast(e.message, { type: "error" }));
+    if ($("ledger-query")) $("ledger-query").onclick = () => loadLedger(1).catch((e) => UI.toast(e.message, { type: "error" }));
+    $("redeem-status")?.addEventListener("change", () => loadRedeemCodes(1).catch((e) => UI.toast(e.message, { type: "error" })));
 
     if (role === "owner") {
       $("model-form")?.addEventListener("submit", onModelFormSubmit);

@@ -3,6 +3,8 @@ package com.spring.gateway.controller;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.spring.gateway.common.Result;
 import com.spring.gateway.common.TimeFormat;
+import com.spring.gateway.dto.PageQuery;
+import com.spring.gateway.dto.PageResult;
 import com.spring.gateway.dto.PointsHoldView;
 import com.spring.gateway.dto.PointsLedgerView;
 import com.spring.gateway.entity.PointsHold;
@@ -35,21 +37,23 @@ public class AdminPointsController {
     private final PointsHoldMapper pointsHoldMapper;
 
     /**
-     * 积分流水（按 id 倒序，可按用户过滤）
+     * 积分流水。
      *
      * @param userId 只看该用户；缺省为全部
-     * @param limit  条数（默认 100，上限 500）
-     * @return 流水列表
+     * @param page   页码（1 起）
+     * @param size   每页条数（上限 100）
+     * @return 分页流水
      */
     @GetMapping("/ledger")
-    public Result<List<PointsLedgerView>> ledger(@RequestParam(required = false) Long userId,
-                                                 @RequestParam(required = false) Integer limit) {
-        int capped = limit == null ? 100 : Math.max(1, Math.min(limit, LEDGER_LIMIT_MAX));
-        List<PointsLedger> rows = pointsLedgerMapper.selectList(new LambdaQueryWrapper<PointsLedger>()
-                .eq(userId != null, PointsLedger::getUserId, userId)
-                .orderByDesc(PointsLedger::getId)
-                .last("LIMIT " + capped));
-        return Result.ok(rows.stream().map(AdminPointsController::toLedgerView).toList());
+    public Result<PageResult<PointsLedgerView>> ledger(@RequestParam(required = false) Long userId,
+                                                       @RequestParam(defaultValue = "1") int page,
+                                                       @RequestParam(defaultValue = "10") int size) {
+        PageQuery q = new PageQuery(page, size);
+        return Result.ok(PageResult.of(pointsLedgerMapper.selectPage(q.toPage(),
+                        new LambdaQueryWrapper<PointsLedger>()
+                                .eq(userId != null, PointsLedger::getUserId, userId)
+                                .orderByDesc(PointsLedger::getId)))
+                .map(AdminPointsController::toLedgerView));
     }
 
     /**

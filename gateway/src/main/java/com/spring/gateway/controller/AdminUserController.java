@@ -9,8 +9,11 @@ import com.spring.gateway.dto.AdminPointsAdjustRequest;
 import com.spring.gateway.dto.AdminQuotaRequest;
 import com.spring.gateway.dto.AdminRoleRequest;
 import com.spring.gateway.dto.AdminStatusRequest;
+import com.spring.gateway.dto.AdminUserOption;
 import com.spring.gateway.dto.AdminUserView;
 import com.spring.gateway.dto.AdminWorkQuotaRequest;
+import com.spring.gateway.dto.PageQuery;
+import com.spring.gateway.dto.PageResult;
 import com.spring.gateway.service.AdminUserService;
 import com.spring.gateway.service.BillingService;
 import jakarta.validation.Valid;
@@ -21,6 +24,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestAttribute;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
@@ -40,13 +44,26 @@ public class AdminUserController {
     private final BillingService billingService;
 
     /**
-     * 用户列表
+     * 用户分页列表
      *
-     * @return 全部用户（按注册时间升序）
+     * @param page 页码（1 起）
+     * @param size 每页条数（上限 100）
+     * @return 分页用户列表（按注册时间升序）
      */
     @GetMapping
-    public Result<List<AdminUserView>> list() {
-        return Result.ok(adminUserService.list().stream().map(AdminUserController::toView).toList());
+    public Result<PageResult<AdminUserView>> list(@RequestParam(defaultValue = "1") int page,
+                                                  @RequestParam(defaultValue = "10") int size) {
+        return Result.ok(adminUserService.page(new PageQuery(page, size)).map(AdminUserController::toView));
+    }
+
+    /**
+     * 筛选下拉选项：全部用户的 ID + 用户名
+     *
+     * @return 选项列表
+     */
+    @GetMapping("/options")
+    public Result<List<AdminUserOption>> options() {
+        return Result.ok(adminUserService.options());
     }
 
     /**

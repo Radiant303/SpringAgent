@@ -302,5 +302,94 @@ button.admin-btn.primary:active {
 
 .pager-btns {
   display: flex;
-  gap: 8px;
+  align-items: center;
+  gap: 2px;
+}
+
+.pager-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.pager-info {
+  font-variant-numeric: tabular-nums;
+}
+
+/* 分页条里的下拉融入文字行：无底色、与周围同灰度，悬停仅加深颜色 */
+.table-pager .ui-select-btn {
+  height: 26px;
+  padding: 0 2px;
+  gap: 4px;
+  font-size: 13px;
+  background: transparent;
+}
+.table-pager .ui-select-label {
+  color: var(--text-dim, rgba(0, 0, 0, 0.6));
+  font-variant-numeric: tabular-nums;
+}
+.table-pager .ui-select-btn:hover:not(:disabled) .ui-select-label,
+.table-pager .ui-select-btn[aria-expanded="true"] .ui-select-label {
+  color: var(--text, rgba(0, 0, 0, 0.9));
+}
+.table-pager .ui-select-btn:hover:not(:disabled) .ui-select-caret,
+.table-pager .ui-select-btn[aria-expanded="true"] .ui-select-caret {
+  color: var(--text-dim, rgba(0, 0, 0, 0.6));
+}
+/* 抵消全局 button 与 .ui-select-btn 的灰底 */
+.table-pager .ui-select-btn:hover:not(:disabled),
+.table-pager .ui-select-btn[aria-expanded="true"] {
+  background: transparent;
+}
+.table-pager .ui-select-caret svg {
+  width: 12px;
+  height: 12px;
+}
+
+.pager-nav, .pager-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: none;
+  color: var(--text-dim, rgba(0, 0, 0, 0.6));
+  font: inherit;
+  font-size: 13px;
+  min-width: 24px;
+  height: 28px;
+  padding: 0 4px;
+  cursor: pointer;
+  font-variant-numeric: tabular-nums;
+}
+/* 优先级压过全局 button:hover 的灰底 */
+.pager-nav:hover, .pager-num:hover,
+.pager-nav:disabled:hover, .pager-num:disabled:hover {
+  background: none;
+}
+.pager-nav:hover:not(:disabled), .pager-num:hover:not(:disabled) {
+  color: var(--text, rgba(0, 0, 0, 0.9));
+}
+.pager-nav:disabled {
+  color: var(--text-faint, rgba(0, 0, 0, 0.45));
+  opacity: 0.6;
+  cursor: default;
+}
+.pager-nav .icon {
+  display: inline-flex;
+}
+.pager-nav .icon svg {
+  display: block;
+  width: 14px;
+  height: 14px;
+}
+.pager-num.cur {
+  color: var(--text, rgba(0, 0, 0, 0.9));
+  font-weight: 600;
+  cursor: default;
+  opacity: 1;  /* 抵消全局 button:disabled 的半透明 */
+}
+
+.pager-ellipsis {
+  color: var(--text-faint, rgba(0, 0, 0, 0.45));
+  padding: 0 2px;
 }

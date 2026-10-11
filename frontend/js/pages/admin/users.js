@@ -7,8 +7,13 @@ import { getRole, ROLE_LABELS } from "../../api/auth.js";
 import { api } from "../../api/client.js";
 import { UI } from "../../components/ui.js";
 
+/** 筛选下拉选项（全量 id+username，供用量/流水/兑换码页共用） */
 export let users = [];
-let usersLoaded = false;
+/** 用户管理表格的当前页行 */
+let pageUsers = [];
+let optionsLoaded = false;
+let page = 1;
+let size = 10;
 let userOptionsListeners = [];
 
 export function onUsersUpdated(cb) {
@@ -16,21 +21,34 @@ export function onUsersUpdated(cb) {
 }
 
 export async function ensureUsers() {
-  if (!usersLoaded) await loadUsers();
+  if (!optionsLoaded) await loadUserOptions();
 }
 
-export async function loadUsers() {
-  users = await UI.loadTable("user-tbody", () => api("/api/admin/users")) || [];
-  usersLoaded = true;
-  renderUsers();
+export async function loadUserOptions() {
+  users = await api("/api/admin/users/options") || [];
+  optionsLoaded = true;
   userOptionsListeners.forEach((fn) => fn(users));
   return users;
+}
+
+export async function loadUsers(p = page) {
+  const data = await UI.loadTable("user-tbody", () => api(`/api/admin/users?page=${p}&size=${size}`));
+  if (data && !data.list.length && p > 1) return loadUsers(p - 1);
+  page = p;
+  pageUsers = data?.list || [];
+  UI.renderPager("user-pager", { page, size, total: data?.total || 0 }, {
+    onPage: (np) => loadUsers(np).catch((e) => UI.toast(e.message, { type: "error" })),
+    onSize: (ns) => { size = ns; loadUsers(1).catch((e) => UI.toast(e.message, { type: "error" })); },
+  });
+  renderUsers();
+  loadUserOptions();
+  return pageUsers;
 }
 
 export function renderUsers() {
   UI.closePopover();
   const myRole = getRole();
-  UI.renderRows("user-tbody", users, (tr, u) => {
+  UI.renderRows("user-tbody", pageUsers, (tr, u) => {
     const isOwnerRow = u.role === "owner";
     const operable = myRole === "owner" || (myRole === "admin" && u.role === "user");
     const disabled = u.status === "disabled";
@@ -75,7 +93,7 @@ export async function onUserAction(btn) {
         return;
       }
       const myRole = getRole();
-      const u = users.find((x) => String(x.user_id) === String(id));
+      const u = pageUsers.find((x) => String(x.user_id) === String(id));
       if (!u) return;
 
       const items = [

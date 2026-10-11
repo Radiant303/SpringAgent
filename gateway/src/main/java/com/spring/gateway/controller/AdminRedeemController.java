@@ -7,6 +7,8 @@ import com.spring.gateway.common.Result;
 import com.spring.gateway.common.TimeFormat;
 import com.spring.gateway.dto.AdminRedeemCodeView;
 import com.spring.gateway.dto.AdminRedeemCreateRequest;
+import com.spring.gateway.dto.PageQuery;
+import com.spring.gateway.dto.PageResult;
 import com.spring.gateway.entity.RedeemCode;
 import com.spring.gateway.service.RedeemService;
 import jakarta.validation.Valid;
@@ -59,19 +61,23 @@ public class AdminRedeemController {
     }
 
     /**
-     * 兑换码列表（owner/admin；可按状态过滤）
+     * 兑换码分页列表。
      *
      * @param status 状态过滤
-     * @return 码列表
+     * @param page   页码（1 起）
+     * @param size   每页条数（上限 100）
+     * @return 分页码列表
      */
     @GetMapping
-    public Result<List<AdminRedeemCodeView>> list(
-            @RequestParam(required = false) String status) {
+    public Result<PageResult<AdminRedeemCodeView>> list(
+            @RequestParam(required = false) String status,
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "10") int size) {
         if (status != null && !STATUSES.contains(status)) {
             throw new BizException(400, "非法的状态过滤值");
         }
-        return Result.ok(redeemService.list(status).stream()
-                .map(AdminRedeemController::toView).toList());
+        return Result.ok(redeemService.page(status, new PageQuery(page, size))
+                .map(AdminRedeemController::toView));
     }
 
     /**

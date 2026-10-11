@@ -23,13 +23,24 @@ export function renderLedgerUserOptions(list = users) {
   sel.value = current;
 }
 
-export async function loadLedger() {
+let page = 1;
+let size = 10;
+
+export async function loadLedger(p = page) {
   if (users && users.length) renderLedgerUserOptions(users);
   const params = new URLSearchParams();
   if ($("ledger-user")?.value) params.set("userId", $("ledger-user").value);
-  const rows = await UI.loadTable("ledger-tbody", () => api("/api/admin/points/ledger?" + params.toString())) || [];
+  params.set("page", p);
+  params.set("size", size);
+  const data = await UI.loadTable("ledger-tbody", () => api("/api/admin/points/ledger?" + params.toString()));
+  if (data && !data.list.length && p > 1) return loadLedger(p - 1);
+  page = p;
+  UI.renderPager("ledger-pager", { page, size, total: data?.total || 0 }, {
+    onPage: (np) => loadLedger(np).catch((e) => UI.toast(e.message, { type: "error" })),
+    onSize: (ns) => { size = ns; loadLedger(1).catch((e) => UI.toast(e.message, { type: "error" })); },
+  });
   const nameOf = Object.fromEntries(users.map((u) => [u.user_id, u.username]));
-  UI.renderRows("ledger-tbody", rows, (tr, r) => {
+  UI.renderRows("ledger-tbody", data?.list || [], (tr, r) => {
     const change = Number(r.change_amount);
     tr.className = "";
     tr.innerHTML = `

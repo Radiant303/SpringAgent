@@ -1,6 +1,8 @@
 package com.spring.gateway.mapper;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
+import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.spring.gateway.entity.UsageRecord;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
@@ -21,10 +23,11 @@ public interface UsageRecordMapper extends BaseMapper<UsageRecord> {
     /**
      * 管理后台用量统计：按 用户 × 模型 分组的聚合（可选按用户与时间段过滤）。
      *
+     * @param page   分页对象（总数 = 分组数）
      * @param userId 只看该用户；null 为全部
      * @param from   起始时间（含），如 2026-10-01 或 2026-10-01 08:00:00；null 不限
      * @param to     截止时间（不含），格式同上；null 不限
-     * @return 每行含 userId/username/modelName/turns/requests/inputTokens/
+     * @return 分页结果，每行含 userId/username/modelName/turns/requests/inputTokens/
      *         cacheReadTokens/cacheWriteTokens/outputTokens
      */
     @Select("""
@@ -41,7 +44,8 @@ public interface UsageRecordMapper extends BaseMapper<UsageRecord> {
             GROUP BY u.id, u.username, r.model_name
             ORDER BY u.id ASC, inputTokens DESC
             """)
-    List<Map<String, Object>> sumByUser(@Param("userId") Long userId,
-                                        @Param("from") String from,
-                                        @Param("to") String to);
+    IPage<Map<String, Object>> sumByUser(Page<Map<String, Object>> page,
+                                         @Param("userId") Long userId,
+                                         @Param("from") String from,
+                                         @Param("to") String to);
 }

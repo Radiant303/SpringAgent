@@ -23,12 +23,24 @@ export function faceCell(value, fmt) {
   return n > 0 ? fmt(n) : `<span class="face-zero">–</span>`;
 }
 
-export async function loadRedeemCodes() {
+let page = 1;
+let size = 10;
+
+export async function loadRedeemCodes(p = page) {
   const params = new URLSearchParams();
   if ($("redeem-status") && $("redeem-status").value) {
     params.set("status", $("redeem-status").value);
   }
-  const rows = await UI.loadTable("redeem-tbody", () => api("/api/admin/redeem-codes?" + params.toString())) || [];
+  params.set("page", p);
+  params.set("size", size);
+  const data = await UI.loadTable("redeem-tbody", () => api("/api/admin/redeem-codes?" + params.toString()));
+  if (data && !data.list.length && p > 1) return loadRedeemCodes(p - 1);
+  page = p;
+  UI.renderPager("redeem-pager", { page, size, total: data?.total || 0 }, {
+    onPage: (np) => loadRedeemCodes(np).catch((e) => UI.toast(e.message, { type: "error" })),
+    onSize: (ns) => { size = ns; loadRedeemCodes(1).catch((e) => UI.toast(e.message, { type: "error" })); },
+  });
+  const rows = data?.list || [];
   const nameOf = Object.fromEntries(users.map((u) => [u.user_id, u.username]));
   const myRole = getRole();
   UI.renderRows("redeem-tbody", rows, (tr, row) => {

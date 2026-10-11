@@ -22,7 +22,10 @@ export function renderUsageUserOptions(list = users) {
   sel.value = current;
 }
 
-export async function loadUsage() {
+let page = 1;
+let size = 10;
+
+export async function loadUsage(p = page) {
   if (users && users.length) renderUsageUserOptions(users);
   const params = new URLSearchParams();
   if ($("usage-user")?.value) params.set("userId", $("usage-user").value);
@@ -32,8 +35,16 @@ export async function loadUsage() {
     end.setDate(end.getDate() + 1);
     params.set("to", end.toISOString().slice(0, 10));
   }
-  const rows = await UI.loadTable("usage-tbody", () => api("/api/admin/usage?" + params.toString())) || [];
-  UI.renderRows("usage-tbody", rows, (tr, r) => {
+  params.set("page", p);
+  params.set("size", size);
+  const data = await UI.loadTable("usage-tbody", () => api("/api/admin/usage?" + params.toString()));
+  if (data && !data.list.length && p > 1) return loadUsage(p - 1);
+  page = p;
+  UI.renderPager("usage-pager", { page, size, total: data?.total || 0 }, {
+    onPage: (np) => loadUsage(np).catch((e) => UI.toast(e.message, { type: "error" })),
+    onSize: (ns) => { size = ns; loadUsage(1).catch((e) => UI.toast(e.message, { type: "error" })); },
+  });
+  UI.renderRows("usage-tbody", data?.list || [], (tr, r) => {
     tr.className = "";
     tr.innerHTML = `
       <td></td>
