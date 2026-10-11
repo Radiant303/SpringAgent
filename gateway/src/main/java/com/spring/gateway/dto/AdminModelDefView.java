@@ -18,7 +18,6 @@ import java.util.List;
  * @param capabilities   能力列表
  * @param supportEfforts 支持的思考档位
  * @param defaultEffort  默认思考档位
- * @param reasoningKey   推理内容字段名
  * @param enabled        是否启用
  * @param isDefault      是否默认模型
  * @param updatedAt      更新时间（ISO UTC）
@@ -33,7 +32,6 @@ public record AdminModelDefView(
         List<String> capabilities,
         @JsonProperty("support_efforts") List<String> supportEfforts,
         @JsonProperty("default_effort") String defaultEffort,
-        @JsonProperty("reasoning_key") String reasoningKey,
         Boolean enabled,
         @JsonProperty("is_default") boolean isDefault,
         @JsonProperty("updated_at") String updatedAt

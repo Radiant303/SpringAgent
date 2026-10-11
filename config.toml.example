@@ -26,7 +26,6 @@ max_context_size = 1000000
 max_output_size = 384000
 capabilities = [ "thinking", "tool_use" ]
 display_name = "DeepSeek V4 Flash"
-reasoning_key = "reasoning_content"
 
 # 子代理/次级模型引用的模型 ID 必须存在于当前模型目录（云端 = 数据库）
 [secondary_model]

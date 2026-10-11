@@ -196,7 +196,6 @@ export function fillMcModelForm(m) {
   $("mc-m-caps").value = m ? m.capabilities.join(",") : "";
   $("mc-m-efforts").value = m ? m.support_efforts.join(",") : "";
   $("mc-m-effort").value = m ? (m.default_effort || "") : "";
-  $("mc-m-reasoning").value = m ? (m.reasoning_key || "") : "";
   $("mc-m-enabled").checked = m ? !!m.enabled : true;
   $("mc-m-submit").textContent = m ? "保存修改" : "新增模型";
   $("mc-m-cancel").classList.toggle("hidden", !m);
@@ -215,7 +214,6 @@ export async function onMcModelSubmit(e) {
     capabilities: csvToList($("mc-m-caps").value),
     supportEfforts: csvToList($("mc-m-efforts").value),
     defaultEffort: $("mc-m-effort").value.trim(),
-    reasoningKey: $("mc-m-reasoning").value.trim(),
     enabled: $("mc-m-enabled").checked,
   };
   if (!body.provider || !body.model || !body.displayName) {

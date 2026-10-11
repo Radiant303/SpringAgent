@@ -171,8 +171,6 @@ public class AdminModelConfigService {
         row.setCapabilities(joinCsv(req.capabilities()));
         row.setSupportEfforts(joinCsv(req.supportEfforts()));
         row.setDefaultEffort(req.defaultEffort() == null ? "" : req.defaultEffort().trim());
-        String reasoningKey = req.reasoningKey() == null ? "" : req.reasoningKey().trim();
-        row.setReasoningKey(reasoningKey.isEmpty() ? null : reasoningKey);
         row.setEnabled(req.enabled());
         row.setUpdatedAt(now);
         if (isNew) {

@@ -42,7 +42,6 @@ def main() -> None:
             row.capabilities = ",".join(m.capabilities)
             row.support_efforts = ",".join(m.support_efforts)
             row.default_effort = m.default_effort
-            row.reasoning_key = m.reasoning_key
             row.enabled = True
             row.updated_at = utc_now()
 

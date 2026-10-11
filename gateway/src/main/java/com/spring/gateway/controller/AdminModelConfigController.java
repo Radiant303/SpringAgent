@@ -142,7 +142,6 @@ public class AdminModelConfigController {
                 splitCsv(row.getCapabilities()),
                 splitCsv(row.getSupportEfforts()),
                 row.getDefaultEffort(),
-                row.getReasoningKey(),
                 row.getEnabled(),
                 row.getId().equals(defaultModel),
                 TimeFormat.isoUtc(row.getUpdatedAt()));

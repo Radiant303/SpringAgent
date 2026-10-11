@@ -42,7 +42,6 @@ def _model_config_from_dict(d: dict[str, Any]) -> ModelConfig:
         capabilities=_split_csv(d["capabilities"]),
         support_efforts=_split_csv(d["support_efforts"]),
         default_effort=d["default_effort"],
-        reasoning_key=d["reasoning_key"],
     )
 
 
@@ -110,7 +109,6 @@ class DbCatalog:
                     "capabilities": row.capabilities,
                     "support_efforts": row.support_efforts,
                     "default_effort": row.default_effort,
-                    "reasoning_key": row.reasoning_key,
                     "enabled": row.enabled,
                 }
                 for row in s.scalars(select(ModelDefinitionRow)).all()

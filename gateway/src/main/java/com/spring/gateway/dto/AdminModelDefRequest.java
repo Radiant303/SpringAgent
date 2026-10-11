@@ -21,7 +21,6 @@ import java.util.List;
  * @param capabilities   能力列表（thinking/always_thinking/image_in/tool_use）
  * @param supportEfforts 支持的思考档位
  * @param defaultEffort  默认思考档位；空 = 不指定
- * @param reasoningKey   推理内容字段名；空 = 无
  * @param enabled        是否启用
  */
 public record AdminModelDefRequest(
@@ -52,9 +51,6 @@ public record AdminModelDefRequest(
 
         @Size(max = 16, message = "默认档位长度不能超过 16")
         String defaultEffort,
-
-        @Size(max = 64, message = "推理字段名长度不能超过 64")
-        String reasoningKey,
 
         @NotNull(message = "enabled 不能为空")
         Boolean enabled

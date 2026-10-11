@@ -298,7 +298,6 @@ class ModelDefinitionRow(Base):
     capabilities: Mapped[str] = mapped_column(String(256), nullable=False, default="")
     support_efforts: Mapped[str] = mapped_column(String(128), nullable=False, default="")
     default_effort: Mapped[str] = mapped_column(String(16), nullable=False, default="")
-    reasoning_key: Mapped[str | None] = mapped_column(String(64), nullable=True)
     enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     created_at: Mapped[datetime.datetime] = mapped_column(
         MicrosecondDateTime, nullable=False, default=utc_now,

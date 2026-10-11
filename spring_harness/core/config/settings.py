@@ -36,7 +36,6 @@ class Model(ConfigBase):
     capabilities: list[str] = []
     support_efforts: list[str] = []
     default_effort: str = ""
-    reasoning_key: str | None = None
 
 
 class LoopControl(ConfigBase):
@@ -167,7 +166,6 @@ class Config(ConfigBase):
             "capabilities": model.capabilities,
             "support_efforts": model.support_efforts,
             "default_effort": model.default_effort,
-            "reasoning_key": model.reasoning_key,
             "api_key": provider.api_key if provider else "",
             "base_url": provider.base_url if provider else "",
         }

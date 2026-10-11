@@ -45,9 +45,6 @@ public class ModelDefinition {
     /** 默认思考档位；空串 = 不指定。 */
     private String defaultEffort;
 
-    /** 推理内容在响应里的字段名（如 reasoning_content）；空 = 无。 */
-    private String reasoningKey;
-
     /** 是否启用；停用后不出现在用户 picker。 */
     private Boolean enabled;
 
