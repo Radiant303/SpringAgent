@@ -189,8 +189,8 @@
   }
 }
 @keyframes tableRowEnter {
-  from { opacity: 0; transform: translateY(4px); }
-  to   { opacity: 1; transform: translateY(0); }
+  from { opacity: 0; }
+  to   { opacity: 1; }
 }
 
 /* ===== 后台刷新遮罩与容器几何稳定 ===== */
@@ -204,6 +204,22 @@
 .table-card.is-loading {
   opacity: 0.6;
   pointer-events: none;
+}
+
+/* ===== 全局卡片级上浮动效（[data-slot='card']） =====
+   上浮效果为卡片级整体动效，由卡片容器整体承担 translateY(-1px) 与阴影浮现，卡片内部元素不单独上浮 */
+[data-slot='card']:not([data-card-hover='false']) {
+  transition: opacity 150ms, transform 150ms ease, box-shadow 150ms ease;
+}
+
+@media (min-width: 641px) {
+  [data-slot='card']:not([data-card-hover='false']):hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgb(0 0 0 / 0.06);
+  }
+  .dark [data-slot='card']:not([data-card-hover='false']):hover {
+    box-shadow: 0 4px 12px rgb(0 0 0 / 0.3);
+  }
 }
 
 /* ================= 自绘表单控件 =================

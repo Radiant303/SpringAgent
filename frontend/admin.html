@@ -83,7 +83,7 @@
         </div>
 
         <div class="section-caption">账户资料</div>
-        <div class="card group-card">
+        <div class="card group-card" data-slot="card">
           <div class="row">
             <span class="row-label">用户名</span>
             <span class="row-value" id="account-username"></span>
@@ -102,7 +102,7 @@
         </div>
 
         <div class="section-caption">账户安全</div>
-        <div class="card group-card">
+        <div class="card group-card" data-slot="card">
           <div class="row">
             <span class="row-label">账户状态</span>
             <span class="row-value">正常</span>
@@ -132,7 +132,7 @@
       <!-- 账单与用量：所有角色可见 -->
       <section class="admin-page" data-page="points">
         <h1 class="page-title">账单与用量</h1>
-        <div class="card group-card points-summary">
+        <div class="card group-card points-summary" data-slot="card">
           <div class="summary-label">可用积分</div>
           <div class="points-big num" id="points-big"><span class="sk" style="--w:150px;--h:30px;--r:10px"></span></div>
           <div class="quota-strip">
@@ -148,7 +148,7 @@
         </div>
 
         <div class="section-caption">兑换码</div>
-        <div class="card group-card">
+        <div class="card group-card" data-slot="card">
           <div class="row">
             <span class="row-text">
               <span class="row-label">兑换积分与配额</span>
@@ -161,7 +161,7 @@
         </div>
 
         <div class="section-caption">兑换记录</div>
-        <div class="card group-card ledger-card">
+        <div class="card group-card ledger-card" data-slot="card">
           <div id="my-redemptions">
             <div class="sk-block sk-list sk-fade" aria-hidden="true">
               <div class="red-item"><span class="sk" style="--w:20px;--h:20px;--r:5px"></span><span class="sk-stack"><span class="sk" style="--w:240px"></span><span class="sk" style="--w:190px;--h:10px"></span></span></div>
@@ -172,7 +172,7 @@
         </div>
 
         <div class="section-caption">积分明细</div>
-        <div class="card group-card ledger-card">
+        <div class="card group-card ledger-card" data-slot="card">
           <div id="my-ledger">
             <div class="sk-block sk-list sk-fade" aria-hidden="true">
               <div class="ledger-row"><span class="sk-stack"><span class="sk" style="--w:48px"></span><span class="sk" style="--w:220px;--h:10px"></span></span><span class="sk" style="--w:64px"></span></div>
@@ -189,7 +189,7 @@
       <!-- 用户管理 -->
       <section class="admin-page wide" data-page="users">
         <h1 class="page-title">用户管理</h1>
-        <div class="table-card">
+        <div class="table-card" data-slot="card" data-card-hover="false">
           <table class="admin-table" id="user-table" data-slot="table">
             <colgroup>
               <col style="width: 110px">
@@ -221,7 +221,7 @@
           <input type="date" id="usage-to" title="截止日期（含当天）" data-placeholder="截止日期">
           <button id="usage-query" class="admin-btn primary">查询</button>
         </div>
-        <div class="table-card">
+        <div class="table-card" data-slot="card" data-card-hover="false">
           <table class="admin-table" id="usage-table" data-slot="table">
             <colgroup>
               <col style="width: 140px">
@@ -248,7 +248,7 @@
           <select id="ledger-user" title="按用户筛选"><option value="">全部用户</option></select>
           <button id="ledger-query" class="admin-btn primary">查询</button>
         </div>
-        <div class="table-card">
+        <div class="table-card" data-slot="card" data-card-hover="false">
           <table class="admin-table" id="ledger-table" data-slot="table">
             <colgroup>
               <col style="width: 140px">
@@ -271,7 +271,7 @@
       <!-- 模型资费 -->
       <section class="admin-page wide" data-page="models">
         <h1 class="page-title">模型资费 <span class="title-hint">积分 / 百万 tokens</span></h1>
-        <div class="table-card">
+        <div class="table-card" data-slot="card" data-card-hover="false">
           <table class="admin-table" id="model-table" data-slot="table">
             <colgroup>
               <col style="width: 230px">
@@ -315,7 +315,7 @@
           <button id="redeem-open-gen" class="admin-btn primary">+ 兑换码</button>
         </div>
 
-        <div class="table-card">
+        <div class="table-card" data-slot="card" data-card-hover="false">
           <table class="admin-table" id="redeem-table" data-slot="table">
             <colgroup>
               <col style="width: 175px">
@@ -341,7 +341,7 @@
         <h1 class="page-title">模型配置 <span class="title-hint">保存即生效，无需重启</span></h1>
 
         <div class="section-caption">默认模型</div>
-        <div class="card group-card">
+        <div class="card group-card" data-slot="card">
           <div class="row">
             <span class="row-text">
               <span class="row-label">新会话默认使用的模型</span>
@@ -353,7 +353,7 @@
         </div>
 
         <div class="section-caption">Provider（API 渠道）</div>
-        <div class="table-card">
+        <div class="table-card" data-slot="card" data-card-hover="false">
           <table class="admin-table" id="mc-provider-table" data-slot="table">
             <colgroup>
               <col style="width: 130px">
@@ -398,7 +398,7 @@
         </form>
 
         <div class="section-caption">模型定义</div>
-        <div class="table-card">
+        <div class="table-card" data-slot="card" data-card-hover="false">
           <table class="admin-table" id="mc-model-table" data-slot="table">
             <colgroup>
               <col style="width: 175px">
@@ -473,7 +473,7 @@
         <h1 class="page-title">系统设置</h1>
 
         <div class="section-caption">注册与存储</div>
-        <div class="card group-card">
+        <div class="card group-card" data-slot="card">
           <label class="row">
             <span class="row-text">
               <span class="row-label">开放注册</span>
@@ -492,7 +492,7 @@
         </div>
 
         <div class="section-caption">邮箱验证码注册（QQ 邮箱 SMTP）</div>
-        <div class="card group-card">
+        <div class="card group-card" data-slot="card">
           <label class="row">
             <span class="row-text">
               <span class="row-label">开启邮箱验证码注册</span>
@@ -537,7 +537,7 @@
         </div>
 
         <div class="section-caption">计费预扣档位</div>
-        <div class="card group-card">
+        <div class="card group-card" data-slot="card">
           <div class="row">
             <span class="row-label">缓存命中输入</span>
             <span class="row-control">

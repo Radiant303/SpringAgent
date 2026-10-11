@@ -243,6 +243,7 @@ body.login-page { display: flex; flex-direction: column; min-height: 100vh; back
 
 - **分组卡片**（设置项）：底 `#f7f7f7`、圆角 12px、左右 16px 内边距、无边框。行最小高 52px，行间分隔线 `rgba(0,0,0,0.06)`，分隔线跟随左右内边距内缩。左边是标签（14px 主文字，可带 12px 弱文字说明），右边是值、控件或蓝色链接。
 - **表格卡片**：白底、`1px solid rgba(0,0,0,0.08)`、圆角 12px、横向可滚动。表头 13px 弱文字、字重 400；单元格 `padding: 13px 16px`，行线 `.06`，最后一行无线，hover 底 `rgba(0,0,0,0.015)`。
+- **卡片级上浮动效**（`[data-slot='card']`）：所有独立设置卡片统一标记 `data-slot="card"`。大屏（`min-width: 641px`）悬停时整体平滑上浮 `transform: translateY(-1px)` 并呈现轻阴影 `box-shadow: 0 4px 12px rgb(0 0 0 / 0.06)`（`transition: transform 150ms ease, box-shadow 150ms ease`）。数据表格容器通过 `data-card-hover="false"` 声明禁用悬停上浮，确保表格操作区稳定沉底不抖动。**上浮动效严格属于卡片级，卡片内部元素（数据行、设置行、单元格等）严禁单独上浮**，内部仅使用背景色变化反馈悬停；数据行入场为纯透明度渐变（`opacity 0 → 1`），严禁携带 `translateY` 内部上浮位移。
 - **空状态**：表格里一行居中弱文字（"暂无用户"），`padding: 40px 16px`；列表里用 `.empty-tip`。用 `UI.emptyRow(tbody, text)`，不要手写 `colspan`。
 
 ### 6.5 徽章
@@ -413,6 +414,8 @@ loader().catch((e) => { UI.settleSkeletons(section); showError(e.message); });
 | 场景 | 动效 |
 |---|---|
 | 悬停背景 | `transition: background-color 0.15s` |
+| 卡片悬停上浮 | `transform: translateY(-1px)`, `box-shadow`（150ms ease，仅卡片级，表格容器 `data-card-hover="false"` 禁用，内部元素不上浮） |
+| 表格行入场 | `tableRowEnter 0.2s`（纯透明度渐入，交错步进 25ms 封顶 250ms，内部行不上浮） |
 | 输入框聚焦 | `border-color, background-color 0.15s` |
 | 菜单弹出 | `pop-in 0.14s ease-out` |
 | 对话框 | 遮罩 `ui-fade 0.16s`，卡片 `ui-pop 0.18s`（上移 6px + 缩放 0.98 → 1） |
