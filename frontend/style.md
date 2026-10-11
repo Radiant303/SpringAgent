@@ -350,9 +350,11 @@ UI.saveSkeleton("my-list");       // 在真实数据到达前调用一次
 UI.showSkeleton("my-list");       // 重新加载前：换回骨架
 UI.clearSkeleton("my-list");      // 加载失败：移除骨架
 
-// 表格：骨架按表头列数自动生成（10 行、宽度错落、数字列右对齐、末几行渐隐）
+// 表格：三态加载与索引 key 协调渲染
 const rows = await UI.loadTable("user-tbody", () => api("/api/admin/users")) || [];
-if (!rows.length) UI.emptyRow("user-tbody", "暂无用户");
+UI.renderRows("user-tbody", rows, (tr, u) => {
+  tr.innerHTML = `<td>${u.username}</td>...`;
+}, "暂无用户");
 
 // 页面加载失败：收起该页残留的所有骨架
 loader().catch((e) => { UI.settleSkeletons(section); showError(e.message); });
@@ -363,19 +365,32 @@ loader().catch((e) => { UI.settleSkeletons(section); showError(e.message); });
 | `UI.saveSkeleton(box)` | 记下 box 里的首屏骨架块（`:scope > .sk-block`） |
 | `UI.showSkeleton(box)` | 用记下的骨架块替换 box 的内容 |
 | `UI.clearSkeleton(box)` | 移除 box 里的骨架块 |
-| `UI.tableSkeleton(tbody, rows = 10)` | 按表头列数铺骨架行 |
+| `UI.tableSkeleton(tbody, rows = 10)` | 按表头列数铺骨架行（封顶 20 行，高 52px，错落循环宽，1.5s pulse） |
 | `UI.emptyRow(tbody, text)` | 表体只留一行居中提示，自动计算 `colspan` |
-| `UI.loadTable(tbody, fetcher)` | 表格加载：没有真实行时铺骨架，有数据时调淡旧行，失败时落成"加载失败"；返回 fetcher 的结果 |
+| `UI.loadTable(tbody, fetcher)` | 表格加载：没有旧数据时铺骨架，有数据时只把表格容器设为半透明禁点（opacity 0.6 + pointer-events: none + 150ms），失败时落成"加载失败"；返回 fetcher 的结果 |
+| `UI.renderRows(tbody, items, fn, emptyText)` | 按索引 key 协调渲染行：原地复用/增删，新挂载行播放 tableRowEnter 交错动画 |
 | `UI.settleSkeletons(root)` | 表格骨架变成"加载失败"一行，骨架块换成提示，行内骨架条换成"-" |
 
 参数都可以传元素或元素 id。
 
-- 外观：浅灰 `rgba(0,0,0,0.05)` 圆角胶囊条，1.6 秒呼吸动画（`sk-pulse`），用户开启"减少动态效果"时不动。不要用扫光（shimmer）效果。
-- **形状跟真实内容一致**：表格保留真实表头；侧栏行同样 36px 高（`.sk-row`）；消息区用户气泡靠右、助手段落左侧留头像位。
-- 末尾几行渐隐：列表容器加 `.sk-fade`，表格骨架行是 `.sk-tr`（最后 3 行透明度分别为 0.75 / 0.5 / 0.28）。
+- **三态加载规范**：
+  1. **首次加载 (isLoading)**：没有任何旧数据可显示时显示骨架屏（假行数 `min(pageSize, 20)`，行高 52px，每格骨架条宽度按 `['70%','90%','55%','80%','65%','45%']` 循环取值，浅灰圆角块 + opacity 1↔0.5 的 1.5s 无限呼吸动画，不做扫光）。
+  2. **后台刷新 (isFetchingOnly)**：请求进行中且有旧数据时，**绝不闪骨架屏**，旧数据原地保留，只将表格容器设为 `opacity: 0.6; pointer-events: none; transition: opacity 150ms`。
+  3. **数据就绪**：渲染数据行，新挂载的行播放 `tableRowEnter` 交错入场动画（步进 25ms、第 11 行起封顶 250ms，`animation-fill-mode: both`，外层包 `prefers-reduced-motion: no-preference`）。
+- **行协调语义**：
+  - 骨架屏/空态 → 数据：整批 tr 全是新建，整表交错入场；
+  - 重新请求且行数不变：复用原 tr 节点原地更新内容，动画不重放；
+  - 行数变多：前 m 行复用，新增行挂载播动画；
+  - 行数变少：直接删除多余节点，无动画。
+- **列宽与几何稳定性（防止骨架与数据切换及入场动画时列向右偏移）**：
+  - 表格必须使用 `table-layout: fixed; width: 100%`，并在 `table` 下显式定义 `<colgroup>` 指定各列宽度。
+  - 单元格设置 `overflow: hidden; text-overflow: ellipsis; white-space: nowrap`，超出内容省略号截断（悬停通过 `title` 展示全文本）。
+  - 滚动容器设置 `scrollbar-gutter: stable`，杜绝垂直滚动条出现时引起表格视口宽度的微小抖动。
+  - 表格容器（`.table-card`, `.table-wrap`）设置 `overflow-y: hidden`：当 `tableRowEnter` 动画播放时，因 `translateY(4px)` 会导致容器出现 4px 的瞬时垂直溢出；若容器只写 `overflow-x: auto`，浏览器会将 `overflow-y` 自动计算为 `auto` 并临时生成垂直滚动条（占用 ~8px 宽度），动画结束 `translateY(0)` 时滚动条销毁，导致各列在动画结束瞬间发生向右跳动偏移。显式设定 `overflow-y: hidden` 可从根源杜绝瞬时垂直滚动条与列偏移。
+  - 骨架行（`.sk-tr`）不播放 `tableRowEnter` 动画（直接以 `pulse` 呼吸态展示），只有真实数据行才播放交错入场动画。
+  - 骨架屏占位与真实数据行保持 100% 相同列宽几何，切换时各列位置偏移量为 0px。
 - 骨架块必须带 `.sk-block` 并且是容器的**直接子元素**，`UI.*` 只认这个标记，不认页面专属的类名。
 - 首屏骨架**直接写在 HTML 里**，JS 执行前就能显示；样式只在 HTML 维护一份，JS 通过 `saveSkeleton / showSkeleton` 克隆复用，不要在 JS 里再拼一份骨架。
-- **刷新已有数据时不要整块换成骨架**，只把旧内容调淡（`.table-card.is-loading tbody { opacity: .5 }`，`UI.loadTable` 已处理）。
 - **加载失败要收起骨架**，不能让骨架一直闪。
 - 判断"是否为空"的逻辑要把骨架算作有内容（`syncEmpty` 的选择器包含 `.msg-skeleton`），否则加载中会先闪出空状态。
 - 文字型占位（项目名、模型名）可以用 `:empty::before` 画骨架条，此时 JS 永远不能把它写成空字符串，没有值时写兜底文案（"未选择项目"、"默认模型"）。

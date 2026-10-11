@@ -5,6 +5,10 @@
   --admin-line: rgba(0, 0, 0, 0.06); /* 卡片内分隔线 */
   --admin-border: rgba(0, 0, 0, 0.08);
   --admin-green: #2fb36d;
+  --muted: #ebebee;
+  --table-disabled: #f7f7f8;
+  --table-disabled-hover: #f4f4f5;
+  --table-disabled-border: #d4d4d8;
 }
 
 body { min-width: 320px; background: var(--ground); }
@@ -74,6 +78,7 @@ body { min-width: 320px; background: var(--ground); }
   margin: 8px 8px 8px 0;
   padding: 48px 32px 72px;
   overflow-y: auto;
+  scrollbar-gutter: stable;
   border: 1px solid rgba(0, 0, 0, 0.05);
   border-radius: 12px;
   background: #fff;
@@ -208,17 +213,34 @@ button.row-link { background: none; border: none; padding: 0; font: inherit; cur
 .empty-tip { padding: 28px 0; text-align: center; font-size: 14px; color: var(--text-faint); }
 
 /* ---- 管理表格：白底细边框卡片，灰色表头 ---- */
-.table-card {
+.table-card,
+.table-wrap {
   overflow-x: auto;
+  overflow-y: hidden;
   border: 1px solid var(--admin-border);
   border-radius: 12px;
   background: #fff;
+  transition: opacity 150ms;
 }
-.admin-table { width: 100%; min-width: 760px; border-collapse: collapse; font-size: 14px; }
+.table-card.fetching,
+.table-card.is-loading,
+.table-wrap.fetching {
+  opacity: 0.6;
+  pointer-events: none;
+}
+.admin-table {
+  width: 100%;
+  min-width: 760px;
+  table-layout: fixed;
+  border-collapse: collapse;
+  font-size: 14px;
+}
 .admin-table th, .admin-table td {
   padding: 13px 16px;
   text-align: left;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .admin-table th {
   border-bottom: 1px solid var(--admin-border);
@@ -227,18 +249,22 @@ button.row-link { background: none; border: none; padding: 0; font: inherit; cur
   color: var(--text-faint);
 }
 .admin-table td { border-bottom: 1px solid var(--admin-line); color: var(--text); }
+.admin-table tbody tr {
+  height: 52px;
+  box-sizing: border-box;
+  transition: background-color 120ms ease;
+}
 .admin-table tbody tr:last-child td { border-bottom: 0; }
 .admin-table tbody tr:hover td { background: rgba(0, 0, 0, 0.015); }
+.admin-table tbody tr.disabled { background: var(--table-disabled); }
+.admin-table tbody tr.disabled:hover td { background: var(--table-disabled-hover); }
 .admin-table .num { text-align: right; }
 .admin-table .empty-row td { padding: 40px 16px; text-align: center; color: var(--text-faint); }
 .admin-table .empty-row:hover td { background: transparent; }
 
-/* 表格骨架：每格一根浅灰胶囊条，行高与真实行接近；刷新已有数据时只把旧行调淡，不整表替换 */
-.admin-table .sk-tr td { height: 20px; }
+/* 表格骨架：每格一根浅灰胶囊条，行高与真实行一致 52px */
 .admin-table .sk-tr:hover td { background: transparent; }
 .admin-table .sk-tr .sk { min-width: 28px; }
-.table-card tbody { transition: opacity 0.15s; }
-.table-card.is-loading tbody { opacity: 0.5; pointer-events: none; }
 
 /* 系统设置加载中：输入框呈骨架态（无文字、脉动、不可编辑） */
 .admin-page.is-loading .settings-number,

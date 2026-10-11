@@ -17,9 +17,10 @@
    UI.saveSkeleton(box)              记下 box 里 HTML 首屏骨架块，供之后重新加载时复用
    UI.showSkeleton(box)              用记下的骨架块替换 box 内容
    UI.clearSkeleton(box)             移除 box 里的骨架块（加载失败时用）
-   UI.tableSkeleton(tbody, rows=10)  按表头列数铺骨架行，宽度错落、末几行渐隐
+   UI.tableSkeleton(tbody, rows=10)  按表头列数铺骨架行（封顶 20 行，高度 52px，按固定长短序列错落）
    UI.emptyRow(tbody, text)          表体只留一行居中提示（暂无数据 / 加载失败）
-   UI.loadTable(tbody, fetcher)      表格加载：无数据时铺骨架，有数据时调淡旧行；失败落成“加载失败”
+   UI.loadTable(tbody, fetcher)      表格三态加载：无数据时铺骨架，有数据时表格区域半透明禁点；失败落成“加载失败”
+   UI.renderRows(tbody, items, fn, emptyText) 按索引 key 协调渲染行：原地复用/增删，新挂载行播放 tableRowEnter 交错动画
    UI.settleSkeletons(root)          加载失败时收起 root 内残留的所有骨架
 
    ---- 表单控件（替代浏览器原生下拉与日期弹层）----
@@ -240,12 +241,18 @@
   /* ================= 骨架屏 ================= */
 
   const SK_BLOCK = ":scope > .sk-block";
-  /* 骨架条宽度轮换表：同一列各行宽度错开，看起来像长短不一的真实数据 */
-  const SK_WIDTHS = [62, 44, 78, 52, 70, 38, 84, 56, 66, 48, 74, 58];
+  /* 骨架条宽度轮换表：按固定序列循环取值制造长短错落 */
+  const SKELETON_WIDTHS = ["70%", "90%", "55%", "80%", "65%", "45%"];
   const skeletonTpl = new WeakMap();
 
   const resolve = (x) => (typeof x === "string" ? document.getElementById(x) : x);
-  const columnHeads = (tbody) => tbody.closest("table").tHead.rows[0].cells;
+  const columnHeads = (tbody) => {
+    const table = tbody.closest("table");
+    if (table?.tHead?.rows[0]?.cells) return table.tHead.rows[0].cells;
+    const ths = table?.querySelectorAll("th");
+    if (ths && ths.length) return ths;
+    return [];
+  };
 
   /* 骨架样式只在 HTML 里维护一份：页面脚本启动时（真实数据到达前）先记下首屏骨架，
      之后切换项目/会话需要重新加载时克隆复用 */
@@ -268,15 +275,21 @@
 
   function tableSkeleton(tbody, rows = 10) {
     const el = resolve(tbody);
+    if (!el) return;
     const heads = columnHeads(el);
+    const n = Math.min(rows || 10, 20);
+    const cols = heads.length || 6;
     el.textContent = "";
-    for (let r = 0; r < rows; r++) {
+    for (let r = 0; r < n; r++) {
       const tr = h("tr", "sk-tr");
       tr.setAttribute("aria-hidden", "true");
-      for (let c = 0; c < heads.length; c++) {
-        const td = h("td", heads[c].className);  // 沿用表头对齐（数字列右对齐）
+      for (let c = 0; c < cols; c++) {
+        const td = h("td", heads[c]?.className || null);  // 沿用表头对齐（数字列右对齐）
         const bar = h("span", "sk");
-        bar.style.setProperty("--w", SK_WIDTHS[(r * 5 + c * 7) % SK_WIDTHS.length] + "%");
+        const w = SKELETON_WIDTHS[(r * cols + c) % SKELETON_WIDTHS.length];
+        bar.style.width = w;
+        bar.style.height = "16px";
+        bar.style.borderRadius = "6px";
         td.appendChild(bar);
         tr.appendChild(td);
       }
@@ -286,29 +299,83 @@
 
   function emptyRow(tbody, text) {
     const el = resolve(tbody);
+    if (!el) return;
+    const heads = columnHeads(el);
     const td = h("td", null, text);
-    td.colSpan = columnHeads(el).length;
+    td.colSpan = heads.length || 1;
     const tr = h("tr", "empty-row");
     tr.appendChild(td);
     el.replaceChildren(tr);
   }
 
-  /** 表里还没有真实行时铺骨架；已有数据的刷新只把旧行调淡（.table-card.is-loading），
+  /** 表里还没有真实行时铺骨架；已有数据的刷新只把表格容器设为半透明禁点（.table-card/.table-wrap.fetching），
       避免整表跳成骨架再跳回来。返回 fetcher 的结果，渲染由调用方紧接着完成 */
   async function loadTable(tbody, fetcher) {
     const el = resolve(tbody);
-    const card = el.closest(".table-card");
+    if (!el) return fetcher ? fetcher() : null;
+    const card = el.closest(".table-wrap") || el.closest(".table-card");
     const hasRealRows = !!el.querySelector("tr:not(.sk-tr):not(.empty-row)");
-    if (hasRealRows && card) card.classList.add("is-loading");
-    else tableSkeleton(el);
+    if (hasRealRows && card) {
+      card.classList.add("fetching");
+      card.classList.add("is-loading");
+    } else {
+      tableSkeleton(el);
+    }
     try {
       return await fetcher();
     } catch (e) {
       if (el.querySelector(".sk-tr")) emptyRow(el, "加载失败");
       throw e;
     } finally {
-      if (card) card.classList.remove("is-loading");
+      if (card) {
+        card.classList.remove("fetching");
+        card.classList.remove("is-loading");
+      }
     }
+  }
+
+  /**
+   * 按索引 key 协调渲染表格行（三态协调渲染）：
+   * - 骨架/空态/首屏：整批重建，触发 tableRowEnter 交错入场动画
+   * - 重新请求且行数不变：原地复用 tr 节点更新内容，动画不重放
+   * - 行数变多：前 m 行复用，新增行挂载并播动画
+   * - 行数变少：多余节点直接移除，无动画
+   * - 0 条数据：渲染空态行（下次渲染数据时自动视为整批重建）
+   */
+  function renderRows(tbody, items, updateRow, emptyText = "暂无数据") {
+    const el = resolve(tbody);
+    if (!el) return;
+
+    if (!items || items.length === 0) {
+      emptyRow(el, emptyText);
+      return;
+    }
+
+    const hasSkeleton = !!el.querySelector(".sk-tr");
+    const hasEmpty = !!el.querySelector(".empty-row");
+    const forceRebuild = hasSkeleton || hasEmpty || el.children.length === 0;
+
+    if (forceRebuild) {
+      el.textContent = "";
+      items.forEach((item, i) => {
+        const tr = document.createElement("tr");
+        updateRow(tr, item, i);
+        el.appendChild(tr);
+      });
+      return;
+    }
+
+    while (el.children.length > items.length) {
+      el.removeChild(el.lastChild);
+    }
+    while (el.children.length < items.length) {
+      const tr = document.createElement("tr");
+      el.appendChild(tr);
+    }
+
+    Array.from(el.children).forEach((tr, i) => {
+      updateRow(tr, items[i], i);
+    });
   }
 
   /** 表格骨架落成“加载失败”一行，骨架块换成提示，行内骨架条换成“-” */
@@ -728,7 +795,7 @@
   window.UI = {
     dialog, confirm, prompt, toast,
     saveSkeleton, showSkeleton, clearSkeleton,
-    tableSkeleton, emptyRow, loadTable, settleSkeletons,
+    tableSkeleton, emptyRow, loadTable, renderRows, settleSkeletons,
     enhance, enhanceSelect, enhanceDate,
   };
 })();

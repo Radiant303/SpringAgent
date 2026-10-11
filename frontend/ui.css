@@ -129,29 +129,82 @@
 .ui-toast.error { color: var(--danger); }
 .ui-toast.leaving { opacity: 0; transform: translateY(-4px); }
 
-/* ---- 骨架屏：浅灰圆角胶囊条，宽度由 --w 控制；加载完成后整块被真实内容替换 ---- */
+/* ---- 骨架屏：浅灰圆角块，宽度由 --w 控制；1.5s 脉动呼吸动画 ---- */
 .sk {
   display: inline-block;
   flex-shrink: 0;
   width: var(--w, 100%);
   max-width: 100%;
-  height: var(--h, 14px);
-  border-radius: var(--r, 999px);
-  background: rgba(0, 0, 0, 0.05);
+  height: var(--h, 16px);
+  border-radius: var(--r, 6px);
+  background: var(--muted, #ebebee);
   vertical-align: middle;
-  animation: sk-pulse 1.6s ease-in-out infinite;
+  animation: pulse 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
-@keyframes sk-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.55; } }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+@keyframes sk-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
 @media (prefers-reduced-motion: reduce) { .sk { animation: none; } }
 
-/* 列表/表格骨架末尾几行渐隐，暗示“还有更多”；
-   .sk-fade 用于列表容器，.sk-tr 是表格骨架行（表体里只有骨架行时才会出现） */
-.sk-fade > :nth-last-child(3), .sk-tr:nth-last-child(3) { opacity: 0.75; }
-.sk-fade > :nth-last-child(2), .sk-tr:nth-last-child(2) { opacity: 0.5; }
-.sk-fade > :nth-last-child(1), .sk-tr:nth-last-child(1) { opacity: 0.28; }
+/* 列表骨架末尾几行渐隐，暗示“还有更多”；
+   .sk-fade 用于列表容器 */
+.sk-fade > :nth-last-child(3) { opacity: 0.75; }
+.sk-fade > :nth-last-child(2) { opacity: 0.5; }
+.sk-fade > :nth-last-child(1) { opacity: 0.28; }
 
 /* 上下叠放的两根骨架条（标题 + 副标题） */
 .sk-stack { display: flex; flex: 1; min-width: 0; flex-direction: column; gap: 8px; }
+
+/* ===== 全局数据表格行级交错入场（tableRowEnter） ===== */
+[data-slot='table'] {
+  table-layout: fixed;
+}
+@media (prefers-reduced-motion: no-preference) {
+  [data-slot='table'] tbody tr,
+  .admin-table tbody tr {
+    animation: tableRowEnter 0.2s cubic-bezier(0.33, 1, 0.68, 1) both;
+  }
+  [data-slot='table'] tbody tr:nth-child(2),
+  .admin-table tbody tr:nth-child(2)  { animation-delay: 25ms; }
+  [data-slot='table'] tbody tr:nth-child(3),
+  .admin-table tbody tr:nth-child(3)  { animation-delay: 50ms; }
+  [data-slot='table'] tbody tr:nth-child(4),
+  .admin-table tbody tr:nth-child(4)  { animation-delay: 75ms; }
+  [data-slot='table'] tbody tr:nth-child(5),
+  .admin-table tbody tr:nth-child(5)  { animation-delay: 100ms; }
+  [data-slot='table'] tbody tr:nth-child(6),
+  .admin-table tbody tr:nth-child(6)  { animation-delay: 125ms; }
+  [data-slot='table'] tbody tr:nth-child(7),
+  .admin-table tbody tr:nth-child(7)  { animation-delay: 150ms; }
+  [data-slot='table'] tbody tr:nth-child(8),
+  .admin-table tbody tr:nth-child(8)  { animation-delay: 175ms; }
+  [data-slot='table'] tbody tr:nth-child(9),
+  .admin-table tbody tr:nth-child(9)  { animation-delay: 200ms; }
+  [data-slot='table'] tbody tr:nth-child(10),
+  .admin-table tbody tr:nth-child(10) { animation-delay: 225ms; }
+  [data-slot='table'] tbody tr:nth-child(n + 11),
+  .admin-table tbody tr:nth-child(n + 11) { animation-delay: 250ms; }
+  [data-slot='table'] tbody tr.sk-tr,
+  .admin-table tbody tr.sk-tr {
+    animation: none;
+  }
+}
+@keyframes tableRowEnter {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ===== 后台刷新遮罩与容器几何稳定 ===== */
+.table-wrap,
+.table-card {
+  overflow-y: hidden;
+  transition: opacity 150ms;
+}
+.table-wrap.fetching,
+.table-card.fetching,
+.table-card.is-loading {
+  opacity: 0.6;
+  pointer-events: none;
+}
 
 /* ================= 自绘表单控件 =================
    原生 <select> / <input type="date"> 被 UI.enhance 换成下面的按钮，原生元素只留在 DOM 里存值。

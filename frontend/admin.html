@@ -12,9 +12,9 @@
       }
     } catch (e) { /* 存储不可用时交给 admin.js 处理 */ }
   </script>
-  <link rel="stylesheet" href="/static/index.css?v=20261006">
-  <link rel="stylesheet" href="/static/ui.css?v=20261010">
-  <link rel="stylesheet" href="/static/admin.css?v=20261009">
+  <link rel="stylesheet" href="/static/index.css?v=20261011">
+  <link rel="stylesheet" href="/static/ui.css?v=20261011">
+  <link rel="stylesheet" href="/static/admin.css?v=20261011">
 </head>
 <body>
   <div id="admin-app">
@@ -190,9 +190,20 @@
       <section class="admin-page wide" data-page="users">
         <h1 class="page-title">用户管理</h1>
         <div class="table-card">
-          <table class="admin-table" id="user-table">
+          <table class="admin-table" id="user-table" data-slot="table">
+            <colgroup>
+              <col style="width: 110px">
+              <col style="width: 170px">
+              <col style="width: 70px">
+              <col style="width: 70px">
+              <col style="width: 90px">
+              <col style="width: 90px">
+              <col style="width: 80px">
+              <col style="width: 130px">
+              <col style="width: 260px">
+            </colgroup>
             <thead>
-              <tr><th>用户名</th><th>邮箱</th><th>角色</th><th>状态</th><th>存储配额</th><th>work 配额</th><th>积分</th><th>注册时间</th><th>操作</th></tr>
+              <tr><th>用户名</th><th>邮箱</th><th>角色</th><th>状态</th><th>存储配额</th><th>work 配额</th><th class="num">积分</th><th>注册时间</th><th>操作</th></tr>
             </thead>
             <tbody id="user-tbody"></tbody>
           </table>
@@ -211,7 +222,17 @@
           <button id="usage-query" class="admin-btn primary">查询</button>
         </div>
         <div class="table-card">
-          <table class="admin-table" id="usage-table">
+          <table class="admin-table" id="usage-table" data-slot="table">
+            <colgroup>
+              <col style="width: 140px">
+              <col style="width: 210px">
+              <col style="width: 75px">
+              <col style="width: 85px">
+              <col style="width: 125px">
+              <col style="width: 125px">
+              <col style="width: 125px">
+              <col style="width: 125px">
+            </colgroup>
             <thead>
               <tr><th>用户</th><th>模型</th><th class="num">轮次</th><th class="num">请求数</th><th class="num">总输入</th><th class="num">缓存命中</th><th class="num">缓存写入</th><th class="num">输出</th></tr>
             </thead>
@@ -228,7 +249,17 @@
           <button id="ledger-query" class="admin-btn primary">查询</button>
         </div>
         <div class="table-card">
-          <table class="admin-table" id="ledger-table">
+          <table class="admin-table" id="ledger-table" data-slot="table">
+            <colgroup>
+              <col style="width: 140px">
+              <col style="width: 120px">
+              <col style="width: 90px">
+              <col style="width: 95px">
+              <col style="width: 95px">
+              <col style="width: 150px">
+              <col style="width: 160px">
+              <col style="width: 200px">
+            </colgroup>
             <thead>
               <tr><th>时间</th><th>用户</th><th>类型</th><th class="num">变动</th><th class="num">余额</th><th>模型</th><th>单号</th><th>事由</th></tr>
             </thead>
@@ -241,7 +272,17 @@
       <section class="admin-page wide" data-page="models">
         <h1 class="page-title">模型资费 <span class="title-hint">积分 / 百万 tokens</span></h1>
         <div class="table-card">
-          <table class="admin-table" id="model-table">
+          <table class="admin-table" id="model-table" data-slot="table">
+            <colgroup>
+              <col style="width: 230px">
+              <col style="width: 95px">
+              <col style="width: 105px">
+              <col style="width: 105px">
+              <col style="width: 95px">
+              <col style="width: 75px">
+              <col style="width: 135px">
+              <col style="width: 110px">
+            </colgroup>
             <thead>
               <tr><th>模型名</th><th class="num">输入</th><th class="num">缓存命中</th><th class="num">缓存写入</th><th class="num">输出</th><th>状态</th><th>更新时间</th><th>操作</th></tr>
             </thead>
@@ -278,12 +319,25 @@
               <option value="REVOKED">已作废</option>
             </select>
           </div>
-          <table class="admin-table" id="redeem-table">
-            <thead>
-              <tr><th>兑换码</th><th class="num">积分</th><th class="num">存储</th><th class="num">work 配额</th><th>状态</th><th>失效时间</th><th>使用者</th><th>创建时间</th><th>操作</th></tr>
-            </thead>
-            <tbody id="redeem-tbody"></tbody>
-          </table>
+          <div class="table-wrap">
+            <table class="admin-table" id="redeem-table" data-slot="table">
+              <colgroup>
+                <col style="width: 175px">
+                <col style="width: 80px">
+                <col style="width: 80px">
+                <col style="width: 85px">
+                <col style="width: 75px">
+                <col style="width: 135px">
+                <col style="width: 135px">
+                <col style="width: 135px">
+                <col style="width: 100px">
+              </colgroup>
+              <thead>
+                <tr><th>兑换码</th><th class="num">积分</th><th class="num">存储</th><th class="num">work 配额</th><th>状态</th><th>失效时间</th><th>使用者</th><th>创建时间</th><th>操作</th></tr>
+              </thead>
+              <tbody id="redeem-tbody"></tbody>
+            </table>
+          </div>
         </div>
       </section>
 
@@ -305,7 +359,15 @@
 
         <div class="section-caption">Provider（API 渠道）</div>
         <div class="table-card">
-          <table class="admin-table" id="mc-provider-table">
+          <table class="admin-table" id="mc-provider-table" data-slot="table">
+            <colgroup>
+              <col style="width: 130px">
+              <col style="width: 100px">
+              <col style="width: 320px">
+              <col style="width: 100px">
+              <col style="width: 140px">
+              <col style="width: 110px">
+            </colgroup>
             <thead>
               <tr><th>名称</th><th>类型</th><th>base_url</th><th>API Key</th><th>更新时间</th><th>操作</th></tr>
             </thead>
@@ -342,7 +404,17 @@
 
         <div class="section-caption">模型定义</div>
         <div class="table-card">
-          <table class="admin-table" id="mc-model-table">
+          <table class="admin-table" id="mc-model-table" data-slot="table">
+            <colgroup>
+              <col style="width: 175px">
+              <col style="width: 105px">
+              <col style="width: 155px">
+              <col style="width: 145px">
+              <col style="width: 80px">
+              <col style="width: 145px">
+              <col style="width: 75px">
+              <col style="width: 110px">
+            </colgroup>
             <thead>
               <tr><th>模型 ID</th><th>Provider</th><th>实际模型名</th><th>展示名</th><th class="num">上下文</th><th>能力</th><th>状态</th><th>操作</th></tr>
             </thead>
@@ -500,7 +572,7 @@
       </section>
     </main>
   </div>
-  <script src="/static/ui.js?v=20261010"></script>
+  <script src="/static/ui.js?v=20261011"></script>
   <script src="/static/admin.js?v=20261011"></script>
 </body>
 </html>

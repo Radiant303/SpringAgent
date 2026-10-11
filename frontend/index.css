@@ -13,6 +13,7 @@
   --bg: var(--color-bg);
   --panel: var(--color-bg);
   --surface: var(--color-surface);
+  --muted: #ebebee;
   --border: rgba(0, 0, 0, 0.08);
   --border-soft: rgba(0, 0, 0, 0.05);
   --text: var(--color-text);

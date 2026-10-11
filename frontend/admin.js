@@ -420,14 +420,7 @@ async function loadUsers() {
 }
 
 function renderUsers() {
-  const tbody = $("user-tbody");
-  tbody.innerHTML = "";
-  if (!users.length) {
-    UI.emptyRow(tbody, "暂无用户");
-    return;
-  }
-  for (const u of users) {
-    const tr = document.createElement("tr");
+  UI.renderRows("user-tbody", users, (tr, u) => {
     const isOwnerRow = u.role === "owner";
     // 管理员只能操作普通用户；站长可操作任何人（站长行的禁用/角色按钮另有限制）
     const operable = myRole === "owner" || (myRole === "admin" && u.role === "user");
@@ -449,6 +442,7 @@ function renderUsers() {
       actions.push(`<button class="admin-btn" data-act="role" data-id="${u.user_id}" data-next="${toAdmin ? "admin" : "user"}">${toAdmin ? "设为管理员" : "取消管理员"}</button>`);
     }
 
+    tr.className = disabled ? "disabled" : "";
     tr.innerHTML = `
       <td title="ID: ${u.user_id}"></td>
       <td class="user-email"></td>
@@ -461,8 +455,7 @@ function renderUsers() {
       <td><div class="row-actions">${actions.join("")}</div></td>`;
     tr.cells[0].textContent = u.username;
     tr.cells[1].textContent = u.email || "-";
-    tbody.appendChild(tr);
-  }
+  }, "暂无用户");
 }
 
 async function onUserAction(btn) {
@@ -600,14 +593,8 @@ async function loadUsage() {
     params.set("to", end.toISOString().slice(0, 10));
   }
   const rows = await UI.loadTable("usage-tbody", () => api("/api/admin/usage?" + params.toString())) || [];
-  const tbody = $("usage-tbody");
-  tbody.innerHTML = "";
-  if (!rows.length) {
-    UI.emptyRow(tbody, "暂无用量记录");
-    return;
-  }
-  for (const r of rows) {
-    const tr = document.createElement("tr");
+  UI.renderRows("usage-tbody", rows, (tr, r) => {
+    tr.className = "";
     tr.innerHTML = `
       <td></td>
       <td>${r.modelName || "-"}</td>
@@ -618,8 +605,7 @@ async function loadUsage() {
       <td class="num">${fmtNum(r.cacheWriteTokens)}</td>
       <td class="num">${fmtNum(r.outputTokens)}</td>`;
     tr.cells[0].textContent = r.username || r.userId;
-    tbody.appendChild(tr);
-  }
+  }, "暂无用量记录");
 }
 
 /* ---------- 模型资费（写操作仅站长） ---------- */
@@ -633,14 +619,7 @@ async function loadModels() {
 }
 
 function renderModels() {
-  const tbody = $("model-tbody");
-  tbody.innerHTML = "";
-  if (!models.length) {
-    UI.emptyRow(tbody, "暂无资费卡");
-    return;
-  }
-  for (const m of models) {
-    const tr = document.createElement("tr");
+  UI.renderRows("model-tbody", models, (tr, m) => {
     const isDefault = m.model_name === "default";
     const actions = [];
     if (myRole === "owner") {
@@ -649,6 +628,7 @@ function renderModels() {
         actions.push(`<button class="admin-btn danger" data-act="delete" data-id="${m.id}" data-name="${m.model_name}">删除</button>`);
       }
     }
+    tr.className = m.enabled ? "" : "disabled";
     tr.innerHTML = `
       <td>${m.model_name}${isDefault ? ' <span class="settings-hint">(兜底卡)</span>' : ""}</td>
       <td class="num">${fmtPoints(m.input_points)}</td>
@@ -658,8 +638,7 @@ function renderModels() {
       <td class="${m.enabled ? "status-active" : "status-disabled"}">${m.enabled ? "启用" : "停用"}</td>
       <td>${fmtTime(m.updated_at)}</td>
       <td><div class="row-actions">${actions.join("")}</div></td>`;
-    tbody.appendChild(tr);
-  }
+  }, "暂无资费卡");
 }
 
 function fillModelForm(m) {
@@ -734,11 +713,31 @@ let editingProviderName = null;   // 非 null 表示 Provider 表单处于编辑
 let editingModelDefId = null;     // 非 null 表示模型表单处于编辑模式
 
 async function loadModelConfig() {
-  const data = await api("/api/admin/model-config");
-  modelConfig = data || { providers: [], models: [], defaultModel: "" };
-  renderMcDefault();
-  renderMcProviders();
-  renderMcModels();
+  const tb1 = $("mc-provider-tbody");
+  const tb2 = $("mc-model-tbody");
+  const card1 = tb1?.closest(".table-wrap") || tb1?.closest(".table-card");
+  const card2 = tb2?.closest(".table-wrap") || tb2?.closest(".table-card");
+  const hasRows1 = !!tb1?.querySelector("tr:not(.sk-tr):not(.empty-row)");
+  const hasRows2 = !!tb2?.querySelector("tr:not(.sk-tr):not(.empty-row)");
+  if (hasRows1 && card1) card1.classList.add("fetching", "is-loading");
+  else if (tb1) UI.tableSkeleton(tb1);
+  if (hasRows2 && card2) card2.classList.add("fetching", "is-loading");
+  else if (tb2) UI.tableSkeleton(tb2);
+
+  try {
+    const data = await api("/api/admin/model-config");
+    modelConfig = data || { providers: [], models: [], defaultModel: "" };
+    renderMcDefault();
+    renderMcProviders();
+    renderMcModels();
+  } catch (e) {
+    if (tb1?.querySelector(".sk-tr")) UI.emptyRow(tb1, "加载失败");
+    if (tb2?.querySelector(".sk-tr")) UI.emptyRow(tb2, "加载失败");
+    throw e;
+  } finally {
+    if (card1) card1.classList.remove("fetching", "is-loading");
+    if (card2) card2.classList.remove("fetching", "is-loading");
+  }
 }
 
 /* 默认模型下拉：只列启用项；无默认时给出未设置占位 */
@@ -763,14 +762,8 @@ function renderMcDefault() {
 }
 
 function renderMcProviders() {
-  const tbody = $("mc-provider-tbody");
-  tbody.innerHTML = "";
-  if (!modelConfig.providers.length) {
-    UI.emptyRow(tbody, "暂无 Provider");
-    return;
-  }
-  for (const p of modelConfig.providers) {
-    const tr = document.createElement("tr");
+  UI.renderRows("mc-provider-tbody", modelConfig.providers, (tr, p) => {
+    tr.className = "";
     tr.innerHTML = `
       <td></td>
       <td>${p.type}</td>
@@ -784,8 +777,7 @@ function renderMcProviders() {
     tr.cells[0].textContent = p.name;
     tr.cells[2].textContent = p.base_url || "-";
     if (p.base_url) tr.cells[2].title = p.base_url;
-    tbody.appendChild(tr);
-  }
+  }, "暂无 Provider");
 }
 
 function fillMcProviderForm(p) {
@@ -848,8 +840,6 @@ async function onMcProviderAction(btn) {
 }
 
 function renderMcModels() {
-  const tbody = $("mc-model-tbody");
-  tbody.innerHTML = "";
   // Provider 下拉跟随最新列表
   const sel = $("mc-m-provider");
   const prev = sel.value;
@@ -863,18 +853,14 @@ function renderMcModels() {
   if (modelConfig.providers.some((p) => p.name === prev)) sel.value = prev;
   UI.enhance();
 
-  if (!modelConfig.models.length) {
-    UI.emptyRow(tbody, "暂无模型");
-    return;
-  }
-  for (const m of modelConfig.models) {
-    const tr = document.createElement("tr");
+  UI.renderRows("mc-model-tbody", modelConfig.models, (tr, m) => {
     const actions = [
       `<button class="admin-btn" data-act="edit" data-id="${m.id}">编辑</button>`,
     ];
     if (!m.is_default) {
       actions.push(`<button class="admin-btn danger" data-act="delete" data-id="${m.id}">删除</button>`);
     }
+    tr.className = m.enabled ? "" : "disabled";
     tr.innerHTML = `
       <td class="mc-ellipsis"></td>
       <td>${m.provider}</td>
@@ -892,8 +878,7 @@ function renderMcModels() {
     tr.cells[3].title = m.display_name;
     tr.cells[5].textContent = m.capabilities.join(", ") || "-";
     if (m.capabilities.length) tr.cells[5].title = m.capabilities.join(", ");
-    tbody.appendChild(tr);
-  }
+  }, "暂无模型");
 }
 
 function fillMcModelForm(m) {
@@ -1005,19 +990,13 @@ async function loadRedeemCodes() {
   if ($("redeem-status").value) params.set("status", $("redeem-status").value);
   const rows = await UI.loadTable("redeem-tbody", () => api("/api/admin/redeem-codes?" + params.toString())) || [];
   const nameOf = Object.fromEntries(users.map((u) => [u.user_id, u.username]));
-  const tbody = $("redeem-tbody");
-  tbody.innerHTML = "";
-  if (!rows.length) {
-    UI.emptyRow(tbody, "暂无兑换码");
-    return;
-  }
-  for (const row of rows) {
-    const tr = document.createElement("tr");
+  UI.renderRows("redeem-tbody", rows, (tr, row) => {
     const actions = [`<button class="admin-btn" data-act="copy" data-code="${row.code}">复制</button>`];
     if (myRole === "owner" && row.status === "ACTIVE") {
       actions.push(`<button class="admin-btn danger" data-act="revoke" data-id="${row.id}">作废</button>`);
     }
     const redeemedBy = row.redeemed_by ? (nameOf[row.redeemed_by] || row.redeemed_by) : null;
+    tr.className = row.status !== "ACTIVE" ? "disabled" : "";
     tr.innerHTML = `
       <td><code class="redeem-code">${row.code}</code></td>
       <td class="num">${faceCell(row.points, fmtPoints)}</td>
@@ -1031,8 +1010,7 @@ async function loadRedeemCodes() {
     tr.cells[6].innerHTML = redeemedBy
       ? `${redeemedBy}<div class="cell-sub">${fmtDT(row.redeemed_at)}</div>`
       : `<span class="face-zero">–</span>`;
-    tbody.appendChild(tr);
-  }
+  }, "暂无兑换码");
 }
 
 /* 生成兑换码：右上角主按钮弹出的对话框；校验/提交都在框内，失败可改了重试 */
@@ -1151,15 +1129,9 @@ async function loadLedger() {
   if ($("ledger-user").value) params.set("userId", $("ledger-user").value);
   const rows = await UI.loadTable("ledger-tbody", () => api("/api/admin/points/ledger?" + params.toString())) || [];
   const nameOf = Object.fromEntries(users.map((u) => [u.user_id, u.username]));
-  const tbody = $("ledger-tbody");
-  tbody.innerHTML = "";
-  if (!rows.length) {
-    UI.emptyRow(tbody, "暂无流水");
-    return;
-  }
-  for (const r of rows) {
-    const tr = document.createElement("tr");
+  UI.renderRows("ledger-tbody", rows, (tr, r) => {
     const change = Number(r.change_amount);
+    tr.className = "";
     tr.innerHTML = `
       <td>${fmtTime(r.created_at)}</td>
       <td></td>
@@ -1170,8 +1142,7 @@ async function loadLedger() {
       <td class="ref-cell" title="${r.ref_id || ""}">${r.ref_id || "-"}</td>
       <td>${r.reason || "-"}</td>`;
     tr.cells[1].textContent = nameOf[r.user_id] || r.user_id;
-    tbody.appendChild(tr);
-  }
+  }, "暂无流水");
 }
 
 /* ---------- 系统设置（仅站长） ---------- */
