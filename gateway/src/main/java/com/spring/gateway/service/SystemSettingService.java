@@ -139,6 +139,15 @@ public class SystemSettingService {
     }
 
     /**
+     * 官方社群链接；默认空串（未配置）
+     *
+     * @return 链接
+     */
+    public String getCommunityLink() {
+        return getString(SystemSetting.KEY_COMMUNITY_LINK, "");
+    }
+
+    /**
      * 写设置（upsert：存在更新值与 updated_at，不存在插入）
      *
      * @param key   设置键

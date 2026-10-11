@@ -50,6 +50,9 @@ public class SystemSetting {
     /** 设置键：默认模型 ID（必须指向 model_definitions 中已启用的行）。 */
     public static final String KEY_DEFAULT_MODEL = "default_model";
 
+    /** 设置键：官方社群链接（空串 = 未配置）。 */
+    public static final String KEY_COMMUNITY_LINK = "community_link";
+
     /** 设置键，主键（值由代码固定，手动赋值）。 */
     @TableId(type = IdType.INPUT)
     private String settingKey;

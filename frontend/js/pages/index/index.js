@@ -132,8 +132,29 @@ export function showUserChip() {
     if ($("um-settings")) $("um-settings").classList.toggle("hidden", role !== "owner");
     if ($("user-chip")) $("user-chip").classList.remove("hidden");
     if ($("points-card")) $("points-card").classList.remove("hidden");
+    loadCommunityLink();
     refreshPoints();
   }
+}
+
+/* 官方社群入口 */
+function loadCommunityLink() {
+  const item = $("um-community");
+  if (!item) return;
+  fetch("/api/auth/public-config")
+    .then((r) => r.json())
+    .then((p) => {
+      const link = p && p.data && typeof p.data.communityLink === "string"
+        ? p.data.communityLink.trim()
+        : "";
+      if (link) {
+        item.href = link;
+        item.classList.remove("hidden");
+      } else {
+        item.classList.add("hidden");
+      }
+    })
+    .catch(() => {});
 }
 
 export function toggleUserMenu(open) {

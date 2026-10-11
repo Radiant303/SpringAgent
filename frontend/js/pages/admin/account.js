@@ -168,7 +168,7 @@ export async function loadAccount() {
     const profile = await api("/api/account/me");
     acEmail = profile?.email || "";
     if ($("account-email")) $("account-email").textContent = acEmail;
-    const cfg = await fetch("/api/auth/register-config").then((r) => r.json()).catch(() => null);
+    const cfg = await fetch("/api/auth/public-config").then((r) => r.json()).catch(() => null);
     acMailOn = !!(cfg && cfg.data && cfg.data.mailVerify);
     if ($("account-email-row")) $("account-email-row").classList.toggle("hidden", !acMailOn);
     if ($("ac-bind-email")) $("ac-bind-email").textContent = acEmail ? "修改" : "绑定";

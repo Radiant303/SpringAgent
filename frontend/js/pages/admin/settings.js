@@ -38,6 +38,7 @@ export async function loadSettings() {
   }
   if ($("mail-resend-interval")) $("mail-resend-interval").value = data?.mailResendIntervalSeconds ?? 60;
   if ($("mail-code-ttl")) $("mail-code-ttl").value = data?.mailCodeTtlSeconds ?? 300;
+  if ($("community-link")) $("community-link").value = data?.communityLink ?? "";
 }
 
 export async function saveSettings() {
@@ -66,6 +67,15 @@ export async function saveSettings() {
     await api("/api/admin/settings/billing-est", {
       method: "POST",
       body: { cacheReadTokens: Math.round(estCacheRead), inputTokens: Math.round(estInput), outputTokens: Math.round(estOutput) },
+    });
+    // 官方社群：空串 = 侧边栏不显示入口
+    const communityLink = $("community-link").value.trim();
+    if (communityLink && !/^https?:\/\//.test(communityLink)) {
+      throw new Error("社群链接必须以 http:// 或 https:// 开头");
+    }
+    await api("/api/admin/settings/community-link", {
+      method: "POST",
+      body: { link: communityLink },
     });
     // 邮箱验证码注册：邮箱/授权码留空 = 保持不变（后端按生效值校验开启条件）
     const mailResend = Number($("mail-resend-interval").value);

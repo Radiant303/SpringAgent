@@ -64,7 +64,7 @@ export function initLoginPage() {
 
   const needsCode = () => (mode === "register" && mailVerify) || mode === "reset";
 
-  fetch("/api/auth/register-config")
+  fetch("/api/auth/public-config")
     .then((r) => r.json())
     .then((p) => {
       mailVerify = !!(p && p.data && p.data.mailVerify);

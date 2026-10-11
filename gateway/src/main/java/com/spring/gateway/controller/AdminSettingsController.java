@@ -3,9 +3,12 @@ package com.spring.gateway.controller;
 import com.spring.gateway.common.RequiresOwner;
 import com.spring.gateway.common.Result;
 import com.spring.gateway.dto.AdminBillingEstRequest;
+import com.spring.gateway.dto.AdminCommunityLinkRequest;
 import com.spring.gateway.dto.AdminMailSettingsRequest;
 import com.spring.gateway.dto.AdminRegistrationRequest;
 import com.spring.gateway.dto.AdminWorkMaxBytesRequest;
+
+import java.util.HashMap;
 import com.spring.gateway.common.BizException;
 import com.spring.gateway.entity.SystemSetting;
 import com.spring.gateway.service.MailCodeService;
@@ -36,12 +39,11 @@ public class AdminSettingsController {
     /**
      * 当前系统设置
      *
-     * @return 设置快照（registrationOpen、workMaxBytes、billingEst* 三档位、mail* 邮箱验证码注册；
-     *         授权码敏感不回值，只回 mailAuthCodeConfigured 表示是否已配置）
+     * @return 设置快照
      */
     @GetMapping
     public Result<Map<String, Object>> get() {
-        return Result.ok(Map.of(
+        Map<String, Object> data = new HashMap<>(Map.of(
                 "registrationOpen", systemSettingService.isRegistrationOpen(),
                 "workMaxBytes", systemSettingService.getWorkMaxBytes(),
                 "billingEstCacheReadTokens", systemSettingService.getLong(
@@ -55,6 +57,8 @@ public class AdminSettingsController {
                 "mailAuthCodeConfigured", !systemSettingService.getMailAuthCode().isBlank(),
                 "mailResendIntervalSeconds", systemSettingService.getMailResendIntervalSeconds(),
                 "mailCodeTtlSeconds", systemSettingService.getMailCodeTtlSeconds()));
+        data.put("communityLink", systemSettingService.getCommunityLink());
+        return Result.ok(data);
     }
 
     /**
@@ -114,6 +118,23 @@ public class AdminSettingsController {
         systemSettingService.set(SystemSetting.KEY_MAIL_RESEND_INTERVAL_SECONDS,
                 String.valueOf(req.resendIntervalSeconds()));
         systemSettingService.set(SystemSetting.KEY_MAIL_CODE_TTL_SECONDS, String.valueOf(req.codeTtlSeconds()));
+        return Result.ok(null);
+    }
+
+    /**
+     * 设置官方社群链接。
+     *
+     * @param req 社群链接
+     * @return 空数据返回体
+     */
+    @RequiresOwner(message = "仅站长可修改系统设置")
+    @PostMapping("/community-link")
+    public Result<Void> setCommunityLink(@Valid @RequestBody AdminCommunityLinkRequest req) {
+        String link = req.link().trim();
+        if (!link.isEmpty() && !link.startsWith("http://") && !link.startsWith("https://")) {
+            throw new BizException(400, "链接必须以 http:// 或 https:// 开头");
+        }
+        systemSettingService.set(SystemSetting.KEY_COMMUNITY_LINK, link);
         return Result.ok(null);
     }
 

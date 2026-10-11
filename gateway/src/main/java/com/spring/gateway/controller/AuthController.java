@@ -62,13 +62,15 @@ public class AuthController {
     }
 
     /**
-     * 注册页公开配置（无需登录）：是否要求邮箱验证码
+     * 公开配置。
      *
-     * @return mailVerify：true = 注册必须携带邮箱验证码
+     * @return mailVerify：true = 注册必须携带邮箱验证码；communityLink：空串 = 未配置社群入口
      */
-    @GetMapping("/register-config")
-    public Result<Map<String, Boolean>> registerConfig() {
-        return Result.ok(Map.of("mailVerify", systemSettingService.isMailRegisterEnabled()));
+    @GetMapping("/public-config")
+    public Result<Map<String, Object>> publicConfig() {
+        return Result.ok(Map.of(
+                "mailVerify", systemSettingService.isMailRegisterEnabled(),
+                "communityLink", systemSettingService.getCommunityLink()));
     }
 
     /**
