@@ -118,10 +118,10 @@
   position: absolute;
   right: 6px;
   top: 50%;
-  height: 28px;
-  padding: 0 10px;
+  height: 32px;
+  padding: 0 12px;
   border: none;
-  border-radius: 7px;
+  border-radius: 8px;
   background: transparent;
   color: var(--link, #1783ff);
   font: inherit;
@@ -131,7 +131,7 @@
   transition: background-color 0.15s, color 0.15s;
 }
 .ui-suffix-btn:hover:not(:disabled) {
-  background: rgba(23, 131, 255, 0.08);
+  background: var(--hover-bg, rgba(0, 0, 0, 0.04));
 }
 .ui-suffix-btn:disabled {
   color: var(--text-faint, rgba(0, 0, 0, 0.45));
