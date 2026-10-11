@@ -73,21 +73,21 @@ export async function switchSession(sid) {
   subscribeStream(sid);
 }
 
-export async function newSession() {
+export function newSession() {
   if (state.busy) {
     addSystem("运行中，不能新建会话");
     return;
   }
-  try {
-    const r = await rpc.request("session/new", { workspace: state.workspace, model: state.model, workId: state.workId });
-    state.sessionId = r.sessionId;
-    localStorage.setItem("sh.sessionId", r.sessionId);
-    clearMessages();
-    await refreshSessionList();
-    subscribeStream(r.sessionId);
-  } catch (e) {
-    addSystem("❌ 新建会话失败：" + e.message, true);
+  // 草稿态：不真正建会话，首条消息发出时才创建
+  if (!state.sessionId) {
+    $("input")?.focus();
+    return;
   }
+  state.sessionId = null;
+  localStorage.removeItem("sh.sessionId");
+  clearMessages();
+  refreshSessionList();
+  $("input")?.focus();
 }
 
 export async function openSession() {
@@ -104,8 +104,9 @@ export async function openSession() {
     sid = r.sessionId;
   }
   if (!sid) {
-    const r = await rpc.request("session/new", { workspace: state.workspace, model: state.model, workId: state.workId });
-    sid = r.sessionId;
+    clearMessages();
+    await refreshSessionList();
+    return;
   }
   state.sessionId = sid;
   localStorage.setItem("sh.sessionId", sid);

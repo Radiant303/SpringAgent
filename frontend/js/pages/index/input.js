@@ -6,6 +6,7 @@ import { $, el, icon, scrollToBottom, showPending, hidePending } from "../../uti
 import { rpc } from "../../api/rpc.js";
 import { state, resetFlow, setStickToBottom, maybeScroll } from "./state.js";
 import { userNode, addSystem } from "./chatView.js";
+import { subscribeStream, refreshSessionList } from "./sessions.js";
 
 export function updateInputState() {
   const send = $("send-btn");
@@ -23,7 +24,7 @@ export async function send() {
   if (!input) return;
   const text = input.value.trim();
   if (!text) return;
-  if (!state.connected || !state.sessionId) {
+  if (!state.connected) {
     addSystem("尚未连接，不能发送消息", true);
     return;
   }
@@ -44,6 +45,14 @@ export async function send() {
   input.value = "";
   input.style.height = "auto";
   try {
+    // 草稿态下首条消息：先建会话再开回合
+    if (!state.sessionId) {
+      const r = await rpc.request("session/new", { workspace: state.workspace, model: state.model, workId: state.workId });
+      state.sessionId = r.sessionId;
+      localStorage.setItem("sh.sessionId", r.sessionId);
+      subscribeStream(r.sessionId);
+      refreshSessionList();
+    }
     await rpc.request("turn/start", { sessionId: state.sessionId, input: text });
   } catch (e) {
     hidePending();

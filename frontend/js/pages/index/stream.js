@@ -84,6 +84,10 @@ export function updateUsage(tokens) {
 
 export async function loadPlan() {
   const sid = state.sessionId;
+  if (!sid) {
+    renderPlan([]);
+    return;
+  }
   try {
     const r = await rpc.request("session/plan", { sessionId: sid });
     if (sid === state.sessionId) renderPlan(r.items);
