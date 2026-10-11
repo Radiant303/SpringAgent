@@ -284,16 +284,7 @@ button.row-link { background: none; border: none; padding: 0; font: inherit; cur
 .points-out { color: var(--danger); }
 .ref-cell { max-width: 140px; overflow: hidden; text-overflow: ellipsis; font-size: 12px; color: var(--text-faint); }
 
-/* ---- 兑换码：列表卡片（查询动作独立，头部内筛选） ---- */
-.redeem-card-title { font-size: 14px; font-weight: 500; color: var(--text); }
-.redeem-list-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 10px 16px;
-  border-bottom: 1px solid var(--admin-border);
-}
+/* ---- 兑换码 ---- */
 .face-zero { color: var(--text-faint); }
 .cell-sub { margin-top: 2px; font-size: 12px; color: var(--text-faint); }
 .time-cell { font-variant-numeric: tabular-nums; color: var(--text-dim); }

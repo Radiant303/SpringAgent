@@ -975,7 +975,7 @@ async function onMcDefaultChange() {
 function redeemStatusHtml(row) {
   if (row.status === "REDEEMED") return `<span class="face-zero">已使用</span>`;
   if (row.status === "REVOKED") return `<span class="status-disabled">已作废</span>`;
-  if (row.expired) return `<span class="status-warn">已过期</span>`;
+  if (row.expired) return `<span class="face-zero">已过期</span>`;
   return `<span class="status-active">待使用</span>`;
 }
 
@@ -991,12 +991,13 @@ async function loadRedeemCodes() {
   const rows = await UI.loadTable("redeem-tbody", () => api("/api/admin/redeem-codes?" + params.toString())) || [];
   const nameOf = Object.fromEntries(users.map((u) => [u.user_id, u.username]));
   UI.renderRows("redeem-tbody", rows, (tr, row) => {
+    const isUsable = row.status === "ACTIVE" && !row.expired;
     const actions = [`<button class="admin-btn" data-act="copy" data-code="${row.code}">复制</button>`];
-    if (myRole === "owner" && row.status === "ACTIVE") {
+    if (myRole === "owner" && isUsable) {
       actions.push(`<button class="admin-btn danger" data-act="revoke" data-id="${row.id}">作废</button>`);
     }
     const redeemedBy = row.redeemed_by ? (nameOf[row.redeemed_by] || row.redeemed_by) : null;
-    tr.className = row.status !== "ACTIVE" ? "disabled" : "";
+    tr.className = isUsable ? "" : "disabled";
     tr.innerHTML = `
       <td><code class="redeem-code">${row.code}</code></td>
       <td class="num">${faceCell(row.points, fmtPoints)}</td>

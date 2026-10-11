@@ -303,41 +303,36 @@
 
       <!-- 兑换码管理：主界面只留列表；生成走右上角主按钮弹窗 -->
       <section class="admin-page wide" data-page="redeem">
-        <div class="page-head">
-          <h1 class="page-title">兑换码</h1>
-          <button id="redeem-open-gen" class="admin-btn primary">+ 生成兑换码</button>
+        <h1 class="page-title">兑换码</h1>
+
+        <div class="usage-filter">
+          <select id="redeem-status" title="按状态筛选">
+            <option value="">全部状态</option>
+            <option value="ACTIVE">待使用</option>
+            <option value="REDEEMED">已使用</option>
+            <option value="REVOKED">已作废</option>
+          </select>
+          <button id="redeem-open-gen" class="admin-btn primary">+ 兑换码</button>
         </div>
 
-        <!-- 查询动作：列表卡片头部内筛选，切换即刷新 -->
-        <div class="table-card redeem-list-card">
-          <div class="redeem-list-head">
-            <span class="redeem-card-title">兑换码列表</span>
-            <select id="redeem-status" title="按状态筛选">
-              <option value="">全部状态</option>
-              <option value="ACTIVE">待使用</option>
-              <option value="REDEEMED">已使用</option>
-              <option value="REVOKED">已作废</option>
-            </select>
-          </div>
-          <div class="table-wrap">
-            <table class="admin-table" id="redeem-table" data-slot="table">
-              <colgroup>
-                <col style="width: 175px">
-                <col style="width: 80px">
-                <col style="width: 80px">
-                <col style="width: 85px">
-                <col style="width: 75px">
-                <col style="width: 135px">
-                <col style="width: 135px">
-                <col style="width: 135px">
-                <col style="width: 100px">
-              </colgroup>
-              <thead>
-                <tr><th>兑换码</th><th class="num">积分</th><th class="num">存储</th><th class="num">work 配额</th><th>状态</th><th>失效时间</th><th>使用者</th><th>创建时间</th><th>操作</th></tr>
-              </thead>
-              <tbody id="redeem-tbody"></tbody>
-            </table>
-          </div>
+        <div class="table-card">
+          <table class="admin-table" id="redeem-table" data-slot="table">
+            <colgroup>
+              <col style="width: 175px">
+              <col style="width: 80px">
+              <col style="width: 80px">
+              <col style="width: 85px">
+              <col style="width: 75px">
+              <col style="width: 135px">
+              <col style="width: 135px">
+              <col style="width: 135px">
+              <col style="width: 100px">
+            </colgroup>
+            <thead>
+              <tr><th>兑换码</th><th class="num">积分</th><th class="num">存储</th><th class="num">work 配额</th><th>状态</th><th>失效时间</th><th>使用者</th><th>创建时间</th><th>操作</th></tr>
+            </thead>
+            <tbody id="redeem-tbody"></tbody>
+          </table>
         </div>
       </section>
 
@@ -573,6 +568,6 @@
     </main>
   </div>
   <script src="/static/ui.js?v=20261011"></script>
-  <script src="/static/admin.js?v=20261011"></script>
+  <script src="/static/admin.js?v=20261011b"></script>
 </body>
 </html>

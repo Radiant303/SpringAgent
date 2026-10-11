@@ -397,7 +397,7 @@ loader().catch((e) => { UI.settleSkeletons(section); showError(e.message); });
 
 ### 6.9 状态与提示
 
-- 状态用**文字**表达。需要颜色时只给文字上色：正常 / 入账用绿字，禁用 / 扣减用红字。不用圆点、不用色块。
+- 状态用**文字**表达。需要颜色时只给文字上色：正常 / 待使用 / 入账用绿字（`--admin-green`），禁用 / 已作废 / 扣减用红字（`--danger`）；已使用 / 已过期等自然终态用次级灰字（`--text-faint`，整行附带 disabled 样式）。不用圆点、不用色块。
 - 页面级错误：顶部浅红条 `background: #fdecea; color: var(--danger); border-radius: 12px`（`#admin-error`）。
 - 表单内错误：输入框下方 13px 红字，并把对应输入框标红。
 - 中性提醒（如"登录已过期"）：`--notice-bg` 浅暖底 + `--warn` 字，圆角 10px。不要做得和输入框一样灰，否则会被当成输入框。
