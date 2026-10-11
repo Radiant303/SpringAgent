@@ -1,5 +1,0 @@
-/* Spring Harness - Login Styles (Modular Import Entry) */
-@import "./css/variables.css";
-@import "./css/base.css";
-@import "./css/ui.css";
-@import "./css/pages/login.css";

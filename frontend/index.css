@@ -1,9 +1,0 @@
-/* Spring Harness - Chat Styles (Modular Import Entry) */
-@import "./css/variables.css";
-@import "./css/base.css";
-@import "./css/ui.css";
-@import "./css/components/dialog.css";
-@import "./css/components/skeleton.css";
-@import "./css/components/controls.css";
-@import "./css/components/sprout.css";
-@import "./css/pages/chat.css";

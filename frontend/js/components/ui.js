@@ -1,5 +1,5 @@
 /**
- * UI 门面模块（兼容与统一对外接口）
+ * UI 门面模块（统一对外接口）
  */
 
 import { dialog, confirm, prompt, toast } from "./dialog.js";

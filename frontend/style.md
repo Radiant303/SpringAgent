@@ -492,14 +492,14 @@ UI.enhanceDate(inp);               // 只换一个日期框
       }
     } catch (e) { /* 存储不可用时交给页面脚本处理 */ }
   </script>
-  <link rel="stylesheet" href="/static/index.css">
-  <link rel="stylesheet" href="/static/ui.css">
-  <link rel="stylesheet" href="/static/xxx.css">
+  <link rel="stylesheet" href="/static/css/variables.css">
+  <link rel="stylesheet" href="/static/css/base.css">
+  <link rel="stylesheet" href="/static/css/ui.css">
+  <link rel="stylesheet" href="/static/css/xxx.css">
 </head>
 <body>
   <div id="xxx-app"><!-- 浅灰底 + 240px 侧栏 + 白色主卡片，见 §6.1 --></div>
-  <script src="/static/ui.js"></script>
-  <script src="/static/xxx.js"></script>
+  <script type="module" src="/static/js/pages/xxx.js"></script>
 </body>
 </html>
 ```

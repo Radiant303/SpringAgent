@@ -1,7 +1,0 @@
-/* Spring Harness - UI Components (Modular Import Entry) */
-@import "./css/variables.css";
-@import "./css/base.css";
-@import "./css/ui.css";
-@import "./css/components/dialog.css";
-@import "./css/components/skeleton.css";
-@import "./css/components/controls.css";
