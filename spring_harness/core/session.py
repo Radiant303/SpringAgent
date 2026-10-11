@@ -23,6 +23,7 @@ from spring_harness.core.approval import run_with_approval
 from spring_harness.core.background import format_notice
 from spring_harness.core.history import HistoryDirection, HistoryPage
 from spring_harness.core.hooks.model import BACKGROUND_WAKE_SOURCE
+from spring_harness.core.log import logger
 from spring_harness.core.store.base import SessionStore
 from spring_harness.core.store.jsonl import JsonlSessionStore
 from spring_harness.core.stream.adapter import AgentEventAdapter
@@ -326,18 +327,29 @@ class HarnessSession:
         if self._agent is None:
             from spring_harness.core.agent.agent import create_agent
 
-            self._agent = create_agent(
-                self.workspace,
-                model_name=self._model_name,
-                session_id=self.session_id,
-                plan_on_change=lambda items: self._emit(
-                    PlanUpdated(items=[i.model_dump() for i in items])),
-                teach_on_change=lambda unit: self._emit(
-                    TeachingUpdated(unit=unit.model_dump())),
-                compact_on_change=lambda dropped, before, after: self._emit(
-                    CompactionNotice(dropped=dropped, before=before, after=after)),
-            )
+            try:
+                self._agent = self._build_agent(create_agent)
+            except ValueError:
+                if self._model_name is None:
+                    raise
+                # 会话记住的模型已被删除/改名：回退默认模型，会话不因此报废
+                logger.warning("模型 {} 不存在，会话 {} 回退默认模型", self._model_name, self.session_id)
+                self._model_name = None
+                self._agent = self._build_agent(create_agent)
         return self._agent
+
+    def _build_agent(self, create_agent: Any) -> Agent[Any, Any]:
+        return create_agent(
+            self.workspace,
+            model_name=self._model_name,
+            session_id=self.session_id,
+            plan_on_change=lambda items: self._emit(
+                PlanUpdated(items=[i.model_dump() for i in items])),
+            teach_on_change=lambda unit: self._emit(
+                TeachingUpdated(unit=unit.model_dump())),
+            compact_on_change=lambda dropped, before, after: self._emit(
+                CompactionNotice(dropped=dropped, before=before, after=after)),
+        )
 
     def _persist(self, messages: list[ModelMessage], *, allow_rewrite: bool = False) -> None:
         if self._save_delta(messages, allow_rewrite=allow_rewrite):

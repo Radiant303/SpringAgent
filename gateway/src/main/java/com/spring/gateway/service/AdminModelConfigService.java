@@ -15,7 +15,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 模型配置管理。
@@ -29,6 +31,12 @@ public class AdminModelConfigService {
 
     /** 模型 ID 长度上限（与列宽一致） */
     private static final int MAX_MODEL_ID_LENGTH = 256;
+
+    /** 子代理模型设置键前缀，完整键为 subagents.<名字> */
+    private static final String SUBAGENT_KEY_PREFIX = "subagents.";
+
+    /** 可配置模型的子代理名 */
+    private static final List<String> SUBAGENT_NAMES = List.of("searcher", "reviewer");
 
     private final ModelProviderMapper providerMapper;
     private final ModelDefinitionMapper modelMapper;
@@ -181,6 +189,13 @@ public class AdminModelConfigService {
         if (rename && defaultModel.equals(originalId)) {
             systemSettingService.set(SystemSetting.KEY_DEFAULT_MODEL, derivedId);
         }
+        if (rename) {
+            for (Map.Entry<String, String> entry : getSubagentModels().entrySet()) {
+                if (entry.getValue().equals(originalId)) {
+                    systemSettingService.set(SUBAGENT_KEY_PREFIX + entry.getKey(), derivedId);
+                }
+            }
+        }
         modelCatalogCache.invalidate();
     }
 
@@ -198,6 +213,9 @@ public class AdminModelConfigService {
         if (systemSettingService.getDefaultModel().equals(id)) {
             throw new BizException(409, "默认模型不可删除，请先切换默认模型");
         }
+        if (getSubagentModels().containsValue(id)) {
+            throw new BizException(409, "子代理仍在使用该模型，请先切换子代理模型");
+        }
         modelMapper.deleteById(id);
         modelCatalogCache.invalidate();
     }
@@ -214,6 +232,47 @@ public class AdminModelConfigService {
             throw new BizException(400, "模型不存在或未启用: " + modelId);
         }
         systemSettingService.set(SystemSetting.KEY_DEFAULT_MODEL, modelId);
+        modelCatalogCache.invalidate();
+    }
+
+    /**
+     * 读子代理模型配置：名字 → 模型 ID（空串 = 继承主模型）
+     *
+     * @return 子代理模型映射
+     */
+    public Map<String, String> getSubagentModels() {
+        Map<String, String> result = new LinkedHashMap<>();
+        for (String name : SUBAGENT_NAMES) {
+            result.put(name, systemSettingService.getString(SUBAGENT_KEY_PREFIX + name, ""));
+        }
+        return result;
+    }
+
+    /**
+     * 设置子代理模型；空串 = 继承主模型，非空必须指向已启用的模型
+     *
+     * @param models 子代理名 → 模型 ID
+     * @throws BizException 子代理名非法（400）；模型不存在或未启用（400）
+     */
+    @Transactional
+    public void setSubagentModels(Map<String, String> models) {
+        if (models == null) {
+            return;
+        }
+        for (Map.Entry<String, String> entry : models.entrySet()) {
+            String name = entry.getKey();
+            if (!SUBAGENT_NAMES.contains(name)) {
+                throw new BizException(400, "未知子代理: " + name);
+            }
+            String modelId = entry.getValue() == null ? "" : entry.getValue().trim();
+            if (!modelId.isEmpty()) {
+                ModelDefinition row = modelMapper.selectById(modelId);
+                if (row == null || !Boolean.TRUE.equals(row.getEnabled())) {
+                    throw new BizException(400, "模型不存在或未启用: " + modelId);
+                }
+            }
+            systemSettingService.set(SUBAGENT_KEY_PREFIX + name, modelId);
+        }
         modelCatalogCache.invalidate();
     }
 

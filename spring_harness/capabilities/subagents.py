@@ -4,16 +4,22 @@ from pydantic_ai_harness.subagents import SubAgent, SubAgents
 
 from spring_harness.capabilities.research import researcher
 from spring_harness.core.agent.deps import CodingAgentDeps
-from spring_harness.core.config.model import get_model
-from spring_harness.core.config.settings import SubAgentConfig, config
+from spring_harness.core.config.model import get_model, setting
+from spring_harness.core.log import logger
 from spring_harness.toolsets.filesystem import filesystem
 
 
 def _resolve_model(name: str) -> Model | None:
-    """config.toml 的 [subagents.<name>] model 单独配置；留空返回 None，
-    委托时继承主 agent 当前模型。"""
-    model_name = config.subagents.get(name, SubAgentConfig()).model
-    return get_model(model_name) if model_name else None
+    """子代理模型从数据库配置读取；留空返回 None，委托时继承主 agent 当前模型。"""
+    model_name = setting.subagent_model(name)
+    if not model_name:
+        return None
+    try:
+        return get_model(model_name)
+    except ValueError:
+        # 配置的模型已被删除：回退为继承主模型
+        logger.warning("子代理 {} 配置的模型 {} 不存在，改为继承主模型", name, model_name)
+        return None
 
 
 def searcher() -> SubAgent[CodingAgentDeps]:

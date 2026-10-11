@@ -9,6 +9,7 @@ import com.spring.gateway.dto.AdminModelDefView;
 import com.spring.gateway.dto.AdminModelIdRequest;
 import com.spring.gateway.dto.AdminProviderRequest;
 import com.spring.gateway.dto.AdminProviderView;
+import com.spring.gateway.dto.AdminSubagentModelsRequest;
 import com.spring.gateway.entity.ModelDefinition;
 import com.spring.gateway.entity.ModelProvider;
 import com.spring.gateway.service.AdminModelConfigService;
@@ -41,7 +42,7 @@ public class AdminModelConfigController {
     private final SystemSettingService systemSettingService;
 
     /**
-     * 模型配置快照：providers（不含 api_key）+ models + defaultModel
+     * 模型配置快照：providers（不含 api_key）+ models + defaultModel + 子代理模型
      *
      * @return 配置快照
      */
@@ -53,7 +54,8 @@ public class AdminModelConfigController {
                         .map(AdminModelConfigController::toProviderView).toList(),
                 "models", modelConfigService.listModels().stream()
                         .map(m -> toModelView(m, defaultModel)).toList(),
-                "defaultModel", defaultModel));
+                "defaultModel", defaultModel,
+                "subagentModels", modelConfigService.getSubagentModels()));
     }
 
     /**
@@ -119,6 +121,19 @@ public class AdminModelConfigController {
     @PostMapping("/default")
     public Result<Void> setDefault(@Valid @RequestBody AdminDefaultModelRequest req) {
         modelConfigService.setDefaultModel(req.modelId());
+        return Result.ok(null);
+    }
+
+    /**
+     * 设置子代理模型；某个子代理传空串 = 继承主模型
+     *
+     * @param req 子代理名 → 模型 ID
+     * @return 空数据返回体
+     */
+    @RequiresOwner(message = "仅站长可管理模型配置")
+    @PostMapping("/subagent-models")
+    public Result<Void> setSubagentModels(@Valid @RequestBody AdminSubagentModelsRequest req) {
+        modelConfigService.setSubagentModels(req.models());
         return Result.ok(null);
     }
 

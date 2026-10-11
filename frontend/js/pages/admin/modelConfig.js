@@ -29,8 +29,9 @@ export async function loadModelConfig() {
 
   try {
     const data = await api("/api/admin/model-config");
-    modelConfig = data || { providers: [], models: [], defaultModel: "" };
+    modelConfig = data || { providers: [], models: [], defaultModel: "", subagentModels: {} };
     renderMcDefault();
+    renderMcSubagents();
     renderMcProviders();
     renderMcModels();
   } catch (e) {
@@ -266,6 +267,48 @@ export async function onMcDefaultChange() {
     modelConfig.defaultModel = modelId;
     renderMcModels();
     UI.toast("默认模型已切换");
+  } catch (err) {
+    UI.toast(err.message, { type: "error" });
+    await loadModelConfig();
+  }
+}
+
+/* 子代理模型：空选项 = 继承主模型 */
+function fillSubagentSelect(sel, value) {
+  sel.innerHTML = "";
+  const inherit = document.createElement("option");
+  inherit.value = "";
+  inherit.textContent = "继承主模型";
+  sel.appendChild(inherit);
+  for (const m of modelConfig.models.filter((m) => m.enabled)) {
+    const opt = document.createElement("option");
+    opt.value = m.id;
+    opt.textContent = `${m.display_name}（${m.id}）`;
+    sel.appendChild(opt);
+  }
+  sel.value = value || "";
+  UI.enhance();
+}
+
+export function renderMcSubagents() {
+  const sub = modelConfig.subagentModels || {};
+  for (const [elId, name] of [["mc-sub-searcher", "searcher"], ["mc-sub-reviewer", "reviewer"]]) {
+    const sel = $(elId);
+    if (sel) fillSubagentSelect(sel, sub[name]);
+  }
+}
+
+export async function onMcSubagentChange(name) {
+  const sel = name === "searcher" ? $("mc-sub-searcher") : $("mc-sub-reviewer");
+  if (!sel) return;
+  try {
+    await api("/api/admin/model-config/subagent-models", {
+      method: "POST",
+      body: { models: { [name]: sel.value } },
+    });
+    if (!modelConfig.subagentModels) modelConfig.subagentModels = {};
+    modelConfig.subagentModels[name] = sel.value;
+    UI.toast("已保存");
   } catch (err) {
     UI.toast(err.message, { type: "error" });
     await loadModelConfig();

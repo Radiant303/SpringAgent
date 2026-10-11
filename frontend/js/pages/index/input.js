@@ -107,6 +107,10 @@ export async function refreshModelList() {
     const res = await rpc.request("models/list", {});
     if (res && Array.isArray(res.models)) {
       state.models = res.models;
+      // 选中的模型已被站长删除：回退默认模型
+      if (state.model && !res.models.some((m) => m.id === state.model)) {
+        state.model = res.defaultModel || null;
+      }
       if (!state.model && res.defaultModel) state.model = res.defaultModel;
       populateModelSelect();
     }

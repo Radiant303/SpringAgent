@@ -21,6 +21,7 @@ import {
   fillMcModelForm,
   onMcModelAction,
   onMcDefaultChange,
+  onMcSubagentChange,
 } from "./admin/modelConfig.js";
 import { loadRedeemCodes, openRedeemGen, onRedeemAction } from "./admin/redeem.js";
 import { loadSettings, saveSettings } from "./admin/settings.js";
@@ -116,6 +117,8 @@ export function init() {
         if (btn) onMcModelAction(btn);
       });
       $("mc-default")?.addEventListener("change", onMcDefaultChange);
+      $("mc-sub-searcher")?.addEventListener("change", () => onMcSubagentChange("searcher"));
+      $("mc-sub-reviewer")?.addEventListener("change", () => onMcSubagentChange("reviewer"));
     } else {
       // 资费卡查看与兑换码列表对管理员开放，编辑表单与生成/作废仅站长
       $("model-form")?.remove();

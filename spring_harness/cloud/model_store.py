@@ -21,6 +21,9 @@ from spring_harness.core.log import logger
 # system_settings 里默认模型的键
 KEY_DEFAULT_MODEL = "default_model"
 
+# 子代理模型设置键前缀，完整键为 subagents.<名字>
+KEY_SUBAGENT_PREFIX = "subagents."
+
 # 缓存 key 与 TTL：TTL 是最终一致性兜底（延迟双删失败/遗漏时最多脏 60s）
 CACHE_KEY = "modelconf:catalog"
 CACHE_TTL_SECONDS = 60
@@ -75,6 +78,9 @@ class DbCatalog:
             if entry["enabled"]
         ]
 
+    def subagent_model(self, name: str) -> str:
+        return self._snapshot()["subagents"].get(name, "")
+
     # ---- 快照：Redis 优先，未命中回源 MySQL 并回填 ----
 
     def _snapshot(self) -> dict[str, Any]:
@@ -114,8 +120,14 @@ class DbCatalog:
                 for row in s.scalars(select(ModelDefinitionRow)).all()
             }
             default_row = s.get(SystemSettingRow, KEY_DEFAULT_MODEL)
+            subagents = {
+                row.setting_key[len(KEY_SUBAGENT_PREFIX):]: row.setting_value
+                for row in s.scalars(select(SystemSettingRow)).all()
+                if row.setting_key.startswith(KEY_SUBAGENT_PREFIX)
+            }
             return {
                 "default_model": default_row.setting_value if default_row else "",
                 "providers": providers,
                 "models": models,
+                "subagents": subagents,
             }

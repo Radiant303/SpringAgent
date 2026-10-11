@@ -9,7 +9,7 @@ from pydantic_ai.providers.openai import OpenAIProvider
 
 from spring_harness.core.config.settings import Model as ModelConfig
 from spring_harness.core.config.settings import Provider as ProviderConfig
-from spring_harness.core.config.settings import config
+from spring_harness.core.config.settings import SubAgentConfig, config
 
 
 class ModelCatalog(Protocol):
@@ -34,6 +34,10 @@ class ModelCatalog(Protocol):
         """列出启用状态的 (模型 ID, 定义)。"""
         ...
 
+    def subagent_model(self, name: str) -> str:
+        """子代理专用模型 ID；空串 = 继承主模型。"""
+        ...
+
 
 class TomlCatalog:
     """config.toml 目录：providers/models/default_model 全部来自配置文件。"""
@@ -49,6 +53,9 @@ class TomlCatalog:
 
     def list_model_configs(self) -> list[tuple[str, ModelConfig]]:
         return list(config.models.items())
+
+    def subagent_model(self, name: str) -> str:
+        return config.subagents.get(name, SubAgentConfig()).model
 
 
 class Setting:
@@ -68,6 +75,10 @@ class Setting:
     def default_model(self) -> str:
         """默认模型 ID。"""
         return self._catalog.default_model()
+
+    def subagent_model(self, name: str) -> str:
+        """子代理专用模型 ID；空串 = 继承主模型。"""
+        return self._catalog.subagent_model(name)
 
     def get_model(self, model_name: str | None = None) -> Model:
         model_name = model_name or self._catalog.default_model()
