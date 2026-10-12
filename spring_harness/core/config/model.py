@@ -58,15 +58,83 @@ class TomlCatalog:
         return config.subagents.get(name, SubAgentConfig()).model
 
 
+def _profile(native: bool = False) -> ModelProfile:
+    """统一的 profile 配置。"""
+    return ModelProfile(
+        supports_json_schema_output=native,
+        supports_json_object_output=not native,
+        default_structured_output_mode='native' if native else 'prompted',
+    )
+
+
+def _openai(model_name: str, provider_config: Any, model_config: Any) -> Model:
+    return OpenAIChatModel(
+        model_name,
+        provider=OpenAIProvider(
+            base_url=provider_config.base_url,
+            api_key=provider_config.api_key,
+        ),
+        profile=_profile(),
+    )
+
+
+def _alibaba(model_name: str, provider_config: Any, model_config: Any) -> Model:
+    return OpenAIChatModel(
+        model_name,
+        provider=AlibabaProvider(
+            base_url=provider_config.base_url,
+            api_key=provider_config.api_key,
+        ),
+        profile=_profile(native=True),
+    )
+
+
+def _deepseek(model_name: str, provider_config: Any, model_config: Any) -> Model:
+    return OpenAIChatModel(
+        model_name,
+        provider=DeepSeekProvider(
+            api_key=provider_config.api_key,
+        ),
+        profile=_profile(),
+    )
+
+
+def _responses(model_name: str, provider_config: Any, model_config: Any) -> Model:
+    return OpenAIResponsesModel(
+        model_name,
+        provider=OpenAIProvider(
+            base_url=provider_config.base_url,
+            api_key=provider_config.api_key,
+        ),
+        profile=_profile(),
+    )
+
+
+_MODEL_CREATORS = {
+    "openai": _openai,
+    "alibaba": _alibaba,
+    "deepseek": _deepseek,
+    "responses": _responses,
+}
+
+
+def build_model(model_config: ModelConfig, provider_config: ProviderConfig) -> Model:
+    """按 Provider 类型构造 pydantic-ai Model。"""
+    creator = _MODEL_CREATORS.get(provider_config.type)
+
+    if not creator:
+        raise ValueError(f"不支持的 Provider 类型: {provider_config.type}")
+
+    return creator(
+        model_name=model_config.model,
+        provider_config=provider_config,
+        model_config=model_config,
+    )
+
+
 class Setting:
     def __init__(self) -> None:
         self._catalog: ModelCatalog = TomlCatalog()
-        self._providers = {
-            "openai": self._openai,
-            "alibaba": self._alibaba,
-            "deepseek": self._deepseek,
-            "responses": self._responses,
-        }
 
     def set_catalog(self, catalog: ModelCatalog) -> None:
         """切换模型配置来源（云端入口启动时换成 DB 目录）。"""
@@ -91,65 +159,7 @@ class Setting:
         if not provider_config:
             raise ValueError(f"Provider '{model_config.provider}' 不存在")
 
-        provider_type = provider_config.type
-        creator = self._providers.get(provider_type)
-
-        if not creator:
-            raise ValueError(f"不支持的 Provider 类型: {provider_type}")
-
-        return creator(
-            model_name=model_config.model,
-            provider_config=provider_config,
-            model_config=model_config,
-        )
-
-    def _openai(self, model_name: str, provider_config: Any, model_config: Any) -> Model:
-        return OpenAIChatModel(
-            model_name,
-            provider=OpenAIProvider(
-                base_url=provider_config.base_url,
-                api_key=provider_config.api_key,
-            ),
-            profile=self._profile(),
-        )
-
-    def _alibaba(self, model_name: str, provider_config: Any, model_config: Any) -> Model:
-        return OpenAIChatModel(
-            model_name,
-            provider=AlibabaProvider(
-                base_url=provider_config.base_url,
-                api_key=provider_config.api_key,
-            ),
-            profile=self._profile(native=True),
-        )
-
-    def _deepseek(self, model_name: str, provider_config: Any, model_config: Any) -> Model:
-        return OpenAIChatModel(
-            model_name,
-            provider=DeepSeekProvider(
-                api_key=provider_config.api_key,
-            ),
-            profile=self._profile(),
-        )
-
-    def _responses(self, model_name: str, provider_config: Any, model_config: Any) -> Model:
-        return OpenAIResponsesModel(
-            model_name,
-            provider=OpenAIProvider(
-                base_url=provider_config.base_url,
-                api_key=provider_config.api_key,
-            ),
-            profile=self._profile(),
-        )
-
-    @staticmethod
-    def _profile(native: bool = False) -> ModelProfile:
-        """统一的 profile 配置"""
-        return ModelProfile(
-            supports_json_schema_output=native,
-            supports_json_object_output=not native,
-            default_structured_output_mode='native' if native else 'prompted',
-        )
+        return build_model(model_config, provider_config)
 
     def list_models(self) -> list[str]:
         """列出所有可用模型（启用状态）"""

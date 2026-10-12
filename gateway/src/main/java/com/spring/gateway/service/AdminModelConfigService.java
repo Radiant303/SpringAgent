@@ -3,6 +3,7 @@ package com.spring.gateway.service;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.spring.gateway.common.BizException;
 import com.spring.gateway.dto.AdminModelDefRequest;
+import com.spring.gateway.dto.AdminModelTestResult;
 import com.spring.gateway.dto.AdminProviderRequest;
 import com.spring.gateway.entity.ModelDefinition;
 import com.spring.gateway.entity.ModelProvider;
@@ -12,6 +13,8 @@ import com.spring.gateway.mapper.ModelProviderMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.client.RestClientException;
+import tools.jackson.databind.JsonNode;
 
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
@@ -42,6 +45,8 @@ public class AdminModelConfigService {
     private final ModelDefinitionMapper modelMapper;
     private final SystemSettingService systemSettingService;
     private final ModelCatalogCache modelCatalogCache;
+    private final EngineClient engineClient;
+    private final ProviderModelsClient providerModelsClient;
 
     /**
      * 全部 Provider（按名称排序）
@@ -128,13 +133,22 @@ public class AdminModelConfigService {
      * originalId 非空且与派生 ID 不同时按改名处理（默认模型引用随之更新）。
      *
      * @param req 模型请求
-     * @throws BizException Provider 不存在（400）；派生 ID 超长（400）；原模型不存在（404）；
-     *                      改名目标已存在（409）；停用默认模型（409）
+     * @throws BizException Provider 不存在（400）；默认档位校验失败（400）；派生 ID 超长（400）；
+     *                      原模型不存在（404）；改名目标已存在（409）；停用默认模型（409）
      */
     @Transactional
     public void upsertModel(AdminModelDefRequest req) {
         if (providerMapper.selectById(req.provider()) == null) {
             throw new BizException(400, "Provider 不存在: " + req.provider());
+        }
+        List<String> efforts = req.supportEfforts() == null ? List.of() : req.supportEfforts();
+        String defaultEffort = req.defaultEffort() == null ? "" : req.defaultEffort().trim();
+        if (efforts.isEmpty()) {
+            if (!defaultEffort.isEmpty()) {
+                throw new BizException(400, "未配置思考档位时不可设置默认档位");
+            }
+        } else if (!efforts.contains(defaultEffort)) {
+            throw new BizException(400, "默认档位不在思考档位列表中");
         }
         String modelName = req.model().trim();
         String derivedId = req.provider() + "/" + modelName;
@@ -274,6 +288,56 @@ public class AdminModelConfigService {
             systemSettingService.set(SUBAGENT_KEY_PREFIX + name, modelId);
         }
         modelCatalogCache.invalidate();
+    }
+
+    /**
+     * 拉取指定 Provider 上游支持的模型列表
+     *
+     * @param providerName Provider 名
+     * @return 模型 ID 列表
+     * @throws BizException Provider 不存在（404）
+     */
+    public List<String> listAvailableModels(String providerName) {
+        ModelProvider row = providerMapper.selectById(providerName);
+        if (row == null) {
+            throw new BizException(404, "Provider 不存在");
+        }
+        return providerModelsClient.listModels(row);
+    }
+
+    /**
+     * 测试指定模型能否调通
+     *
+     * @param modelId 模型 ID
+     * @return 测试结果
+     * @throws BizException 模型不存在（404）；引擎不可达（502）
+     */
+    public AdminModelTestResult testModel(String modelId) {
+        if (modelMapper.selectById(modelId) == null) {
+            throw new BizException(404, "模型不存在");
+        }
+        JsonNode resp;
+        try {
+            resp = engineClient.testModel(modelId);
+        } catch (RestClientException e) {
+            throw new BizException(502, "引擎连接失败，请稍后重试");
+        }
+        return new AdminModelTestResult(
+                resp != null && resp.path("ok").asBoolean(false),
+                longField(resp, "latency_ms"),
+                textField(resp, "error"));
+    }
+
+    /** 取 Long 字段；缺失或为 null 时返回 null。 */
+    private static Long longField(JsonNode node, String field) {
+        JsonNode value = node == null ? null : node.get(field);
+        return value == null || value.isNull() ? null : value.asLong();
+    }
+
+    /** 取字符串字段；缺失或为 null 时返回 null。 */
+    private static String textField(JsonNode node, String field) {
+        JsonNode value = node == null ? null : node.get(field);
+        return value == null || value.isNull() ? null : value.asString();
     }
 
     /** List → CSV（null 当空列表；元素去空白、去空项）。 */

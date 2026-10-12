@@ -1,3 +1,5 @@
+import asyncio
+import time
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
@@ -6,8 +8,10 @@ import redis.asyncio as aioredis
 from fastapi import FastAPI, Header, HTTPException
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel
+from pydantic_ai import Agent
 
-from spring_harness.cloud.model_store import DbCatalog
+from spring_harness.cloud.model_store import DbCatalog, load_model_fresh
 from spring_harness.cloud.mq import TurnDispatcher, set_dispatcher
 from spring_harness.cloud.registry import (
     CloudSessionRegistry,
@@ -15,10 +19,14 @@ from spring_harness.cloud.registry import (
     set_registry,
 )
 from spring_harness.cloud.ws import ws_endpoint
-from spring_harness.core.config.model import set_catalog
+from spring_harness.core.config.model import build_model, set_catalog
 from spring_harness.core.config.settings import config
 from spring_harness.core.log import logger
 from spring_harness.core.services.web_server import DEFAULT_FRONTEND_DIR
+
+
+class TestModelRequest(BaseModel):
+    model_id: str
 
 
 @asynccontextmanager
@@ -72,5 +80,29 @@ def create_app() -> FastAPI:
         registry = get_registry()
         active = registry.active_count_in_work(work_id) if registry is not None else 0
         return {"active": active}
+
+    @app.post("/internal/models/test")
+    async def test_model(
+        body: TestModelRequest, x_internal_token: str | None = Header(default=None),
+    ) -> dict:
+        """管理后台测试模型连接：真实构造模型并发一次最小请求，返回延迟或错误。"""
+        if x_internal_token != config.cloud.internal_token:
+            raise HTTPException(status_code=401, detail="未认证")
+
+        loaded = load_model_fresh(body.model_id)
+        if loaded is None:
+            return {"ok": False, "error": f"模型 '{body.model_id}' 不存在"}
+        model_config, provider_config = loaded
+
+        started = time.monotonic()
+        try:
+            agent = Agent(build_model(model_config, provider_config))
+            await asyncio.wait_for(agent.run("say hi"), timeout=30)
+        except asyncio.TimeoutError:
+            return {"ok": False, "error": "测试超时（30s）"}
+        except Exception as e:
+            logger.warning("模型 {} 连接测试失败: {}", body.model_id, e)
+            return {"ok": False, "error": str(e)}
+        return {"ok": True, "latency_ms": int((time.monotonic() - started) * 1000)}
 
     return app

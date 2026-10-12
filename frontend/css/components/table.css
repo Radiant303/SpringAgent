@@ -279,7 +279,13 @@ button.admin-btn.primary:active {
 }
 .usage-filter .admin-btn:not(.primary):hover {
   background: #ebebeb;
+  color: var(--text, rgba(0, 0, 0, 0.9));
   text-decoration: none;
+}
+.usage-filter .admin-btn:not(.primary):active,
+.usage-filter .admin-btn:not(.primary):focus {
+  background: #e2e2e2;
+  color: var(--text, rgba(0, 0, 0, 0.9));
 }
 
 /* 表格状态文字 */

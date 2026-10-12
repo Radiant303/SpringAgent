@@ -7,6 +7,7 @@ import com.spring.gateway.dto.AdminDefaultModelRequest;
 import com.spring.gateway.dto.AdminModelDefRequest;
 import com.spring.gateway.dto.AdminModelDefView;
 import com.spring.gateway.dto.AdminModelIdRequest;
+import com.spring.gateway.dto.AdminModelTestResult;
 import com.spring.gateway.dto.AdminProviderRequest;
 import com.spring.gateway.dto.AdminProviderView;
 import com.spring.gateway.dto.AdminSubagentModelsRequest;
@@ -85,6 +86,18 @@ public class AdminModelConfigController {
     }
 
     /**
+     * 拉取 Provider 上游支持的模型列表
+     *
+     * @param name Provider 名
+     * @return 模型 ID 列表
+     */
+    @RequiresOwner(message = "仅站长可管理模型配置")
+    @GetMapping("/providers/{name}/available-models")
+    public Result<Map<String, Object>> availableModels(@PathVariable String name) {
+        return Result.ok(Map.of("models", modelConfigService.listAvailableModels(name)));
+    }
+
+    /**
      * 新建或更新模型定义
      *
      * @param req 模型请求
@@ -109,6 +122,18 @@ public class AdminModelConfigController {
     public Result<Void> deleteModel(@Valid @RequestBody AdminModelIdRequest req) {
         modelConfigService.deleteModel(req.modelId());
         return Result.ok(null);
+    }
+
+    /**
+     * 测试指定模型能否调通
+     *
+     * @param req 模型 ID
+     * @return 测试结果
+     */
+    @RequiresOwner(message = "仅站长可管理模型配置")
+    @PostMapping("/models/test")
+    public Result<AdminModelTestResult> testModel(@Valid @RequestBody AdminModelIdRequest req) {
+        return Result.ok(modelConfigService.testModel(req.modelId()));
     }
 
     /**

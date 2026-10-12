@@ -21,6 +21,13 @@ public class ModelProvider {
     public static final java.util.Set<String> SUPPORTED_TYPES =
             java.util.Set.of("openai", "alibaba", "deepseek", "responses");
 
+    /** 类型未填 base_url 时使用的官方地址。 */
+    public static final java.util.Map<String, String> DEFAULT_BASE_URLS = java.util.Map.of(
+            "openai", "https://api.openai.com/v1",
+            "alibaba", "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
+            "deepseek", "https://api.deepseek.com",
+            "responses", "https://api.openai.com/v1");
+
     /** Provider 名，主键（模型定义经 provider 列引用）。 */
     @TableId(type = IdType.INPUT)
     private String name;

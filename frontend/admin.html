@@ -345,9 +345,9 @@
         </div>
       </section>
 
-      <!-- 模型配置（仅站长）：Provider / 模型定义 / 默认模型 -->
+      <!-- 模型配置（仅站长）：默认模型 / 子代理模型 / Provider -->
       <section class="admin-page wide" data-page="model-config">
-        <h1 class="page-title">模型配置 <span class="title-hint">保存即生效，无需重启</span></h1>
+        <h1 class="page-title">模型配置</h1>
 
         <div class="section-caption">默认模型</div>
         <div class="card group-card" data-slot="card">
@@ -381,112 +381,35 @@
           </div>
         </div>
 
-        <div class="section-caption">Provider（API 渠道）</div>
-        <div class="table-card" data-slot="card" data-card-hover="false">
-          <table class="admin-table" id="mc-provider-table" data-slot="table">
-            <colgroup>
-              <col style="width: 130px">
-              <col style="width: 100px">
-              <col style="width: 320px">
-              <col style="width: 100px">
-              <col style="width: 140px">
-              <col style="width: 110px">
-            </colgroup>
-            <thead>
-              <tr><th>名称</th><th>类型</th><th>base_url</th><th>API Key</th><th>更新时间</th><th>操作</th></tr>
-            </thead>
-            <tbody id="mc-provider-tbody"></tbody>
-          </table>
+        <div class="mc-section-head">
+          <div class="section-caption">Provider（API 渠道）</div>
+          <button id="mc-provider-add" class="admin-btn primary">+ 添加 Provider</button>
         </div>
-        <form id="mc-provider-form" class="mc-form">
-          <label class="mc-field">
-            <span class="mc-label">名称</span>
-            <input type="text" id="mc-p-name" placeholder="如 deepseek" required>
-          </label>
-          <label class="mc-field">
-            <span class="mc-label">类型</span>
-            <select id="mc-p-type">
-              <option value="openai">openai</option>
-              <option value="alibaba">alibaba</option>
-              <option value="deepseek">deepseek</option>
-              <option value="responses">responses</option>
-            </select>
-          </label>
-          <label class="mc-field">
-            <span class="mc-label">API Key</span>
-            <input type="password" id="mc-p-key" autocomplete="new-password">
-          </label>
-          <label class="mc-field">
-            <span class="mc-label">base_url</span>
-            <input type="text" id="mc-p-url" placeholder="可选，留空用官方默认">
-          </label>
-          <div class="mc-actions">
-            <button type="submit" class="admin-btn primary" id="mc-p-submit">新增 Provider</button>
-            <button type="button" class="admin-btn hidden" id="mc-p-cancel">取消编辑</button>
-          </div>
-        </form>
+        <div class="mc-list" id="mc-provider-list" data-slot="card" data-card-hover="false"></div>
+      </section>
 
-        <div class="section-caption">模型定义</div>
-        <div class="table-card" data-slot="card" data-card-hover="false">
-          <table class="admin-table" id="mc-model-table" data-slot="table">
-            <colgroup>
-              <col style="width: 175px">
-              <col style="width: 105px">
-              <col style="width: 155px">
-              <col style="width: 145px">
-              <col style="width: 80px">
-              <col style="width: 145px">
-              <col style="width: 75px">
-              <col style="width: 110px">
-            </colgroup>
-            <thead>
-              <tr><th>模型 ID</th><th>Provider</th><th>实际模型名</th><th>展示名</th><th class="num">上下文</th><th>能力</th><th>状态</th><th>操作</th></tr>
-            </thead>
-            <tbody id="mc-model-tbody"></tbody>
-          </table>
+      <!-- Provider 详情（二级页，由模型配置页进入，不在导航中） -->
+      <section class="admin-page wide" data-page="mc-provider">
+        <div class="mc-head">
+          <button type="button" class="icon-btn" id="mc-back" title="返回"></button>
+          <h1 class="page-title" id="mc-detail-name"></h1>
+          <span class="badge" id="mc-detail-type"></span>
+          <span class="title-hint mc-head-url" id="mc-detail-url"></span>
         </div>
-        <form id="mc-model-form" class="mc-form">
-          <label class="mc-field">
-            <span class="mc-label">Provider</span>
-            <select id="mc-m-provider"></select>
-          </label>
-          <label class="mc-field">
-            <span class="mc-label">实际模型名</span>
-            <input type="text" id="mc-m-model" placeholder="API 请求用的模型名" required>
-          </label>
-          <label class="mc-field">
-            <span class="mc-label">展示名</span>
-            <input type="text" id="mc-m-display" placeholder="用户看到的名字" required>
-          </label>
-          <label class="mc-field">
-            <span class="mc-label">上下文窗口（tokens）</span>
-            <input type="number" id="mc-m-context" min="1" step="1" required>
-          </label>
-          <label class="mc-field">
-            <span class="mc-label">输出上限（0 = 不限）</span>
-            <input type="number" id="mc-m-output" min="0" step="1" required>
-          </label>
-          <label class="mc-field">
-            <span class="mc-label">能力（逗号分隔）</span>
-            <input type="text" id="mc-m-caps" placeholder="thinking,tool_use">
-          </label>
-          <label class="mc-field">
-            <span class="mc-label">思考档位（逗号分隔）</span>
-            <input type="text" id="mc-m-efforts" placeholder="low,medium,high">
-          </label>
-          <label class="mc-field">
-            <span class="mc-label">默认档位</span>
-            <input type="text" id="mc-m-effort" placeholder="可选">
-          </label>
-          <label class="mc-field">
-            <span class="mc-label">状态</span>
-            <span class="mc-switch"><input type="checkbox" id="mc-m-enabled" class="switch" checked>启用</span>
-          </label>
-          <div class="mc-actions">
-            <button type="submit" class="admin-btn primary" id="mc-m-submit">新增模型</button>
-            <button type="button" class="admin-btn hidden" id="mc-m-cancel">取消编辑</button>
-          </div>
-        </form>
+
+        <div class="usage-filter mc-tools">
+          <input type="text" id="mc-search" class="mc-search" placeholder="搜索模型或 ID" autocomplete="off" spellcheck="false">
+          <span class="mc-tools-right">
+            <button type="button" id="mc-fetch" class="mc-fetch-btn"></button>
+            <button type="button" id="mc-custom" class="mc-custom-btn">自定义模型</button>
+          </span>
+        </div>
+
+        <div class="section-caption">已配置的模型<span class="mc-count" id="mc-added-count"></span></div>
+        <div class="mc-list" id="mc-added-list" data-slot="card" data-card-hover="false"></div>
+
+        <div class="section-caption">可用模型<span class="mc-count" id="mc-avail-count"></span></div>
+        <div class="mc-list" id="mc-avail-list" data-slot="card" data-card-hover="false"></div>
       </section>
 
       <!-- 系统设置（仅站长） -->

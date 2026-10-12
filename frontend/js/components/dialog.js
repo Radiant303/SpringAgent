@@ -3,6 +3,7 @@
  */
 
 import { h } from "../utils/dom.js";
+import { enhance, closePopover } from "./controls.js";
 
 let seq = 0;
 
@@ -26,20 +27,34 @@ export function dialog(opts) {
 
     const inputs = {};
     for (const f of fields) {
-      const wrap = h("label", "ui-field");
+      // 下拉增强后原生 select 被隐藏，label 点击会落空，故改用 div
+      const wrap = h(f.type === "select" ? "div" : "label", "ui-field");
       if (f.label) wrap.appendChild(h("span", "ui-field-label", f.label));
       const control = h("span", "ui-control");
-      const input = h("input", "ui-input");
-      input.type = f.type || "text";
+      let input;
+      if (f.type === "select") {
+        input = h("select", "ui-input");
+        for (const o of f.options || []) {
+          const opt = document.createElement("option");
+          opt.value = o.value;
+          opt.textContent = o.label;
+          input.appendChild(opt);
+        }
+        if (f.value != null) input.value = String(f.value);
+      } else {
+        input = h("input", "ui-input");
+        input.type = f.type || "text";
+        input.spellcheck = false;
+        if (f.placeholder) input.placeholder = f.placeholder;
+        if (f.autocomplete) input.autocomplete = f.autocomplete;
+        if (f.step != null) input.step = String(f.step);
+        if (f.min != null) input.min = String(f.min);
+        if (f.maxLength) input.maxLength = f.maxLength;
+        if (f.inputMode) input.inputMode = f.inputMode;
+      }
       input.name = f.name;
-      input.spellcheck = false;
-      if (f.value != null) input.value = String(f.value);
-      if (f.placeholder) input.placeholder = f.placeholder;
-      if (f.autocomplete) input.autocomplete = f.autocomplete;
-      if (f.step != null) input.step = String(f.step);
-      if (f.min != null) input.min = String(f.min);
-      if (f.maxLength) input.maxLength = f.maxLength;
-      if (f.inputMode) input.inputMode = f.inputMode;
+      if (f.value != null && f.type !== "select") input.value = String(f.value);
+      if (f.disabled) input.disabled = true;
       control.appendChild(input);
       if (f.suffix) {
         control.classList.add("has-suffix");
@@ -90,6 +105,7 @@ export function dialog(opts) {
       cancelBtn.disabled = on;
     };
     const close = (result) => {
+      closePopover();
       overlay.remove();
       if (prevFocus && typeof prevFocus.focus === "function" && document.contains(prevFocus)) prevFocus.focus();
       resolve(result);
@@ -101,7 +117,7 @@ export function dialog(opts) {
         e.preventDefault();
         if (!busy) close(null);
       } else if (e.key === "Tab") {
-        const items = [...box.querySelectorAll("input, button")].filter((el) => !el.disabled);
+        const items = [...box.querySelectorAll("input, select, button")].filter((el) => !el.disabled && el.tabIndex >= 0);
         if (!items.length) return;
         const first = items[0];
         const last = items[items.length - 1];
@@ -147,10 +163,12 @@ export function dialog(opts) {
     });
 
     document.body.appendChild(overlay);
-    const firstInput = fields.length ? inputs[fields[0].name] : null;
+    enhance(box);
+    const firstField = fields.find((f) => !f.disabled);
+    const firstInput = firstField ? inputs[firstField.name] : null;
     if (firstInput) {
       firstInput.focus();
-      if (firstInput.value) firstInput.select();
+      if (firstInput.value) firstInput.select?.();
     } else {
       okBtn.focus();
     }

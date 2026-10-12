@@ -12,17 +12,7 @@ import { ensureUsers, loadUsers, onUserAction, onUsersUpdated } from "./admin/us
 import { loadUsage, renderUsageUserOptions } from "./admin/usage.js";
 import { loadLedger, renderLedgerUserOptions } from "./admin/ledger.js";
 import { loadModels, onModelAction, onModelFormSubmit, fillModelForm } from "./admin/models.js";
-import {
-  loadModelConfig,
-  onMcProviderSubmit,
-  fillMcProviderForm,
-  onMcProviderAction,
-  onMcModelSubmit,
-  fillMcModelForm,
-  onMcModelAction,
-  onMcDefaultChange,
-  onMcSubagentChange,
-} from "./admin/modelConfig.js";
+import { loadModelConfig, bindModelConfig } from "./admin/modelConfig.js";
 import { loadRedeemCodes, openRedeemGen, onRedeemAction } from "./admin/redeem.js";
 import { loadSettings, saveSettings } from "./admin/settings.js";
 
@@ -103,22 +93,8 @@ export function init() {
       if ($("settings-save")) $("settings-save").onclick = saveSettings;
       if ($("redeem-open-gen")) $("redeem-open-gen").onclick = openRedeemGen;
 
-      // 模型配置页（Provider / 模型定义 / 默认模型）
-      $("mc-provider-form")?.addEventListener("submit", onMcProviderSubmit);
-      if ($("mc-p-cancel")) $("mc-p-cancel").onclick = () => fillMcProviderForm(null);
-      $("mc-provider-tbody")?.addEventListener("click", (e) => {
-        const btn = e.target.closest("button[data-act]");
-        if (btn) onMcProviderAction(btn);
-      });
-      $("mc-model-form")?.addEventListener("submit", onMcModelSubmit);
-      if ($("mc-m-cancel")) $("mc-m-cancel").onclick = () => fillMcModelForm(null);
-      $("mc-model-tbody")?.addEventListener("click", (e) => {
-        const btn = e.target.closest("button[data-act]");
-        if (btn) onMcModelAction(btn);
-      });
-      $("mc-default")?.addEventListener("change", onMcDefaultChange);
-      $("mc-sub-searcher")?.addEventListener("change", () => onMcSubagentChange("searcher"));
-      $("mc-sub-reviewer")?.addEventListener("change", () => onMcSubagentChange("reviewer"));
+      // 模型配置页（默认/子代理模型 + Provider 两级管理）
+      bindModelConfig();
     } else {
       // 资费卡查看与兑换码列表对管理员开放，编辑表单与生成/作废仅站长
       $("model-form")?.remove();

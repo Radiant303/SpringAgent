@@ -48,6 +48,34 @@ def _model_config_from_dict(d: dict[str, Any]) -> ModelConfig:
     )
 
 
+def load_model_fresh(model_id: str) -> tuple[ModelConfig, ProviderConfig] | None:
+    """直读 MySQL 取模型及其 Provider，绕过 Redis 快照。"""
+    with get_sessionmaker()() as s:
+        model_row = s.get(ModelDefinitionRow, model_id)
+        if model_row is None:
+            return None
+        provider_row = s.get(ModelProviderRow, model_row.provider)
+        if provider_row is None:
+            return None
+        return (
+            _model_config_from_dict({
+                "provider": model_row.provider,
+                "model": model_row.model,
+                "display_name": model_row.display_name,
+                "max_context_size": model_row.max_context_size,
+                "max_output_size": model_row.max_output_size,
+                "capabilities": model_row.capabilities,
+                "support_efforts": model_row.support_efforts,
+                "default_effort": model_row.default_effort,
+            }),
+            ProviderConfig(
+                type=provider_row.type,
+                api_key=provider_row.api_key,
+                base_url=provider_row.base_url,
+            ),
+        )
+
+
 class DbCatalog:
     """模型配置目录的 DB 实现（满足 core.config.model.ModelCatalog 协议），带 Redis 快照缓存。"""
 

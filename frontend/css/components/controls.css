@@ -72,7 +72,7 @@
 /* ---- 浮层：挂在 body 上（fixed），不会被滚动容器裁切 ---- */
 .ui-popover {
   position: fixed;
-  z-index: 250;
+  z-index: 350;
   padding: 4px;
   border: 1px solid rgba(0, 0, 0, 0.06);
   border-radius: 12px;
