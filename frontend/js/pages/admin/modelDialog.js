@@ -12,10 +12,7 @@ import { closePopover } from "../../components/controls.js";
 
 const CAPABILITIES = [
   { value: "thinking", label: "思考" },
-  { value: "always_thinking", label: "总思考" },
   { value: "image_in", label: "图像" },
-  { value: "audio_in", label: "音频" },
-  { value: "video_in", label: "视频" },
 ];
 
 const DEFAULT_EFFORTS = ["low", "high", "max"];

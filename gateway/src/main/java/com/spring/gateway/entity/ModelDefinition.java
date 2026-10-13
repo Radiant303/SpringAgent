@@ -36,7 +36,7 @@ public class ModelDefinition {
     /** 单次输出上限（tokens）；0 = 不限制。 */
     private Long maxOutputSize;
 
-    /** 能力列表，CSV（thinking,always_thinking,image_in,tool_use）。 */
+    /** 能力列表，CSV。 */
     private String capabilities;
 
     /** 支持的思考档位，CSV（low,medium,high）。 */

@@ -90,6 +90,23 @@ class AdminModelConfigControllerTests {
     }
 
     @Test
+    @DisplayName("模型能力：拒绝已移除的能力和未知能力")
+    void rejectsUnsupportedCapabilities() throws Exception {
+        String token = tokenFor(User.ROLE_OWNER);
+        for (String capability : new String[]{"always_thinking", "audio_in", "video_in", "unknown", "", " "}) {
+            mockMvc.perform(post("/api/admin/model-config/models")
+                            .header(HttpHeaders.AUTHORIZATION, bearer(token))
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"provider\":\"test\",\"model\":\"model\",\"displayName\":\"测试模型\","
+                                    + "\"maxContextSize\":1000000,\"maxOutputSize\":0,"
+                                    + "\"capabilities\":[\"" + capability + "\"],\"supportEfforts\":[],"
+                                    + "\"defaultEffort\":\"\",\"enabled\":true}"))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.message").value("capabilities[0]: 不支持的模型能力"));
+        }
+    }
+
+    @Test
     @DisplayName("站长全链路：建 Provider → 建模型 → 设默认 → GET 快照 → 删默认被拒")
     void ownerFullFlow() throws Exception {
         String token = tokenFor(User.ROLE_OWNER);

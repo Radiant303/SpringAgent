@@ -19,10 +19,7 @@ let searchKeyword = "";
 
 const CAP_LABELS = {
   thinking: "思考",
-  always_thinking: "总思考",
   image_in: "图像",
-  audio_in: "音频",
-  video_in: "视频",
 };
 const PROVIDER_TYPES = ["openai", "alibaba", "deepseek", "responses"];
 
