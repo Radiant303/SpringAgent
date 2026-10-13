@@ -5,6 +5,7 @@
 import { $, el, icon } from "../../utils/dom.js";
 import { setMarkdown } from "../../utils/markdown.js";
 import { relPath, splitPath } from "../../utils/format.js";
+import { hlLang, highlightLine } from "../../utils/highlight.js";
 import { state, closeWork, maybeScroll } from "./state.js";
 
 /* ================= 基础消息节点 ================= */
@@ -328,63 +329,7 @@ export function fileRowsFromArgs(name, args) {
   return null;
 }
 
-export const HL_KEYWORDS = new Set((
-  "const let var function return if else for while do switch case break continue new class extends " +
-  "import from export default async await try catch finally throw typeof instanceof in of this null " +
-  "undefined true false def self None True False elif lambda pass with as yield raise and or not is " +
-  "public private protected static void int long boolean package interface implements"
-).split(" "));
-
-export function hlLang(path) {
-  const ext = (/\.([a-z0-9]+)$/i.exec(path || "") || [])[1];
-  if (!ext) return "plain";
-  const e = ext.toLowerCase();
-  if (["html", "htm", "xml", "svg", "vue"].includes(e)) return "markup";
-  if (["css", "scss", "less"].includes(e)) return "css";
-  if (["py", "toml", "yaml", "yml", "sh", "ini"].includes(e)) return "hash";
-  if (["js", "ts", "jsx", "tsx", "mjs", "java", "go", "rs", "c", "cpp", "h", "kt", "json"].includes(e)) return "c";
-  return "plain";
-}
-
-export const HL_RULES = {
-  c: /(\/\/.*$|\/\*.*?\*\/)|("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|`(?:[^`\\]|\\.)*`)|\b(\d+(?:\.\d+)?)\b|\b([A-Za-z_$][\w$]*)\b/g,
-  hash: /(#.*$)|("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*')|\b(\d+(?:\.\d+)?)\b|\b([A-Za-z_][\w]*)\b/g,
-  css: /(\/\*.*?\*\/)|("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*')|(-?\d+(?:\.\d+)?(?:px|em|rem|%|s|ms|vh|vw|deg)?)\b|([#.][\w-]+(?=[^;{}]*\{))/g,
-  markup: /(<!--.*?-->)|("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*')|(<\/?[\w-]+|\/?>|<!DOCTYPE)|(\s[\w-]+(?==))/gi,
-};
-
-export function highlightLine(text, lang) {
-  const frag = document.createDocumentFragment();
-  const re = HL_RULES[lang];
-  if (!re) {
-    frag.appendChild(document.createTextNode(text));
-    return frag;
-  }
-  re.lastIndex = 0;
-  let last = 0;
-  let m;
-  while ((m = re.exec(text))) {
-    if (m[0] === "") {
-      re.lastIndex++;
-      continue;
-    }
-    let cls = null;
-    if (m[1]) cls = "hl-comment";
-    else if (m[2]) cls = "hl-string";
-    else if (m[3]) cls = lang === "markup" ? "hl-tag" : "hl-number";
-    else if (m[4]) {
-      if (lang === "markup") cls = "hl-attr";
-      else if (lang === "css") cls = "hl-selector";
-      else if (HL_KEYWORDS.has(m[4])) cls = "hl-keyword";
-    }
-    if (!cls) continue;
-    if (m.index > last) frag.appendChild(document.createTextNode(text.slice(last, m.index)));
-    frag.appendChild(el("span", cls, m[0]));
-    last = m.index + m[0].length;
-  }
-  if (last < text.length) frag.appendChild(document.createTextNode(text.slice(last)));
-  return frag;
-}
+export { hlLang, highlightLine };
 
 export function renderFileView(card, rows, note) {
   const view = card.fileView;

@@ -2,7 +2,7 @@
  * 聊天页面主入口与事件绑定
  */
 
-import { $ } from "../../utils/dom.js";
+import { $, icon } from "../../utils/dom.js";
 import { getToken, clearToken, getRole, goLogin, WS_BASE, USER_KEY, ROLE_KEY, ROLE_LABELS } from "../../api/auth.js";
 import { rpc } from "../../api/rpc.js";
 import { UI } from "../../components/ui.js";
@@ -210,8 +210,14 @@ export function bind() {
       const pre = btn.closest(".code-block")?.querySelector("pre");
       if (!pre) return;
       navigator.clipboard.writeText(pre.innerText).then(() => {
-        btn.textContent = "已复制";
-        setTimeout(() => { btn.textContent = "复制"; }, 1200);
+        btn.textContent = "";
+        btn.appendChild(icon("tick"));
+        btn.title = "已复制";
+        setTimeout(() => {
+          btn.textContent = "";
+          btn.appendChild(icon("copy"));
+          btn.title = "复制代码";
+        }, 1200);
       });
     });
   }

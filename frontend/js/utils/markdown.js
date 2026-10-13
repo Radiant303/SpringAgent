@@ -2,7 +2,8 @@
  * Markdown 解析与渲染工具
  */
 
-import { el } from "./dom.js";
+import { el, icon } from "./dom.js";
+import { formatLangName, highlightHtml } from "./highlight.js";
 
 function getParser() {
   if (typeof window !== "undefined" && window.marked) {
@@ -30,11 +31,30 @@ export function enhanceCodeBlocks(container) {
   if (!container) return;
   for (const pre of container.querySelectorAll("pre")) {
     if (pre.parentElement && pre.parentElement.classList.contains("code-block")) continue;
-    const wrap = document.createElement("div");
-    wrap.className = "code-block";
+    const code = pre.querySelector("code");
+    const rawClass = code ? code.className : "";
+    const m = /(?:language|lang)-([\w-]+)/i.exec(rawClass);
+    const lang = m ? m[1] : "";
+
+    const wrap = el("div", "code-block");
+    const header = el("div", "code-header");
+    const langLabel = el("span", "code-lang", formatLangName(lang));
+    header.appendChild(langLabel);
+
+    const copyBtn = el("button", "code-copy");
+    copyBtn.type = "button";
+    copyBtn.title = "复制代码";
+    copyBtn.setAttribute("aria-label", "复制代码");
+    copyBtn.appendChild(icon("copy"));
+    header.appendChild(copyBtn);
+
     pre.parentNode.insertBefore(wrap, pre);
+    wrap.appendChild(header);
     wrap.appendChild(pre);
-    wrap.appendChild(el("button", "code-copy", "复制"));
+
+    if (code) {
+      code.innerHTML = highlightHtml(code.textContent, lang);
+    }
   }
 }
 

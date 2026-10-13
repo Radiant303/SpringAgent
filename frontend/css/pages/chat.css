@@ -649,24 +649,81 @@
   margin: 14px 0;
 }
 
+/* ---- 代码块卡片 ---- */
+.markdown-body .code-block,
 .code-block {
   position: relative;
-}
-.code-copy {
-  position: absolute;
-  top: 6px;
-  right: 6px;
+  margin: 12px 0;
+  background: var(--bg, #ffffff);
   border: 1px solid var(--border, rgba(0, 0, 0, 0.08));
-  background: var(--panel, #ffffff);
-  border-radius: 6px;
-  padding: 1px 10px;
-  font-size: var(--fs-sm, 16px);
-  color: var(--text-dim, rgba(0, 0, 0, 0.6));
-  opacity: 0;
-  transition: opacity 0.15s;
+  border-radius: 12px;
+  overflow: hidden;
 }
-.code-block:hover .code-copy { opacity: 1; }
-.code-copy:hover { color: var(--text, rgba(0, 0, 0, 0.9)); }
+
+.code-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 38px;
+  padding: 0 14px 0 16px;
+  background: var(--surface, #f5f5f5);
+  user-select: none;
+}
+
+.code-lang {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text, rgba(0, 0, 0, 0.9));
+}
+
+.code-copy {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-dim, rgba(0, 0, 0, 0.6));
+  cursor: pointer;
+  opacity: 1;
+  position: static;
+  transition: background-color 0.15s, color 0.15s;
+}
+
+.code-copy:hover {
+  background: var(--hover-bg, rgba(0, 0, 0, 0.04));
+  color: var(--text, rgba(0, 0, 0, 0.9));
+}
+
+.code-copy .icon {
+  width: 16px;
+  height: 16px;
+}
+
+.markdown-body .code-block pre,
+.code-block pre {
+  margin: 0;
+  padding: 16px 18px;
+  background: var(--bg, #ffffff);
+  border: none;
+  border-radius: 0;
+  overflow-x: auto;
+}
+
+.markdown-body .code-block pre code,
+.code-block pre code {
+  display: block;
+  font-family: ui-monospace, "JetBrains Mono", Consolas, monospace;
+  font-size: 14px;
+  line-height: 1.65;
+  background: transparent;
+  padding: 0;
+  color: var(--text, rgba(0, 0, 0, 0.9));
+  white-space: pre;
+}
 
 /* 图标样式 */
 .icon {
@@ -922,10 +979,13 @@ pre.tool-result.error { background: var(--diff-del-bg, rgba(192, 57, 43, 0.07));
 .fv-note { padding: 0 16px 10px; font-size: var(--fs-sm, 16px); color: var(--text-faint, rgba(0, 0, 0, 0.45)); }
 
 /* 语法高亮 */
-.hl-keyword { color: #a500b5; }
+.hl-keyword { color: #7b30d0; }
+.hl-fn { color: #6f9a50; }
+.hl-builtin { color: #16a085; }
+.hl-boolean { color: #0550ae; }
+.hl-number { color: #0550ae; }
 .hl-string { color: #22863a; }
-.hl-number { color: #8b6b00; }
-.hl-comment { color: #737373; font-style: italic; }
+.hl-comment { color: #8c8c8c; font-style: italic; }
 .hl-tag { color: #2f6fc4; }
 .hl-attr { color: #8b6b00; }
 .hl-selector { color: #2f6fc4; }
