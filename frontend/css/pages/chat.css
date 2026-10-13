@@ -788,19 +788,88 @@
 }
 
 .markdown-body .code-block pre,
-.code-block pre {
+.code-block pre,
+#messages .code-block pre {
   margin: 0;
-  padding: 16px 18px;
+  padding: 14px 18px 24px;
   background: var(--bg, #ffffff);
   border: none;
   border-radius: 0;
   overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+
+.markdown-body .code-block pre::-webkit-scrollbar,
+.code-block pre::-webkit-scrollbar,
+#messages .code-block pre::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+  background: transparent !important;
+}
+
+.markdown-body .code-block pre::-webkit-scrollbar-track,
+.code-block pre::-webkit-scrollbar-track,
+#messages .code-block pre::-webkit-scrollbar-track {
+  display: none !important;
+  background: transparent !important;
+}
+
+.markdown-body .code-block pre::-webkit-scrollbar-thumb,
+.code-block pre::-webkit-scrollbar-thumb,
+#messages .code-block pre::-webkit-scrollbar-thumb,
+.markdown-body .code-block pre::-webkit-scrollbar-thumb:hover,
+.code-block pre::-webkit-scrollbar-thumb:hover,
+#messages .code-block pre::-webkit-scrollbar-thumb:hover {
+  display: none !important;
+  background: transparent !important;
+}
+
+.code-scrollbar {
+  position: absolute;
+  left: 18px;
+  right: 18px;
+  bottom: 5px;
+  height: 14px;
+  display: flex;
+  align-items: flex-end;
+  opacity: 0;
+  pointer-events: none;
+  z-index: 3;
+  transition: opacity 0.15s ease;
+}
+
+.code-block.has-scroll .code-scrollbar {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.code-scrollbar-thumb {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  height: 4px;
+  background-color: rgba(0, 0, 0, 0.18);
+  border-radius: 5px;
+  pointer-events: auto;
+  cursor: pointer;
+  transition: height 0.16s ease-out, background-color 0.16s ease-out;
+}
+
+.code-scrollbar:hover .code-scrollbar-thumb,
+.code-scrollbar-thumb:hover,
+.code-scrollbar-thumb.is-dragging {
+  height: 10px;
+  background-color: rgba(0, 0, 0, 0.55);
 }
 
 .markdown-body .code-block pre code,
 .code-block pre code,
 .code-block pre code.hljs {
   display: block;
+  overflow: visible !important;
   font-family: "SF Mono", Menlo, Monaco, Consolas, "Liberation Mono", monospace;
   font-size: var(--markdown-code-font-size, 14px);
   line-height: var(--markdown-code-line-height, 22px);
@@ -808,6 +877,16 @@
   padding: 0 !important;
   color: var(--text, rgba(0, 0, 0, 0.9));
   white-space: pre;
+}
+
+.code-block pre code::-webkit-scrollbar,
+.code-block pre code::-webkit-scrollbar-track,
+.code-block pre code::-webkit-scrollbar-thumb,
+.code-block pre code::-webkit-scrollbar-thumb:hover {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+  background: transparent !important;
 }
 
 /* 图标样式 */
@@ -1494,14 +1573,14 @@ pre.tool-result.error { background: var(--diff-del-bg, rgba(192, 57, 43, 0.07));
 }
 
 /* ---- 滚动条：默认隐藏，悬停或滚动中浮现 ---- */
-:is(#messages, #sidebar-scroll, #input, pre, .thinking-body, .fv-body)::-webkit-scrollbar { width: 8px; height: 8px; }
-:is(#messages, #sidebar-scroll, #input, pre, .thinking-body, .fv-body)::-webkit-scrollbar-track { background: transparent; }
-:is(#messages, #sidebar-scroll, #input, pre, .thinking-body, .fv-body)::-webkit-scrollbar-thumb {
+:is(#messages, #sidebar-scroll, #input, .thinking-body, .fv-body)::-webkit-scrollbar { width: 8px; height: 8px; }
+:is(#messages, #sidebar-scroll, #input, .thinking-body, .fv-body)::-webkit-scrollbar-track { background: transparent; }
+:is(#messages, #sidebar-scroll, #input, .thinking-body, .fv-body)::-webkit-scrollbar-thumb {
   background: transparent;
   border-radius: 999px;
 }
-:is(#messages, #sidebar-scroll, #input, pre, .thinking-body, .fv-body):is(:hover, .is-scrolling)::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb, #c8c8c8); }
-:is(#messages, #sidebar-scroll, #input, pre, .thinking-body, .fv-body)::-webkit-scrollbar-thumb:hover { background-color: var(--scrollbar-thumb-hover, #a8a8a8); }
+:is(#messages, #sidebar-scroll, #input, .thinking-body, .fv-body):is(:hover, .is-scrolling)::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb, #c8c8c8); }
+:is(#messages, #sidebar-scroll, #input, .thinking-body, .fv-body)::-webkit-scrollbar-thumb:hover { background-color: var(--scrollbar-thumb-hover, #a8a8a8); }
 
 #model-menu::-webkit-scrollbar { width: 8px; }
 #model-menu::-webkit-scrollbar-track { background: transparent; }
