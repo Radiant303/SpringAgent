@@ -33,7 +33,7 @@ public class UsageRecord {
     /** 雪花 ID，或催醒轮本地生成的 wake-xxx。 */
     private String turnId;
 
-    /** 所属会话 ID。 */
+    /** 原始会话 ID，删除会话后仍保留。 */
     private String sessionId;
 
     /** 所属用户 ID。 */

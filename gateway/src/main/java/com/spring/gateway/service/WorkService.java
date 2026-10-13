@@ -141,8 +141,7 @@ public class WorkService {
     }
 
     /**
-     * 硬删除 work：引擎有活跃会话（409）或引擎不可达（503）时拒绝；
-     * 通过后删除消息、会话、work 行并物理删除目录
+     * 删除项目、会话、消息及工作区目录，保留用量和积分账目。
      *
      * @param userId 用户 ID
      * @param workId work ID

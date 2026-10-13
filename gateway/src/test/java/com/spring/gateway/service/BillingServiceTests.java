@@ -6,6 +6,7 @@ import com.spring.gateway.entity.PointsHold;
 import com.spring.gateway.entity.PointsLedger;
 import com.spring.gateway.entity.RateCard;
 import com.spring.gateway.entity.Session;
+import com.spring.gateway.entity.SystemSetting;
 import com.spring.gateway.entity.UsageRecord;
 import com.spring.gateway.entity.User;
 import com.spring.gateway.entity.Work;
@@ -16,6 +17,7 @@ import com.spring.gateway.mapper.SessionMapper;
 import com.spring.gateway.mapper.UsageRecordMapper;
 import com.spring.gateway.mapper.UserMapper;
 import com.spring.gateway.mapper.WorkMapper;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -34,11 +36,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
- * 积分计费集成测试：预扣-结算-释放-调账全链路。
- *
- * <p>连真实 MySQL，@Transactional 保证用例结束后回滚。
- * 预扣估算依赖迁移播种的兜底卡（10/1/10/30）与预估档位（9w/1w/2w）：
- * (90000×1 + 10000×10 + 20000×30) / 1e6 = 0.79 积分。
+ * 积分计费集成测试。
  *
  * @author hanbing
  * @since 2026-10-05
@@ -47,7 +45,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 @Transactional
 class BillingServiceTests {
 
-    /** 迁移播种值推出的预扣估算额。 */
+    /** 固定测试配置下的预扣估算额。 */
     private static final BigDecimal EST_HOLD = new BigDecimal("0.790000");
 
     @Autowired
@@ -68,6 +66,20 @@ class BillingServiceTests {
     private SessionMapper sessionMapper;
     @Autowired
     private SnowflakeIdGenerator idGenerator;
+    @Autowired
+    private SystemSettingService systemSettingService;
+
+    @BeforeEach
+    void configureBilling() {
+        RateCard fallback = rateCard(RateCard.DEFAULT_MODEL_ID, "10", "30");
+        fallback.setCacheReadPoints(BigDecimal.ONE);
+        fallback.setCacheWritePoints(BigDecimal.TEN);
+        rateCardMapper.insertOrUpdate(fallback);
+        rateCardMapper.deleteById("test-model");
+        systemSettingService.set(SystemSetting.KEY_BILLING_EST_CACHE_READ_TOKENS, "90000");
+        systemSettingService.set(SystemSetting.KEY_BILLING_EST_INPUT_TOKENS, "10000");
+        systemSettingService.set(SystemSetting.KEY_BILLING_EST_OUTPUT_TOKENS, "20000");
+    }
 
     private Long insertUser(String points) {
         User user = new User();

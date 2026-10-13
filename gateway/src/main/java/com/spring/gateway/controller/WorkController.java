@@ -58,7 +58,7 @@ public class WorkController {
     }
 
     /**
-     * 硬删除项目：删除目录及全部关联数据，有活跃会话或引擎不可达时拒绝
+     * 删除项目及会话内容，保留计费历史。
      *
      * @param userId 当前用户 ID
      * @param workId work ID

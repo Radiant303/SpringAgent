@@ -126,7 +126,6 @@ class AdminPaginationTests {
         String token = tokenFor(User.ROLE_ADMIN);
         Long uid = newUserId();
 
-        // usage_records.session_id 有外键，先建 work → session
         Work work = new Work();
         work.setId("w" + idGenerator.nextId());
         work.setUserId(uid);

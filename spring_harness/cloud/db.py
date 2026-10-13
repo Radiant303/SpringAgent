@@ -148,7 +148,7 @@ class UsageRecordRow(Base):
     id: Mapped[int] = mapped_column(_BigInt, primary_key=True, autoincrement=True)
     # 雪花 ID 或 wake-xxx（催醒轮本地生成）
     turn_id: Mapped[str] = mapped_column(String(32), nullable=False)
-    session_id: Mapped[str] = mapped_column(CHAR(36), ForeignKey("sessions.id"), nullable=False)
+    session_id: Mapped[str] = mapped_column(CHAR(36), nullable=False)
     user_id: Mapped[int] = mapped_column(_BigInt, ForeignKey("users.id"), nullable=False)
     model_id: Mapped[str] = mapped_column(String(256), nullable=False)
     requests: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
