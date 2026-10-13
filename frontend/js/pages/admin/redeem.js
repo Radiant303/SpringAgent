@@ -4,6 +4,8 @@
 
 import { $ } from "../../utils/dom.js";
 import { fmtPoints, fmtBytes, fmtDT } from "../../utils/format.js";
+import { parseInteger } from "../../utils/numeric.js";
+import { loadResourceLimits, pointsValue, quotaValue, pointsHint, quotaHint } from "../../utils/resourceLimits.js";
 import { getRole } from "../../api/auth.js";
 import { api } from "../../api/client.js";
 import { UI } from "../../components/ui.js";
@@ -69,52 +71,46 @@ export async function loadRedeemCodes(p = page) {
 
 /* 生成兑换码：右上角主按钮弹出的对话框；校验/提交都在框内，失败可改了重试 */
 export async function openRedeemGen() {
-  const numOrZero = (s) => {
-    const t = String(s ?? "").trim();
-    if (t === "") return 0;
-    const n = Number(t);
-    return Number.isFinite(n) && n >= 0 ? n : null;
-  };
+  const limits = await loadResourceLimits();
+  const parseCount = (s) => parseInteger(s, { min: 1, max: limits.redeemCountMax });
+  const parseHours = (s) => parseInteger(s, { min: 1, max: limits.expiresHoursMax });
+  const parsePoints = (s) => pointsValue(s, limits, { empty: "0" });
+  const parseQuota = (s) => quotaValue(s, limits, { empty: 0 });
   const v = await UI.dialog({
     title: "生成兑换码",
+    message: `兑换后积分余额不超过 ${limits.balanceMax}，配额不超过 1 TB；超限时兑换码仍可用。`,
     okText: "生成",
     fields: [
-      { name: "count", label: "数量", value: "1", inputMode: "numeric", hint: "一次最多 100 个" },
-      { name: "points", label: "积分", placeholder: "0", inputMode: "decimal" },
-      { name: "storageMb", label: "存储配额", suffix: "MB", placeholder: "0", inputMode: "numeric" },
-      { name: "workQuotaMb", label: "单工作区配额", suffix: "MB", placeholder: "0", inputMode: "numeric" },
-      { name: "expires", label: "有效期", suffix: "小时", placeholder: "永久", inputMode: "numeric" },
+      { name: "count", label: "数量", value: "1", inputMode: "numeric", maxLength: 3 },
+      { name: "points", label: "积分", placeholder: "0", inputMode: "decimal", maxLength: 14 },
+      { name: "storageMb", label: "存储配额", suffix: "MB", placeholder: "0", inputMode: "numeric", maxLength: 7 },
+      { name: "workQuotaMb", label: "单工作区配额", suffix: "MB", placeholder: "0", inputMode: "numeric", maxLength: 7 },
+      { name: "expires", label: "有效期", suffix: "小时", placeholder: "永久", inputMode: "numeric", maxLength: 5 },
     ],
     validate: (f) => {
-      const count = Number(f.count);
-      if (!Number.isInteger(count) || count < 1 || count > 100) {
-        return { name: "count", message: "数量必须是 1-100 的整数" };
+      if (parseCount(f.count) === null) return { name: "count", message: `数量须为 1～${limits.redeemCountMax} 的整数` };
+      const points = parsePoints(f.points);
+      const storageMb = parseQuota(f.storageMb);
+      const workQuotaMb = parseQuota(f.workQuotaMb);
+      if (points === null) return { name: "points", message: pointsHint(limits) };
+      if (storageMb === null) return { name: "storageMb", message: quotaHint(limits) };
+      if (workQuotaMb === null) return { name: "workQuotaMb", message: quotaHint(limits) };
+      if (String(f.expires).trim() !== "" && parseHours(f.expires) === null) {
+        return { name: "expires", message: `有效期须为 1～${limits.expiresHoursMax} 小时的整数，或留空` };
       }
-      const points = numOrZero(f.points);
-      const storageMb = numOrZero(f.storageMb);
-      const workQuotaMb = numOrZero(f.workQuotaMb);
-      if (points === null) return { name: "points", message: "面值必须是非负数字（留空按 0 计）" };
-      if (storageMb === null) return { name: "storageMb", message: "面值必须是非负数字（留空按 0 计）" };
-      if (workQuotaMb === null) return { name: "workQuotaMb", message: "面值必须是非负数字（留空按 0 计）" };
-      if (String(f.expires).trim() !== "") {
-        const hours = Number(f.expires);
-        if (!Number.isInteger(hours) || hours < 1) {
-          return { name: "expires", message: "有效小时必须是正整数（留空 = 永久有效）" };
-        }
-      }
-      if (points === 0 && storageMb === 0 && workQuotaMb === 0) {
+      if (Number(points) === 0 && storageMb === 0 && workQuotaMb === 0) {
         return { name: "points", message: "三项面值至少一项大于 0" };
       }
       return null;
     },
     submit: (f) => {
       const body = {
-        count: Number(f.count),
-        points: numOrZero(f.points),
-        storage_mb: numOrZero(f.storageMb),
-        work_quota_mb: numOrZero(f.workQuotaMb),
+        count: parseCount(f.count),
+        points: parsePoints(f.points),
+        storage_mb: parseQuota(f.storageMb),
+        work_quota_mb: parseQuota(f.workQuotaMb),
       };
-      if (String(f.expires).trim() !== "") body.expires_in_hours = Number(f.expires);
+      if (String(f.expires).trim() !== "") body.expires_in_hours = parseHours(f.expires);
       return api("/api/admin/redeem-codes", { method: "POST", body });
     },
   });

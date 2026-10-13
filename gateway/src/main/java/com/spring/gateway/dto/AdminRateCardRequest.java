@@ -1,6 +1,9 @@
 package com.spring.gateway.dto;
 
+import com.spring.gateway.common.ResourceLimits;
 import jakarta.validation.constraints.DecimalMin;
+import jakarta.validation.constraints.DecimalMax;
+import jakarta.validation.constraints.Digits;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
@@ -21,10 +24,14 @@ import java.math.BigDecimal;
  */
 public record AdminRateCardRequest(
         @NotBlank @Size(max = 256) String modelId,
-        @NotNull @DecimalMin(value = "0", message = "费率不能为负") BigDecimal inputPoints,
-        @NotNull @DecimalMin(value = "0", message = "费率不能为负") BigDecimal cacheReadPoints,
-        @NotNull @DecimalMin(value = "0", message = "费率不能为负") BigDecimal cacheWritePoints,
-        @NotNull @DecimalMin(value = "0", message = "费率不能为负") BigDecimal outputPoints,
+        @NotNull @DecimalMin(value = "0", message = "费率不能为负") @DecimalMax(ResourceLimits.MAX_POINTS_TEXT)
+        @Digits(integer = 7, fraction = ResourceLimits.POINTS_SCALE) BigDecimal inputPoints,
+        @NotNull @DecimalMin(value = "0", message = "费率不能为负") @DecimalMax(ResourceLimits.MAX_POINTS_TEXT)
+        @Digits(integer = 7, fraction = ResourceLimits.POINTS_SCALE) BigDecimal cacheReadPoints,
+        @NotNull @DecimalMin(value = "0", message = "费率不能为负") @DecimalMax(ResourceLimits.MAX_POINTS_TEXT)
+        @Digits(integer = 7, fraction = ResourceLimits.POINTS_SCALE) BigDecimal cacheWritePoints,
+        @NotNull @DecimalMin(value = "0", message = "费率不能为负") @DecimalMax(ResourceLimits.MAX_POINTS_TEXT)
+        @Digits(integer = 7, fraction = ResourceLimits.POINTS_SCALE) BigDecimal outputPoints,
         Boolean enabled
 ) {
 }

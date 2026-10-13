@@ -3,6 +3,8 @@
  */
 
 import { $ } from "../../utils/dom.js";
+import { parseInteger } from "../../utils/numeric.js";
+import { loadResourceLimits, quotaValue } from "../../utils/resourceLimits.js";
 import { getRole } from "../../api/auth.js";
 import { api } from "../../api/client.js";
 import { UI } from "../../components/ui.js";
@@ -14,8 +16,21 @@ export async function loadSettings() {
   section?.classList.add("is-loading");
   if ($("settings-save")) $("settings-save").disabled = true;
   let data;
+  let limits;
   try {
-    data = await api("/api/admin/settings");
+    [data, limits] = await Promise.all([api("/api/admin/settings"), loadResourceLimits()]);
+    if ($("work-max-mb")) {
+      $("work-max-mb").max = limits.quotaMbMax;
+      $("work-max-mb").step = "1";
+      $("work-max-mb").title = `1～${limits.quotaMbMax} MB，整数`;
+    }
+    for (const id of ["est-cache-read", "est-input", "est-output"]) {
+      if ($(id)) {
+        $(id).max = limits.billingTokensMax;
+        $(id).step = "1";
+        $(id).title = `0～${limits.billingTokensMax} tokens，整数`;
+      }
+    }
   } finally {
     section?.classList.remove("is-loading");
     if ($("settings-save")) $("settings-save").disabled = false;
@@ -23,7 +38,7 @@ export async function loadSettings() {
   if ($("registration-open")) $("registration-open").checked = !data || data.registrationOpen !== false;
   if ($("work-max-mb")) {
     $("work-max-mb").value = data && data.workMaxBytes != null
-      ? Math.round(Number(data.workMaxBytes) / (1 << 20))
+      ? Number(data.workMaxBytes) / limits.mbBytes
       : 20;
   }
   if ($("est-cache-read")) $("est-cache-read").value = data?.billingEstCacheReadTokens ?? 90000;
@@ -42,55 +57,52 @@ export async function loadSettings() {
 }
 
 export async function saveSettings() {
-  const mb = Number($("work-max-mb")?.value);
-  if (!Number.isFinite(mb) || mb < 1) {
-    UI.toast("单工作区配额至少 1 MB", { type: "error" });
-    return;
-  }
-  const estCacheRead = Number($("est-cache-read")?.value);
-  const estInput = Number($("est-input")?.value);
-  const estOutput = Number($("est-output")?.value);
-  if (![estCacheRead, estInput, estOutput].every((v) => Number.isFinite(v) && v >= 0)) {
-    UI.toast("预扣档位必须是非负数字", { type: "error" });
-    return;
-  }
+  if ($("settings-save")?.disabled) return;
   if ($("settings-save")) $("settings-save").disabled = true;
   try {
+    const limits = await loadResourceLimits();
+    const mb = quotaValue($("work-max-mb")?.value, limits, { min: 1 });
+    if (mb === null) throw new Error(`单工作区配额须为 1～${limits.quotaMbMax} MB 的整数`);
+    const token = (id) => parseInteger($(id)?.value, { max: limits.billingTokensMax });
+    const estCacheRead = token("est-cache-read");
+    const estInput = token("est-input");
+    const estOutput = token("est-output");
+    if ([estCacheRead, estInput, estOutput].includes(null)) {
+      throw new Error(`冻结预估须为 0～${limits.billingTokensMax} tokens 的整数`);
+    }
+    const communityLink = $("community-link").value.trim();
+    if (communityLink && !/^https?:\/\//.test(communityLink)) {
+      throw new Error("社群链接必须以 http:// 或 https:// 开头");
+    }
+    const mailResend = parseInteger($("mail-resend-interval").value, { min: 10, max: 3600 });
+    const mailTtl = parseInteger($("mail-code-ttl").value, { min: 60, max: 3600 });
+    if (mailResend === null || mailTtl === null) {
+      throw new Error("重发间隔须为 10～3600 秒、验证码有效期须为 60～3600 秒的整数");
+    }
     await api("/api/admin/settings/registration", {
       method: "POST",
       body: { open: $("registration-open").checked },
     });
     await api("/api/admin/settings/work-max-bytes", {
       method: "POST",
-      body: { bytes: Math.round(mb * (1 << 20)) },
+      body: { bytes: mb * limits.mbBytes },
     });
     await api("/api/admin/settings/billing-est", {
       method: "POST",
-      body: { cacheReadTokens: Math.round(estCacheRead), inputTokens: Math.round(estInput), outputTokens: Math.round(estOutput) },
+      body: { cacheReadTokens: estCacheRead, inputTokens: estInput, outputTokens: estOutput },
     });
-    // 官方社群：空串 = 侧边栏不显示入口
-    const communityLink = $("community-link").value.trim();
-    if (communityLink && !/^https?:\/\//.test(communityLink)) {
-      throw new Error("社群链接必须以 http:// 或 https:// 开头");
-    }
     await api("/api/admin/settings/community-link", {
       method: "POST",
       body: { link: communityLink },
     });
-    // 邮箱验证码注册：邮箱/授权码留空 = 保持不变（后端按生效值校验开启条件）
-    const mailResend = Number($("mail-resend-interval").value);
-    const mailTtl = Number($("mail-code-ttl").value);
-    if (!Number.isFinite(mailResend) || mailResend < 10 || !Number.isFinite(mailTtl) || mailTtl < 60) {
-      throw new Error("重发间隔至少 10 秒，验证码有效期至少 60 秒");
-    }
     await api("/api/admin/settings/mail", {
       method: "POST",
       body: {
         enabled: $("mail-enabled").checked,
         username: $("mail-username").value.trim(),
         authCode: $("mail-auth-code").value.trim(),
-        resendIntervalSeconds: Math.round(mailResend),
-        codeTtlSeconds: Math.round(mailTtl),
+        resendIntervalSeconds: mailResend,
+        codeTtlSeconds: mailTtl,
       },
     });
     if ($("settings-tip")) $("settings-tip").textContent = "";

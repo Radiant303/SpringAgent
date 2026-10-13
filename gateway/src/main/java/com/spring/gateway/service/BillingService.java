@@ -2,6 +2,7 @@ package com.spring.gateway.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.spring.gateway.common.BizException;
+import com.spring.gateway.common.ResourceLimits;
 import com.spring.gateway.common.SnowflakeIdGenerator;
 import com.spring.gateway.dto.ReserveModelRequest;
 import com.spring.gateway.dto.SettleModelRequest;
@@ -213,8 +214,9 @@ public class BillingService {
 
     @Transactional
     public void adjust(long operatorId, long targetId, BigDecimal delta, String reason) {
-        if (delta == null || delta.signum() == 0) {
-            throw new BizException(400, "调账金额不能为 0");
+        ResourceLimits.points(delta, true, "调账金额");
+        if (reason == null || reason.isBlank() || reason.length() > 255) {
+            throw new BizException(400, "事由必须为 1 到 255 个字符，不能全为空白");
         }
         BigDecimal after = applyDelta(targetId, delta, false);
         insertLedger(targetId, delta, after, PointsLedger.TYPE_ADJUST,
@@ -229,7 +231,12 @@ public class BillingService {
         return user.getPointsBalance() == null ? BigDecimal.ZERO : user.getPointsBalance();
     }
 
+    @Transactional
     public BigDecimal grantRedeem(long userId, BigDecimal points, String refId) {
+        ResourceLimits.points(points, false, "兑换积分");
+        if (points.signum() == 0) {
+            throw new BizException(400, "兑换积分必须大于 0");
+        }
         BigDecimal after = applyDelta(userId, points, false);
         insertLedger(userId, points, after, PointsLedger.TYPE_REDEEM, refId, null, null, null);
         return after;
@@ -273,6 +280,7 @@ public class BillingService {
             throw new BizException(409, "积分不足：当前 " + balance.stripTrailingZeros().toPlainString()
                     + "，本次需 " + delta.negate().stripTrailingZeros().toPlainString());
         }
+        ResourceLimits.activeBalance(after);
         userMapper.updateBalance(userId, after);
         return after;
     }

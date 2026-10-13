@@ -2,6 +2,7 @@ package com.spring.gateway.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.spring.gateway.common.BizException;
+import com.spring.gateway.common.ResourceLimits;
 import com.spring.gateway.common.RedeemFailRateLimiter;
 import com.spring.gateway.common.SnowflakeIdGenerator;
 import com.spring.gateway.dto.AdminRedeemCreateRequest;
@@ -45,9 +46,6 @@ public class RedeemService {
     /** 单个码撞唯一索引的最大重试次数。 */
     private static final int MAX_GENERATE_ATTEMPTS = 5;
 
-    /** MB → 字节。 */
-    private static final long MB = 1024L * 1024L;
-
     private final RedeemCodeMapper redeemCodeMapper;
     private final UserMapper userMapper;
     private final BillingService billingService;
@@ -66,9 +64,19 @@ public class RedeemService {
      */
     @Transactional
     public List<RedeemCode> generate(long actorId, AdminRedeemCreateRequest req) {
+        ResourceLimits.integer(req.count() == null ? null : req.count().longValue(),
+                1, ResourceLimits.MAX_REDEEM_COUNT, "生成数量");
         BigDecimal points = req.points() == null ? BigDecimal.ZERO : req.points();
-        long storageBytes = (req.storageMb() == null ? 0L : req.storageMb()) * MB;
-        long workQuotaBytes = (req.workQuotaMb() == null ? 0L : req.workQuotaMb()) * MB;
+        ResourceLimits.points(points, false, "积分面值");
+        long storageMb = ResourceLimits.integer(req.storageMb() == null ? 0L : req.storageMb(),
+                0, ResourceLimits.MAX_QUOTA_MB, "存储配额（MB）");
+        long workMb = ResourceLimits.integer(req.workQuotaMb() == null ? 0L : req.workQuotaMb(),
+                0, ResourceLimits.MAX_QUOTA_MB, "单工作区配额（MB）");
+        if (req.expiresInHours() != null) {
+            ResourceLimits.integer(req.expiresInHours(), 1, ResourceLimits.MAX_EXPIRES_HOURS, "有效期（小时）");
+        }
+        long storageBytes = Math.multiplyExact(storageMb, ResourceLimits.MB);
+        long workQuotaBytes = Math.multiplyExact(workMb, ResourceLimits.MB);
         if (points.signum() == 0 && storageBytes == 0 && workQuotaBytes == 0) {
             throw new BizException(400, "三项面值至少一项大于 0");
         }
@@ -98,6 +106,9 @@ public class RedeemService {
             throw new BizException(429, "兑换失败次数过多，请 1 分钟后再试");
         }
         try {
+            if (userMapper.selectBalanceForUpdate(userId) == null) {
+                throw new BizException(404, "用户不存在");
+            }
             String code = normalize(rawCode);
             if (redeemCodeMapper.claim(code, userId) != 1) {
                 throw claimFailure(code);
@@ -110,13 +121,14 @@ public class RedeemService {
             } else {
                 balanceAfter = billingService.balanceOf(userId);
             }
-            if (row.getStorageDeltaBytes() > 0) {
-                userMapper.addQuotaBytes(userId, row.getStorageDeltaBytes());
+            if (row.getStorageDeltaBytes() > 0
+                    && userMapper.addQuotaBytes(userId, row.getStorageDeltaBytes(), ResourceLimits.MAX_QUOTA_BYTES) != 1) {
+                throw new BizException(409, "兑换后总存储配额不能超过 1 TB");
             }
-            if (row.getWorkQuotaDeltaBytes() > 0) {
-                // NULL（跟随全局）时以兑换时的全局上限为基线落显式覆盖值
-                userMapper.addWorkQuotaBytes(userId, systemSettingService.getWorkMaxBytes(),
-                        row.getWorkQuotaDeltaBytes());
+            if (row.getWorkQuotaDeltaBytes() > 0
+                    && userMapper.addWorkQuotaBytes(userId, systemSettingService.getWorkMaxBytes(),
+                    row.getWorkQuotaDeltaBytes(), ResourceLimits.MAX_QUOTA_BYTES) != 1) {
+                throw new BizException(409, "兑换后单工作区配额不能超过 1 TB");
             }
             failRateLimiter.reset(userId);
             log.info("兑换成功: userId={} codeId={} points={} storage={} workQuota={} 余额={}",

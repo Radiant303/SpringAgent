@@ -1,7 +1,10 @@
 package com.spring.gateway.dto;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.spring.gateway.common.ResourceLimits;
 import jakarta.validation.constraints.DecimalMin;
+import jakarta.validation.constraints.DecimalMax;
+import jakarta.validation.constraints.Digits;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
@@ -20,10 +23,11 @@ import java.math.BigDecimal;
  * @param expiresInHours 有效小时数；null = 永久有效
  */
 public record AdminRedeemCreateRequest(
-        @NotNull @Min(1) @Max(100) Integer count,
-        @DecimalMin(value = "0", message = "面值不能为负") BigDecimal points,
-        @JsonProperty("storage_mb") @Min(0) Long storageMb,
-        @JsonProperty("work_quota_mb") @Min(0) Long workQuotaMb,
-        @JsonProperty("expires_in_hours") @Min(1) Long expiresInHours
+        @NotNull @Min(1) @Max(ResourceLimits.MAX_REDEEM_COUNT) Integer count,
+        @DecimalMin(value = "0", message = "面值不能为负") @DecimalMax(ResourceLimits.MAX_POINTS_TEXT)
+        @Digits(integer = 7, fraction = ResourceLimits.POINTS_SCALE) BigDecimal points,
+        @JsonProperty("storage_mb") @Min(0) @Max(ResourceLimits.MAX_QUOTA_MB) Long storageMb,
+        @JsonProperty("work_quota_mb") @Min(0) @Max(ResourceLimits.MAX_QUOTA_MB) Long workQuotaMb,
+        @JsonProperty("expires_in_hours") @Min(1) @Max(ResourceLimits.MAX_EXPIRES_HOURS) Long expiresInHours
 ) {
 }

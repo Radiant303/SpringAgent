@@ -42,10 +42,12 @@ public interface UserMapper extends BaseMapper<User> {
      *
      * @param id    用户 ID
      * @param delta 增量（字节，非负）
+     * @param max 配额上限（字节）
      * @return 受影响行数
      */
-    @Update("UPDATE users SET quota_bytes = quota_bytes + #{delta} WHERE id = #{id}")
-    int addQuotaBytes(@Param("id") Long id, @Param("delta") long delta);
+    @Update("UPDATE users SET quota_bytes = quota_bytes + #{delta} WHERE id = #{id}"
+            + " AND #{delta} >= 0 AND #{delta} <= #{max} AND quota_bytes <= #{max} - #{delta}")
+    int addQuotaBytes(@Param("id") Long id, @Param("delta") long delta, @Param("max") long max);
 
     /**
      * 单工作区上限原子增量（兑换码发奖用）。列为 NULL（跟随全局）时以 base
@@ -54,9 +56,12 @@ public interface UserMapper extends BaseMapper<User> {
      * @param id    用户 ID
      * @param base  全局基线（字节），仅在列为 NULL 时生效
      * @param delta 增量（字节，非负）
+     * @param max 配额上限（字节）
      * @return 受影响行数
      */
     @Update("UPDATE users SET work_quota_bytes = COALESCE(work_quota_bytes, #{base}) + #{delta}"
-            + " WHERE id = #{id}")
-    int addWorkQuotaBytes(@Param("id") Long id, @Param("base") long base, @Param("delta") long delta);
+            + " WHERE id = #{id} AND #{delta} >= 0 AND #{delta} <= #{max}"
+            + " AND COALESCE(work_quota_bytes, #{base}) <= #{max} - #{delta}")
+    int addWorkQuotaBytes(@Param("id") Long id, @Param("base") long base,
+                          @Param("delta") long delta, @Param("max") long max);
 }

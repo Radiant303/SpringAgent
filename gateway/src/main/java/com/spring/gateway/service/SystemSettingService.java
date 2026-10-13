@@ -1,5 +1,7 @@
 package com.spring.gateway.service;
 
+import com.spring.gateway.common.BizException;
+import com.spring.gateway.common.ResourceLimits;
 import com.spring.gateway.entity.SystemSetting;
 import com.spring.gateway.mapper.SystemSettingMapper;
 import lombok.RequiredArgsConstructor;
@@ -154,6 +156,21 @@ public class SystemSettingService {
      * @param value 设置值
      */
     public void set(String key, String value) {
+        if (SystemSetting.KEY_WORK_MAX_BYTES.equals(key)
+                || SystemSetting.KEY_BILLING_EST_CACHE_READ_TOKENS.equals(key)
+                || SystemSetting.KEY_BILLING_EST_INPUT_TOKENS.equals(key)
+                || SystemSetting.KEY_BILLING_EST_OUTPUT_TOKENS.equals(key)) {
+            long numeric;
+            try {
+                numeric = Long.parseLong(value);
+            } catch (NumberFormatException e) {
+                throw new BizException(400, "额度设置必须是整数");
+            }
+            boolean quota = SystemSetting.KEY_WORK_MAX_BYTES.equals(key);
+            ResourceLimits.integer(numeric, quota ? ResourceLimits.MB : 0,
+                    quota ? ResourceLimits.MAX_QUOTA_BYTES : ResourceLimits.MAX_BILLING_TOKENS,
+                    quota ? "全局工作区配额（字节）" : "冻结预估 Token");
+        }
         SystemSetting row = new SystemSetting();
         row.setSettingKey(key);
         row.setSettingValue(value);

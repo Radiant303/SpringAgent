@@ -3,6 +3,7 @@ package com.spring.gateway.service;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.spring.gateway.common.BizException;
+import com.spring.gateway.common.ResourceLimits;
 import com.spring.gateway.dto.AdminUserOption;
 import com.spring.gateway.dto.PageQuery;
 import com.spring.gateway.dto.PageResult;
@@ -117,6 +118,7 @@ public class AdminUserService {
      * @throws BizException 目标不存在（404）；越权（403）
      */
     public void setQuota(String actorRole, Long targetId, Long quotaBytes) {
+        ResourceLimits.integer(quotaBytes, 0, ResourceLimits.MAX_QUOTA_BYTES, "存储配额（字节）");
         requireOperable(actorRole, requireTarget(targetId));
         User row = new User();
         row.setId(targetId);
@@ -133,6 +135,9 @@ public class AdminUserService {
      * @throws BizException 目标不存在（404）；越权（403）
      */
     public void setWorkQuota(String actorRole, Long targetId, Long quotaBytes) {
+        if (quotaBytes != null) {
+            ResourceLimits.integer(quotaBytes, 0, ResourceLimits.MAX_QUOTA_BYTES, "工作区配额（字节）");
+        }
         requireOperable(actorRole, requireTarget(targetId));
         // updateById 默认忽略 null 字段，写 NULL（恢复跟随全局）必须显式 set
         userMapper.update(null, new LambdaUpdateWrapper<User>()

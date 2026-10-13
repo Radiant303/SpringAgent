@@ -4,6 +4,7 @@
 
 import { $ } from "../../utils/dom.js";
 import { fmtPoints, fmtTime } from "../../utils/format.js";
+import { loadResourceLimits, pointsValue, pointsHint } from "../../utils/resourceLimits.js";
 import { getRole } from "../../api/auth.js";
 import { api } from "../../api/client.js";
 import { UI } from "../../components/ui.js";
@@ -15,10 +16,14 @@ let modelDefinitions = [];
 
 export async function loadModels() {
   models = await UI.loadTable("model-tbody", async () => {
-    const [cards, config] = await Promise.all([
+    const [cards, config, limits] = await Promise.all([
       api("/api/admin/rate-cards"),
       getRole() === "owner" ? api("/api/admin/model-config") : Promise.resolve(null),
+      loadResourceLimits(),
     ]);
+    for (const id of ["model-input", "model-cache-read", "model-cache-write", "model-output"]) {
+      $(id).title = pointsHint(limits);
+    }
     modelDefinitions = config?.models || [];
     return cards;
   }) || [];
@@ -83,25 +88,23 @@ export function fillModelForm(m) {
 
 export async function onModelFormSubmit(e) {
   e.preventDefault();
-  const body = {
-    modelId: $("model-id").value,
-    inputPoints: Number($("model-input").value),
-    cacheReadPoints: Number($("model-cache-read").value),
-    cacheWritePoints: Number($("model-cache-write").value),
-    outputPoints: Number($("model-output").value),
-    enabled: $("model-enabled").checked,
-  };
-  if (!body.modelId) { UI.toast("请选择模型 ID", { type: "error" }); return; }
-  for (const key of ["inputPoints", "cacheReadPoints", "cacheWritePoints", "outputPoints"]) {
-    if (!Number.isFinite(body[key]) || body[key] < 0) {
-      UI.toast("费率必须是非负数字", { type: "error" });
-      return;
-    }
-  }
   const button = $("model-submit");
   if (button.disabled) return;
   button.disabled = true;
   try {
+    const limits = await loadResourceLimits();
+    const body = {
+      modelId: $("model-id").value,
+      inputPoints: pointsValue($("model-input").value, limits),
+      cacheReadPoints: pointsValue($("model-cache-read").value, limits),
+      cacheWritePoints: pointsValue($("model-cache-write").value, limits),
+      outputPoints: pointsValue($("model-output").value, limits),
+      enabled: $("model-enabled").checked,
+    };
+    if (!body.modelId) throw new Error("请选择模型 ID");
+    if ([body.inputPoints, body.cacheReadPoints, body.cacheWritePoints, body.outputPoints].includes(null)) {
+      throw new Error("费率须为 " + pointsHint(limits));
+    }
     await api("/api/admin/rate-cards", { method: "PUT", body });
     fillModelForm(null);
     UI.toast("资费卡已保存");

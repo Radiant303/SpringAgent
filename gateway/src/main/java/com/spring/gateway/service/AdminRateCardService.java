@@ -2,6 +2,7 @@ package com.spring.gateway.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.spring.gateway.common.BizException;
+import com.spring.gateway.common.ResourceLimits;
 import com.spring.gateway.dto.AdminRateCardRequest;
 import com.spring.gateway.entity.ModelDefinition;
 import com.spring.gateway.entity.RateCard;
@@ -38,6 +39,10 @@ public class AdminRateCardService {
     }
 
     public RateCard save(AdminRateCardRequest req) {
+        ResourceLimits.points(req.inputPoints(), false, "无缓存输入费率");
+        ResourceLimits.points(req.cacheReadPoints(), false, "缓存读取费率");
+        ResourceLimits.points(req.cacheWritePoints(), false, "缓存写入费率");
+        ResourceLimits.points(req.outputPoints(), false, "输出费率");
         String normalizedId = req.modelId().trim();
         validateModelId(normalizedId);
         RateCard row = rateCardMapper.selectById(normalizedId);

@@ -91,7 +91,7 @@ export function init() {
       $("model-form")?.addEventListener("submit", onModelFormSubmit);
       if ($("model-cancel")) $("model-cancel").onclick = () => fillModelForm(null);
       if ($("settings-save")) $("settings-save").onclick = saveSettings;
-      if ($("redeem-open-gen")) $("redeem-open-gen").onclick = openRedeemGen;
+      if ($("redeem-open-gen")) $("redeem-open-gen").onclick = () => openRedeemGen().catch((e) => UI.toast(e.message, { type: "error" }));
 
       // 模型配置页（默认/子代理模型 + Provider 两级管理）
       bindModelConfig();

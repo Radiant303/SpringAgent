@@ -299,10 +299,10 @@
         </div>
         <form id="model-form" class="model-form">
           <select id="model-id" required title="选择已配置模型"></select>
-          <input type="number" id="model-input" min="0" step="any" placeholder="输入" title="无缓存输入" required>
-          <input type="number" id="model-cache-read" min="0" step="any" placeholder="缓存命中" required>
-          <input type="number" id="model-cache-write" min="0" step="any" placeholder="缓存写入" required>
-          <input type="number" id="model-output" min="0" step="any" placeholder="输出" required>
+          <input type="text" inputmode="decimal" id="model-input" maxlength="14" placeholder="输入" title="无缓存输入" required>
+          <input type="text" inputmode="decimal" id="model-cache-read" maxlength="14" placeholder="缓存命中" required>
+          <input type="text" inputmode="decimal" id="model-cache-write" maxlength="14" placeholder="缓存写入" required>
+          <input type="text" inputmode="decimal" id="model-output" maxlength="14" placeholder="输出" required>
           <label class="model-enabled"><input type="checkbox" id="model-enabled" class="switch" checked>启用</label>
           <button type="submit" class="admin-btn primary" id="model-submit">新增资费卡</button>
           <button type="button" class="admin-btn hidden" id="model-cancel">取消编辑</button>

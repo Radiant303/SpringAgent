@@ -1,5 +1,7 @@
 package com.spring.gateway.dto;
 
+import com.spring.gateway.common.ResourceLimits;
+import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 
 /**
@@ -10,7 +12,7 @@ import jakarta.validation.constraints.Min;
  * @param quotaBytes 覆盖值（字节，0 表示不允许写入），null 恢复跟随全局
  */
 public record AdminWorkQuotaRequest(
-        @Min(value = 0, message = "上限不能为负")
+        @Min(value = 0, message = "上限不能为负") @Max(ResourceLimits.MAX_QUOTA_BYTES)
         Long quotaBytes
 ) {
 }

@@ -1,6 +1,11 @@
 package com.spring.gateway.dto;
 
+import com.spring.gateway.common.ResourceLimits;
+import jakarta.validation.constraints.DecimalMin;
+import jakarta.validation.constraints.DecimalMax;
+import jakarta.validation.constraints.Digits;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
 import java.math.BigDecimal;
@@ -14,7 +19,8 @@ import java.math.BigDecimal;
  * @param reason 事由（记账备查）
  */
 public record AdminPointsAdjustRequest(
-        @NotNull BigDecimal delta,
-        @NotNull @Size(min = 1, max = 255) String reason
+        @NotNull @DecimalMin(ResourceLimits.MIN_ADJUST_TEXT) @DecimalMax(ResourceLimits.MAX_POINTS_TEXT)
+        @Digits(integer = 7, fraction = ResourceLimits.POINTS_SCALE) BigDecimal delta,
+        @NotBlank @Size(max = 255) String reason
 ) {
 }

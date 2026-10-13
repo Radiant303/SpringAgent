@@ -2,7 +2,8 @@
  * 用户管理业务逻辑
  */
 
-import { fmtPoints, fmtBytes, fmtTime, parseNonNegative } from "../../utils/format.js";
+import { fmtPoints, fmtBytes, fmtTime } from "../../utils/format.js";
+import { loadResourceLimits, pointsValue, quotaValue, pointsHint, quotaHint } from "../../utils/resourceLimits.js";
 import { getRole, ROLE_LABELS } from "../../api/auth.js";
 import { api } from "../../api/client.js";
 import { UI } from "../../components/ui.js";
@@ -83,7 +84,6 @@ export async function onUserAction(btn) {
   const act = btn.dataset.act;
   const name = btn.dataset.name || "";
   const post = (path, body) => api(`/api/admin/users/${id}/${path}`, { method: "POST", body });
-  const MB = 1 << 20;
 
   try {
     let done;
@@ -171,55 +171,58 @@ export async function onUserAction(btn) {
       if (!v) return;
       done = "密码已重置";
     } else if (act === "quota") {
-      const currentMb = Math.round(Number(btn.dataset.quota || 0) / MB);
+      const limits = await loadResourceLimits();
+      const currentMb = Number(btn.dataset.quota || 0) / limits.mbBytes;
       const v = await UI.prompt({
         title: "存储配额",
         message: `设置「${name}」可使用的总存储空间。`,
         label: "配额",
         value: currentMb,
-        inputMode: "decimal",
+        inputMode: "numeric",
+        maxLength: 7,
         suffix: "MB",
         okText: "保存",
-        validate: (s) => (parseNonNegative(s) == null ? "请输入非负数字" : null),
-        submit: (s) => post("quota", { quotaBytes: Math.round(parseNonNegative(s) * MB) }),
+        validate: (s) => (quotaValue(s, limits) == null ? quotaHint(limits) : null),
+        submit: (s) => post("quota", { quotaBytes: quotaValue(s, limits) * limits.mbBytes }),
       });
       if (v === null) return;
       done = "存储配额已更新";
     } else if (act === "workquota") {
-      const current = btn.dataset.quota === "" ? "" : String(Math.round(Number(btn.dataset.quota) / MB));
+      const limits = await loadResourceLimits();
+      const current = btn.dataset.quota === "" ? "" : String(Number(btn.dataset.quota) / limits.mbBytes);
       const v = await UI.prompt({
         title: "单工作区配额",
         message: `设置「${name}」每个项目目录允许占用的最大空间。`,
         label: "配额",
         value: current,
         placeholder: "跟随全局",
-        inputMode: "decimal",
+        inputMode: "numeric",
+        maxLength: 7,
         suffix: "MB",
-        hint: "留空则恢复跟随全局设置",
         okText: "保存",
-        validate: (s) => (s.trim() === "" || parseNonNegative(s) != null ? null : "请输入非负数字，或留空"),
+        validate: (s) => (s.trim() === "" || quotaValue(s, limits) != null ? null : quotaHint(limits)),
         submit: (s) => post("work-quota", {
-          quotaBytes: s.trim() === "" ? null : Math.round(parseNonNegative(s) * MB),
+          quotaBytes: s.trim() === "" ? null : quotaValue(s, limits) * limits.mbBytes,
         }),
       });
       if (v === null) return;
       done = v.trim() === "" ? "已恢复跟随全局" : "单工作区配额已更新";
     } else if (act === "points") {
+      const limits = await loadResourceLimits();
       const v = await UI.dialog({
         title: "调账",
-        message: `调整「${name}」的积分余额，记入积分流水备查。`,
+        message: `调整「${name}」的积分余额。`,
         fields: [
-          { name: "delta", label: "变动数额", inputMode: "decimal", placeholder: "例如 100 或 -50", hint: "正数为充值，负数为扣减" },
-          { name: "reason", label: "事由", placeholder: "必填，记账备查" },
+          { name: "delta", label: "变动数额", inputMode: "decimal", maxLength: 15, placeholder: "例如 100 或 -50" },
+          { name: "reason", label: "事由", maxLength: 255, placeholder: "必填，记账备查" },
         ],
         okText: "确认调账",
         validate: (f) => {
-          const delta = Number(f.delta.trim());
-          if (f.delta.trim() === "" || !Number.isFinite(delta) || delta === 0) return { name: "delta", message: "请输入非零数字" };
-          if (!f.reason.trim()) return { name: "reason", message: "事由不能为空" };
+          if (pointsValue(f.delta, limits, { signed: true, nonzero: true }) == null) return { name: "delta", message: pointsHint(limits, true) };
+          if (!f.reason.trim() || f.reason.length > 255) return { name: "reason", message: "事由须为 1～255 个字符" };
           return null;
         },
-        submit: (f) => post("points", { delta: Number(f.delta.trim()), reason: f.reason.trim() }),
+        submit: (f) => post("points", { delta: pointsValue(f.delta, limits, { signed: true, nonzero: true }), reason: f.reason.trim() }),
       });
       if (!v) return;
       done = "调账完成";
