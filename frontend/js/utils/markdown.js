@@ -1,5 +1,8 @@
 /**
- * Markdown 解析与渲染工具
+ * Markdown 解析与渲染工具。
+ *
+ * @author hanbing
+ * @since 2026-10-13
  */
 
 import { el, icon } from "./dom.js";
@@ -54,6 +57,7 @@ export function enhanceCodeBlocks(container) {
 
     if (code) {
       code.innerHTML = highlightHtml(code.textContent, lang);
+      code.classList.add("hljs");
     }
   }
 }

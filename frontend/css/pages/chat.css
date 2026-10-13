@@ -714,13 +714,14 @@
 }
 
 .markdown-body .code-block pre code,
-.code-block pre code {
+.code-block pre code,
+.code-block pre code.hljs {
   display: block;
   font-family: ui-monospace, "JetBrains Mono", Consolas, monospace;
   font-size: 14px;
   line-height: 1.65;
-  background: transparent;
-  padding: 0;
+  background: transparent !important;
+  padding: 0 !important;
   color: var(--text, rgba(0, 0, 0, 0.9));
   white-space: pre;
 }
@@ -979,16 +980,17 @@ pre.tool-result.error { background: var(--diff-del-bg, rgba(192, 57, 43, 0.07));
 .fv-note { padding: 0 16px 10px; font-size: var(--fs-sm, 16px); color: var(--text-faint, rgba(0, 0, 0, 0.45)); }
 
 /* 语法高亮 */
-.hl-keyword { color: #7b30d0; }
-.hl-fn { color: #6f9a50; }
-.hl-builtin { color: #16a085; }
-.hl-boolean { color: #0550ae; }
-.hl-number { color: #0550ae; }
-.hl-string { color: #22863a; }
-.hl-comment { color: #8c8c8c; font-style: italic; }
-.hl-tag { color: #2f6fc4; }
-.hl-attr { color: #8b6b00; }
-.hl-selector { color: #2f6fc4; }
+.hljs-keyword, .hl-keyword { color: #7b30d0; }
+.hljs-title.function_, .hljs-title, .hl-fn { color: #6f9e2f; }
+.hljs-built_in, .hl-builtin { color: #16a085; }
+.hljs-literal, .hl-boolean { color: #174781; }
+.hljs-number, .hl-number { color: #174781; }
+.hljs-string, .hljs-regexp, .hl-string { color: #22863a; }
+.hljs-comment, .hljs-quote, .hl-comment { color: #8c8c8c; font-style: italic; }
+.hljs-tag, .hl-tag { color: #2f6fc4; }
+.hljs-attr, .hl-attr { color: #8b6b00; }
+.hljs-selector-tag, .hljs-selector-id, .hljs-selector-class, .hl-selector { color: #2f6fc4; }
+.hljs-params, .hljs-variable { color: var(--text, rgba(0, 0, 0, 0.9)); }
 
 /* ---- 计划区 ---- */
 #input-area { position: relative; }
