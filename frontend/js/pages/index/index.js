@@ -203,21 +203,37 @@ export function bind() {
   if (msgBox) {
     new MutationObserver(syncEmpty).observe(msgBox, { childList: true });
     msgBox.addEventListener("scroll", updateStick);
+    const ensureCopyIcons = (btn) => {
+      if (!btn || btn.querySelector(".icon-tick")) return;
+      const curIcon = btn.querySelector(".icon");
+      if (curIcon) curIcon.classList.add("icon-copy");
+      btn.appendChild(icon("tick", "icon-tick"));
+    };
+
+    document.querySelectorAll(".code-copy, .fv-copy").forEach(ensureCopyIcons);
+
+    msgBox.addEventListener("pointerenter", (e) => {
+      const btn = e.target.closest?.(".code-copy");
+      if (btn) ensureCopyIcons(btn);
+    }, true);
+
     // 代码块复制按钮委托
     msgBox.addEventListener("click", (e) => {
       const btn = e.target.closest(".code-copy");
       if (!btn) return;
       const pre = btn.closest(".code-block")?.querySelector("pre");
       if (!pre) return;
-      navigator.clipboard.writeText(pre.innerText).then(() => {
-        btn.textContent = "";
-        btn.appendChild(icon("tick"));
-        btn.title = "已复制";
-        setTimeout(() => {
-          btn.textContent = "";
-          btn.appendChild(icon("copy"));
-          btn.title = "复制代码";
-        }, 1200);
+      ensureCopyIcons(btn);
+      btn.classList.add("copied");
+      btn.title = "已复制";
+      clearTimeout(btn._copyTimer);
+      btn._copyTimer = setTimeout(() => {
+        btn.classList.remove("copied");
+        btn.title = "复制代码";
+      }, 1800);
+      navigator.clipboard.writeText(pre.innerText).catch(() => {
+        btn.classList.remove("copied");
+        btn.title = "复制代码";
       });
     });
   }

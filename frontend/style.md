@@ -48,6 +48,7 @@
 | 分组卡片（设置页） | `#f7f7f7`（hover `#efefef`） | `--admin-card` |
 | 浅灰表面（用户气泡、输入托盘、代码块） | `#f5f5f5` | `--surface` |
 | 悬停 | `rgba(0,0,0,0.04)` | `--hover-bg` / `--sb-hover` |
+| 图标悬停 | `rgba(0,0,0,0.03)` | `--icon-hover-bg` |
 | 选中 | `rgba(0,0,0,0.06)` | `--sb-active` |
 | 骨架条 | `rgba(0,0,0,0.05)` | — |
 | 对话框遮罩 | `rgba(0,0,0,0.32)` | — |
@@ -138,7 +139,7 @@ font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-s
 | 圆角 | 用于 |
 |---|---|
 | 4–5px | 徽章、`kbd` |
-| 8px | 小文字按钮、菜单内条目 |
+| 8px | 小文字按钮、菜单内条目、32px 图标按钮（类似 iOS 应用图标比例） |
 | 10px | 按钮、输入框、列表行、导航项 |
 | 12px | 主卡片、分组卡片、表格卡片、积分卡、大号输入框 |
 | 16px | 对话框、底部用户菜单、提问卡 |
@@ -221,7 +222,7 @@ body.login-page { display: flex; flex-direction: column; min-height: 100vh; back
 | 文字按钮 | 透明底、`--link` 蓝字、hover `rgba(23,131,255,0.08)` | 表格行内操作（重置密码、设配额…） |
 | 危险文字按钮 | 透明底、`--danger` 红字、hover `rgba(192,57,43,0.08)` | 表格行内的禁用、删除 |
 | 危险实心按钮 | 底 `--danger`、白字 | **只用在**删除/禁用确认对话框的确认键 |
-| 图标按钮 | 透明底、35×35、圆形 50%、`#000`，hover 底 `.04` | 返回、关闭、操作 |
+| 图标按钮 | 透明底、35×35（或 32×32）、圆形 50% 或圆角、`#000`，hover 底 `.03`（`--icon-hover-bg`） | 返回、关闭、操作、复制 |
 
 - **按钮不加边框**（`button { border: 1px solid transparent }`，任何状态都不要把它显出来）、没有阴影、没有渐变。
   悬停/选中只变底色；"已打开"这类状态也用底色表达（如 `[aria-expanded="true"]`）。
@@ -426,6 +427,7 @@ loader().catch((e) => { UI.settleSkeletons(section); showError(e.message); });
 - 内联 SVG，`viewBox="0 0 24 24"`，`fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"`；箭头这类小图标 `stroke-width="1.8"`。
 - 尺寸：列表/菜单 16–18px，顶栏图标按钮 20px。颜色继承文字，列表行首图标用 `rgba(0,0,0,0.75)`。
 - 线性风格，不用填充色块图标，不用 emoji，不引入图标库。
+- 图标按钮（`.icon-btn`、`.code-copy`、`.sb-icon-btn` 等）鼠标悬停底色统一为 `rgba(0,0,0,0.03)`（`--icon-hover-bg`），保持极淡克制，避免深灰块喧宾夺主。
 
 ### 6.11 动效
 
@@ -480,7 +482,7 @@ UI.enhanceDate(inp);               // 只换一个日期框
   - `code`：16px / 26px，浅灰底 `var(--surface)`，圆角 4px，内边距 `2px 6px`。
 - **代码块（`.code-block`）**：
   - 外部卡片：白底 `var(--bg, #fff)`、1px 细边框 `var(--border)`、12px 圆角、`margin: 16px 0`。
-  - 顶部栏（`.code-header`）：高 38px，浅灰底 `var(--surface, #f5f5f5)`，左侧展示语言名（13px，字重 500），右侧放置 28×28 复制图标按钮。
+  - 顶部栏（`.code-header`）：高 38px，浅灰底 `var(--surface, #f5f5f5)`，左侧展示语言名（14px，字重 500），右侧放置 32×32 复制图标按钮（内部 SVG 20×20，圆角 8px 仿 iOS 图标比例，hover 底 `rgba(0,0,0,0.03)`）。
   - 代码内容：14px 字号、22px 行高，等宽字体，透明背景，内边距 `14px 18px 24px`，横向滚动。
   - 横向滚动条：彻底隐藏原生滚动条，由底部 14px 自绘指示轨（`.code-scrollbar`）承载；常态为 4px 细胶囊条（`rgba(0,0,0,0.18)`），底部间距 5px，左右内缩 18px 避开圆角；鼠标悬停指示轨或拖拽时，高度自底部基线单段平滑展开至 10px 并加深至 `rgba(0,0,0,0.55)`（`0.16s ease-out`），杜绝阶梯突跳与边缘形变。
   - 语法高亮：直接使用开源库 `highlight.js` 与外部样式表（`highlight.min.css`）的原生配色，不在业务 CSS 中手工重写颜色。

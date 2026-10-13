@@ -163,7 +163,7 @@ body.login-page {
   transition: background-color 0.15s, color 0.15s;
 }
 .login-eye:hover {
-  background: var(--hover-bg, rgba(0, 0, 0, 0.04));
+  background: var(--icon-hover-bg, rgba(0, 0, 0, 0.03));
   color: var(--text-dim, rgba(0, 0, 0, 0.6));
 }
 .login-eye svg {

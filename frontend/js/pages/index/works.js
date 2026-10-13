@@ -8,7 +8,7 @@ import { apiFetch } from "../../api/client.js";
 import { UI } from "../../components/ui.js";
 import { state } from "./state.js";
 import { addSystem } from "./chatView.js";
-import { openSession, refreshSessionList } from "./sessions.js";
+import { openWorkSession, refreshSessionList } from "./sessions.js";
 import { clearMessages } from "./history.js";
 
 export const FOLDER_SVG = '<svg class="sb-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 7a2 2 0 0 1 2-2h3.8l2 2.2h7.2a2 2 0 0 1 2 2V17a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z"/></svg>';
@@ -96,19 +96,13 @@ export async function selectWork(workId) {
   localStorage.setItem("sh.workId", workId);
   renderWorks();
   updateWorkName();
-  state.sessionId = null;
-  localStorage.removeItem("sh.sessionId");
-  UI.showSkeleton("session-list");
-  clearMessages(true);
   try {
-    await openSession();
+    await openWorkSession();
   } catch (e) {
     UI.clearSkeleton("session-list");
     UI.clearSkeleton("messages");
     addSystem("❌ 切换项目失败：" + e.message, true);
-    return;
   }
-  await refreshSessionList();
 }
 
 export async function createWork() {
@@ -151,7 +145,11 @@ export async function deleteWork(work) {
   UI.toast(`项目「${work.name}」已删除`);
   await loadWorks();
   if (state.workId) {
-    await openSession();
+    await openWorkSession();
+  } else {
+    state.sessionId = null;
+    localStorage.removeItem("sh.sessionId");
+    clearMessages();
     await refreshSessionList();
   }
 }

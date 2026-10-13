@@ -48,7 +48,8 @@ export function enhanceCodeBlocks(container) {
     copyBtn.type = "button";
     copyBtn.title = "复制代码";
     copyBtn.setAttribute("aria-label", "复制代码");
-    copyBtn.appendChild(icon("copy"));
+    copyBtn.appendChild(icon("copy", "icon-copy"));
+    copyBtn.appendChild(icon("tick", "icon-tick"));
     header.appendChild(copyBtn);
 
     pre.parentNode.insertBefore(wrap, pre);

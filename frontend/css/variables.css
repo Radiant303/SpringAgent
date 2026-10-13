@@ -16,6 +16,7 @@
   --muted: #ebebee;
   --ground: #fefefe;               /* 侧栏/页面底色 */
   --hover-bg: rgba(0, 0, 0, 0.04);
+  --icon-hover-bg: rgba(0, 0, 0, 0.03);
   --active-bg: var(--color-surface);
   --sb-hover: rgba(0, 0, 0, 0.04);
   --sb-active: rgba(0, 0, 0, 0.06);

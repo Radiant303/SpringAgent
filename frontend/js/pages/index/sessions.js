@@ -90,29 +90,55 @@ export function newSession() {
   $("input")?.focus();
 }
 
-export async function openSession() {
-  let sid = localStorage.getItem("sh.sessionId");
-  if (sid) {
-    try {
-      await rpc.request("session/attach", { workspace: state.workspace, sessionId: sid, model: state.model });
-    } catch {
-      sid = null;
-    }
-  }
-  if (!sid) {
-    const r = await rpc.request("session/resume_last", { workspace: state.workspace, model: state.model });
-    sid = r.sessionId;
-  }
-  if (!sid) {
-    clearMessages();
-    await refreshSessionList();
+export async function openWorkSession(preferredSid = null) {
+  const currentWorkId = state.workId;
+  UI.showSkeleton("session-list");
+  clearMessages(true);
+  let sessions;
+  try {
+    const r = await rpc.request("session/list", { workspace: state.workspace, workId: state.workId });
+    sessions = r.sessions || [];
+  } catch (e) {
+    if (state.workId !== currentWorkId) return;
+    UI.clearSkeleton("session-list");
+    UI.clearSkeleton("messages");
+    addSystem("❌ 获取会话列表失败：" + e.message, true);
     return;
   }
-  state.sessionId = sid;
-  localStorage.setItem("sh.sessionId", sid);
-  clearMessages(true);
-  await loadHistory();
-  await loadPlan();
-  await refreshSessionList();
-  subscribeStream(sid);
+  if (state.workId !== currentWorkId) return;
+
+  const sorted = [...sessions].sort((a, b) => {
+    const ta = Date.parse(a.updatedAt || a.createdAt || "") || 0;
+    const tb = Date.parse(b.updatedAt || b.createdAt || "") || 0;
+    return tb - ta;
+  });
+
+  const target = (preferredSid && sorted.find((s) => s.sessionId === preferredSid)) || sorted[0] || null;
+  if (target) {
+    state.sessionId = target.sessionId;
+    localStorage.setItem("sh.sessionId", target.sessionId);
+    try {
+      await rpc.request("session/attach", { workspace: state.workspace, sessionId: target.sessionId, model: state.model });
+      if (state.workId !== currentWorkId) return;
+      await loadHistory();
+    } catch (e) {
+      if (state.workId !== currentWorkId) return;
+      UI.clearSkeleton("messages");
+      addSystem("❌ 加载历史失败：" + e.message, true);
+    }
+    if (state.workId !== currentWorkId) return;
+    await loadPlan();
+    await refreshSessionList();
+    subscribeStream(target.sessionId);
+  } else {
+    state.sessionId = null;
+    localStorage.removeItem("sh.sessionId");
+    clearMessages();
+    await refreshSessionList();
+    $("input")?.focus();
+  }
+}
+
+export async function openSession() {
+  await openWorkSession(localStorage.getItem("sh.sessionId"));
 }

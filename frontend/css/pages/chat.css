@@ -50,7 +50,7 @@
   color: var(--text-dim, rgba(0, 0, 0, 0.6));
 }
 .sb-icon-btn:hover {
-  background: var(--sb-hover, rgba(0, 0, 0, 0.04));
+  background: var(--icon-hover-bg, rgba(0, 0, 0, 0.03));
   color: var(--text, rgba(0, 0, 0, 0.9));
 }
 .sb-icon-btn svg {
@@ -755,20 +755,19 @@
 }
 
 .code-lang {
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 500;
   color: var(--text, rgba(0, 0, 0, 0.9));
 }
 
 .code-copy {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
+  display: inline-grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
   padding: 0;
   border: none;
-  border-radius: 6px;
+  border-radius: 8px;
   background: transparent;
   color: var(--text-dim, rgba(0, 0, 0, 0.6));
   cursor: pointer;
@@ -778,13 +777,37 @@
 }
 
 .code-copy:hover {
-  background: var(--hover-bg, rgba(0, 0, 0, 0.04));
+  background: var(--icon-hover-bg, rgba(0, 0, 0, 0.03));
   color: var(--text, rgba(0, 0, 0, 0.9));
 }
 
 .code-copy .icon {
-  width: 16px;
-  height: 16px;
+  grid-area: 1 / 1;
+  width: 20px;
+  height: 20px;
+  pointer-events: none;
+}
+
+.code-copy .icon-copy {
+  opacity: 1;
+  transition: opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1) 0.25s;
+}
+
+.code-copy .icon-tick {
+  opacity: 0;
+  transition: opacity 0.25s cubic-bezier(0.4, 0, 0.2, 1) 0s;
+}
+
+.code-copy.copied .icon {
+  transition: none;
+}
+
+.code-copy.copied .icon-copy {
+  opacity: 0;
+}
+
+.code-copy.copied .icon-tick {
+  opacity: 1;
 }
 
 .markdown-body .code-block pre,
@@ -1097,9 +1120,8 @@ pre.tool-result.error { background: var(--diff-del-bg, rgba(192, 57, 43, 0.07));
 .fv-name { flex-shrink: 0; white-space: nowrap; color: var(--text, rgba(0, 0, 0, 0.9)); }
 .fv-dir + .fv-name { margin-left: -8px; }
 .fv-copy {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+  display: inline-grid;
+  place-items: center;
   width: 26px;
   height: 26px;
   padding: 0;
@@ -1108,9 +1130,31 @@ pre.tool-result.error { background: var(--diff-del-bg, rgba(192, 57, 43, 0.07));
   background: transparent;
   color: var(--text-faint, rgba(0, 0, 0, 0.45));
   cursor: pointer;
+  transition: background-color 0.15s, color 0.15s;
 }
-.fv-copy:hover { color: var(--text, rgba(0, 0, 0, 0.9)); }
-.fv-copy .icon { width: var(--ic-sm, 16px); height: var(--ic-sm, 16px); }
+.fv-copy:hover {
+  background: var(--icon-hover-bg, rgba(0, 0, 0, 0.03));
+  color: var(--text, rgba(0, 0, 0, 0.9));
+}
+.fv-copy .icon {
+  grid-area: 1 / 1;
+  width: var(--ic-sm, 16px);
+  height: var(--ic-sm, 16px);
+  pointer-events: none;
+}
+.fv-copy .icon-copy {
+  opacity: 1;
+  transition: opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1) 0.25s;
+}
+.fv-copy .icon-tick {
+  opacity: 0;
+  transition: opacity 0.25s cubic-bezier(0.4, 0, 0.2, 1) 0s;
+}
+.fv-copy.copied .icon {
+  transition: none;
+}
+.fv-copy.copied .icon-copy { opacity: 0; }
+.fv-copy.copied .icon-tick { opacity: 1; }
 
 .fv-body {
   max-height: 320px;

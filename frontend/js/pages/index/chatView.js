@@ -351,19 +351,21 @@ export function renderFileView(card, rows, note) {
   copy.type = "button";
   copy.title = "复制";
   copy.setAttribute("aria-label", "复制代码");
-  copy.appendChild(icon("copy"));
+  copy.appendChild(icon("copy", "icon-copy"));
+  copy.appendChild(icon("tick", "icon-tick"));
   const shown = rows.slice(0, FILE_VIEW_MAX_ROWS);
   copy.onclick = (e) => {
     e.stopPropagation();
     const text = shown.filter((r) => r.type !== "del" && r.type !== "gap").map((r) => r.text).join("\n");
     navigator.clipboard.writeText(text).then(() => {
-      copy.textContent = "";
-      copy.appendChild(icon("tick"));
-      setTimeout(() => {
-        copy.textContent = "";
-        copy.appendChild(icon("copy"));
-      }, 1200);
-    });
+      copy.classList.add("copied");
+      copy.title = "已复制";
+      clearTimeout(copy._timer);
+      copy._timer = setTimeout(() => {
+        copy.classList.remove("copied");
+        copy.title = "复制";
+      }, 1800);
+    }).catch(() => {});
   };
   head.appendChild(copy);
   view.appendChild(head);

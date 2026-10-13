@@ -75,7 +75,7 @@
   box-sizing: border-box;
 }
 .icon-btn:hover:not(:disabled) {
-  background: rgba(0, 0, 0, 0.04);
+  background: var(--icon-hover-bg, rgba(0, 0, 0, 0.03));
 }
 .icon-btn:active:not(:disabled) {
   background: rgba(0, 0, 0, 0.08);

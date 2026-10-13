@@ -166,6 +166,8 @@ class CloudAppServer(AppServer):
 
     async def _session_resume_last(self, p: WorkspaceParams) -> SessionResult:
         rows = await asyncio.to_thread(list_sessions_for_user, self._user_id)
+        if p.work_id:
+            rows = [r for r in rows if r.work_id == p.work_id]
         if not rows:
             return SessionResult(session_id=None)
         target = rows[0]
@@ -192,6 +194,8 @@ class CloudAppServer(AppServer):
 
     async def _session_list(self, p: WorkspaceParams) -> SessionListResult:
         rows = await asyncio.to_thread(list_sessions_for_user, self._user_id)
+        if p.work_id:
+            rows = [r for r in rows if r.work_id == p.work_id]
         return SessionListResult(sessions=[
             SessionSummary(
                 session_id=row.id,
