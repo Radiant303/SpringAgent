@@ -285,8 +285,8 @@ function renderProviders() {
     const main = h("span", "mc-row-main");
     const title = h("span", "mc-row-title");
     title.append(p.name, h("span", "badge", p.type));
-    const sub = h("span", "mc-row-sub", p.base_url || "官方默认地址");
-    if (p.base_url) sub.title = p.base_url;
+    const sub = h("span", "mc-row-sub", p.effective_base_url);
+    sub.title = p.effective_base_url;
     main.append(title, sub);
 
     const meta = h("span", "mc-row-meta", `${count} 个模型`);
@@ -304,8 +304,11 @@ async function openProviderDialog(p) {
       { name: "name", label: "名称", value: p ? p.name : "", disabled: !!p, placeholder: "如 deepseek" },
       { name: "type", label: "类型", type: "select", options: PROVIDER_TYPES.map((t) => ({ value: t, label: t })), value: p ? p.type : "openai" },
       { name: "apiKey", label: "API Key", type: "password", autocomplete: "new-password", placeholder: p ? (p.api_key_configured ? "已配置，留空保持不变" : "未配置，请填写") : "API Key（必填）" },
-      { name: "baseUrl", label: "base_url", value: p ? p.base_url || "" : "", placeholder: "可选，留空用官方默认" },
+      { name: "baseUrl", label: "base_url", value: p ? p.base_url || "" : "", hint: p?.base_url ? "留空保持当前地址" : "留空使用输入框提示的默认地址" },
     ],
+    onChange: (v, inputs) => {
+      inputs.baseUrl.placeholder = p?.base_url || modelConfig.providerDefaults[v.type];
+    },
     okText: p ? "保存" : "添加",
     validate: (v) => {
       if (!/^[a-z0-9][a-z0-9-]*$/.test(v.name.trim())) {
@@ -383,8 +386,8 @@ function renderDetail() {
   $("mc-detail-name").textContent = p.name;
   $("mc-detail-type").textContent = p.type;
   const url = $("mc-detail-url");
-  url.textContent = p.base_url || "官方默认地址";
-  url.title = p.base_url || "";
+  url.textContent = p.effective_base_url;
+  url.title = p.effective_base_url;
   renderAddedList();
   renderAvailList();
 }

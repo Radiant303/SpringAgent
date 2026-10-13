@@ -138,6 +138,8 @@ export function dialog(opts) {
     });
 
     cancelBtn.onclick = () => { if (!busy) close(null); };
+    box.addEventListener("change", () => opts.onChange?.(readValues(), inputs));
+    opts.onChange?.(readValues(), inputs);
     box.addEventListener("input", () => { if (error.textContent) showError(""); });
     box.addEventListener("submit", async (e) => {
       e.preventDefault();

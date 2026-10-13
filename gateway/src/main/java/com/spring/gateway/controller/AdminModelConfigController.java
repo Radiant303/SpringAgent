@@ -56,6 +56,7 @@ public class AdminModelConfigController {
                 "models", modelConfigService.listModels().stream()
                         .map(m -> toModelView(m, defaultModel)).toList(),
                 "defaultModel", defaultModel,
+                "providerDefaults", ModelProvider.DEFAULT_BASE_URLS,
                 "subagentModels", modelConfigService.getSubagentModels()));
     }
 
@@ -163,10 +164,14 @@ public class AdminModelConfigController {
     }
 
     private static AdminProviderView toProviderView(ModelProvider row) {
+        String effectiveBaseUrl = row.getBaseUrl() == null || row.getBaseUrl().isBlank()
+                ? ModelProvider.DEFAULT_BASE_URLS.getOrDefault(row.getType(), "")
+                : row.getBaseUrl();
         return new AdminProviderView(
                 row.getName(),
                 row.getType(),
                 row.getBaseUrl(),
+                effectiveBaseUrl,
                 row.getApiKey() != null && !row.getApiKey().isBlank(),
                 TimeFormat.isoUtc(row.getUpdatedAt()));
     }

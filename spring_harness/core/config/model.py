@@ -82,7 +82,7 @@ def _alibaba(model_name: str, provider_config: Any, model_config: Any) -> Model:
     return OpenAIChatModel(
         model_name,
         provider=AlibabaProvider(
-            base_url=provider_config.base_url,
+            base_url=provider_config.base_url or "https://dashscope.aliyuncs.com/compatible-mode/v1",
             api_key=provider_config.api_key,
         ),
         profile=_profile(native=True),
