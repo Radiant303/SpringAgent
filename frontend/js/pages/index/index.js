@@ -24,7 +24,12 @@ import {
   send,
   cancelTurn,
   populateModelSelect,
+  openModelMenu,
+  openEffortMenu,
+  closeEffortMenu,
   closeModelMenu,
+  positionModelMenus,
+  modelMenuKeydown,
   refreshModelList,
   syncEmpty,
   syncChrome,
@@ -60,7 +65,14 @@ export async function connectAndSetup() {
   const info = await rpc.request("initialize", {});
   state.workspace = info.workspace;
   state.models = info.models || [];
-  if (!state.model) state.model = info.defaultModel || null;
+  if (!state.models.some((m) => m.id === state.model)) {
+    state.model = info.defaultModel || null;
+    state.effort = null;
+  }
+  const model = state.models.find((m) => m.id === state.model);
+  state.effort = model?.thinkingEnabled
+    ? (model.supportEfforts.includes(state.effort) ? state.effort : model.defaultEffort)
+    : null;
   populateModelSelect();
   if ($("input-ws")) $("input-ws").title = state.workspace;
   setConnected(true);
@@ -286,17 +298,29 @@ export function bind() {
     if ($("input-area")) chromeRO.observe($("input-area"));
   }
 
-  if ($("model-btn")) {
-    $("model-btn").onclick = (e) => {
-      e.stopPropagation();
-      const open = $("model-menu")?.classList.toggle("hidden");
-      $("model-pill")?.classList.toggle("open", !open);
-      if (open) refreshModelList();
-    };
+  if ($("model-btn")) $("model-btn").onclick = () => {
+    if ($("model-menu")?.classList.contains("hidden")) {
+      openModelMenu();
+      refreshModelList();
+    } else closeModelMenu(true);
+  };
+  if ($("effort-btn")) {
+    $("effort-btn").onclick = () => openEffortMenu();
+    $("effort-btn").addEventListener("pointerenter", (e) => {
+      if (e.pointerType !== "touch") openEffortMenu(false);
+    });
   }
+  $("model-list")?.addEventListener("pointerenter", () => closeEffortMenu());
+  $("model-pill")?.addEventListener("keydown", modelMenuKeydown);
   document.addEventListener("click", (e) => {
     if (!e.target.closest("#model-pill")) closeModelMenu();
   });
+  document.addEventListener("scroll", (e) => {
+    if ($("model-pill")?.contains(e.target)) positionModelMenus();
+    else closeModelMenu();
+  }, true);
+  window.addEventListener("resize", () => closeModelMenu());
+  window.addEventListener("focus", () => { if (state.connected) refreshModelList(); });
 
   if ($("scroll-bottom")) {
     $("scroll-bottom").onclick = () => {

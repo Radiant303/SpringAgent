@@ -10,6 +10,7 @@ class _WireModel(BaseModel):
 class WorkspaceParams(_WireModel):
     workspace: str
     model: str | None = None
+    effort: str | None = Field(default=None, strict=True, max_length=16)
     # 会话落在哪个 work 下；缺省由服务端解析为默认 work
     work_id: str | None = Field(default=None, validation_alias="workId", serialization_alias="workId")
 
@@ -22,6 +23,7 @@ class AttachParams(_WireModel):
     workspace: str
     session_id: str = Field(validation_alias="sessionId", serialization_alias="sessionId")
     model: str | None = None
+    effort: str | None = Field(default=None, strict=True, max_length=16)
     takeover: bool = Field(default=False, strict=True)
 
 
@@ -33,6 +35,12 @@ class TurnStartParams(_WireModel):
 class SetModelParams(_WireModel):
     session_id: str = Field(validation_alias="sessionId", serialization_alias="sessionId")
     model: str
+    effort: str | None = Field(default=None, strict=True, max_length=16)
+
+
+class ModelSelectionResult(_WireModel):
+    model: str | None = None
+    effort: str | None = None
 
 
 class InitializeResult(_WireModel):
@@ -40,7 +48,7 @@ class InitializeResult(_WireModel):
     protocol_version: int = Field(validation_alias="protocolVersion", serialization_alias="protocolVersion")
 
 
-class SessionResult(_WireModel):
+class SessionResult(ModelSelectionResult):
     session_id: str | None = Field(validation_alias="sessionId", serialization_alias="sessionId")
 
 

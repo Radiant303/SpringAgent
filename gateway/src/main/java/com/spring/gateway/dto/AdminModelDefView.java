@@ -16,8 +16,8 @@ import java.util.List;
  * @param maxContextSize 上下文窗口（tokens）
  * @param maxOutputSize  输出上限（tokens）
  * @param capabilities   能力列表
- * @param supportEfforts 支持的思考档位
- * @param defaultEffort  默认思考档位
+ * @param supportEfforts 可选思考挡位
+ * @param defaultEffort  默认思考挡位
  * @param enabled        是否启用
  * @param isDefault      是否默认模型
  * @param updatedAt      更新时间（ISO UTC）

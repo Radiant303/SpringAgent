@@ -142,13 +142,19 @@ public class AdminModelConfigService {
             throw new BizException(400, "Provider 不存在: " + req.provider());
         }
         List<String> efforts = req.supportEfforts() == null ? List.of() : req.supportEfforts();
-        String defaultEffort = req.defaultEffort() == null ? "" : req.defaultEffort().trim();
-        if (efforts.isEmpty()) {
-            if (!defaultEffort.isEmpty()) {
-                throw new BizException(400, "未配置思考档位时不可设置默认档位");
-            }
-        } else if (!efforts.contains(defaultEffort)) {
-            throw new BizException(400, "默认档位不在思考档位列表中");
+        if (efforts.size() > 7 || efforts.stream().anyMatch(e -> e == null
+                || !com.spring.gateway.common.ThinkingEffort.VALUES.contains(e))
+                || efforts.stream().distinct().count() != efforts.size()) {
+            throw new BizException(400, "思考挡位无效或重复");
+        }
+        String defaultEffort = req.defaultEffort() == null ? "" : req.defaultEffort();
+        boolean thinkingEnabled = req.capabilities() != null && req.capabilities().contains("thinking");
+        if (thinkingEnabled && (efforts.isEmpty() || !efforts.contains(defaultEffort))) {
+            throw new BizException(400, "请至少选择一个思考挡位，并从中选择默认挡位");
+        }
+        if (!thinkingEnabled) {
+            efforts = List.of();
+            defaultEffort = "";
         }
         String modelName = req.model().trim();
         String derivedId = req.provider() + "/" + modelName;
@@ -191,8 +197,8 @@ public class AdminModelConfigService {
         row.setMaxContextSize(req.maxContextSize());
         row.setMaxOutputSize(req.maxOutputSize());
         row.setCapabilities(joinCsv(req.capabilities()));
-        row.setSupportEfforts(joinCsv(req.supportEfforts()));
-        row.setDefaultEffort(req.defaultEffort() == null ? "" : req.defaultEffort().trim());
+        row.setSupportEfforts(joinCsv(efforts));
+        row.setDefaultEffort(defaultEffort);
         row.setEnabled(req.enabled());
         row.setUpdatedAt(now);
         if (isNew) {

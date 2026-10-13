@@ -104,16 +104,23 @@ class AppServer:
     async def _initialize(self, _: None) -> InitializeResult:
         return InitializeResult(server_name="spring-harness", protocol_version=PROTOCOL_VERSION)
 
-    def _apply_model(self, session: HarnessSession, model: str | None) -> None:
-        if model:
-            session.set_model(model)
+    def _apply_model(self, session: HarnessSession, model: str | None, effort: str | None = None) -> None:
+        if model is None and effort is None:
+            return
+        if session.busy:
+            raise JsonRpcError(BUSY, "运行中不能切换模型或思考挡位")
+        try:
+            session.set_model(model or session.model_selection["model"], effort)
+        except ValueError as e:
+            raise JsonRpcError(INVALID_PARAMS, str(e)) from e
 
     async def _create_session(
         self, workspace: Path, store: SessionStore | None = None, model: str | None = None,
+        effort: str | None = None,
     ) -> HarnessSession:
         if self._shutting_down:
             raise RuntimeError("服务器正在关闭")
-        task = self._track(asyncio.create_task(self._build_session(workspace, store, model)))
+        task = self._track(asyncio.create_task(self._build_session(workspace, store, model, effort)))
         try:
             return await asyncio.shield(task)
         except asyncio.CancelledError:
@@ -122,7 +129,7 @@ class AppServer:
             raise
 
     async def _build_session(
-        self, workspace: Path, store: SessionStore | None, model: str | None,
+        self, workspace: Path, store: SessionStore | None, model: str | None, effort: str | None,
     ) -> HarnessSession:
         factory = asyncio.create_task(asyncio.to_thread(self._session_factory, workspace, store))
         cancelled = False
@@ -139,15 +146,18 @@ class AppServer:
             raise asyncio.CancelledError
         session = factory.result()
         try:
-            self._apply_model(session, model)
+            self._apply_model(session, model, effort)
             return self._register(session)
         except BaseException:
             await session.close()
             raise
 
+    def _session_result(self, session: HarnessSession) -> SessionResult:
+        return SessionResult(session_id=session.session_id, **session.model_selection)
+
     async def _session_new(self, p: WorkspaceParams) -> SessionResult:
-        session = await self._create_session(Path(p.workspace), model=p.model)
-        return SessionResult(session_id=session.session_id)
+        session = await self._create_session(Path(p.workspace), model=p.model, effort=p.effort)
+        return self._session_result(session)
 
     async def _session_resume_last(self, p: WorkspaceParams) -> SessionResult:
         workspace = Path(p.workspace).resolve()
@@ -155,13 +165,13 @@ class AppServer:
             (s for s in self._sessions.values() if s.workspace == workspace), None,
         )
         if existing is not None:
-            self._apply_model(existing, p.model)
-            return SessionResult(session_id=existing.session_id)
+            self._apply_model(existing, p.model, p.effort)
+            return self._session_result(existing)
         sessions = await asyncio.to_thread(JsonlSessionStore.list_sessions, workspace)
         if not sessions:
             return SessionResult(session_id=None)
-        session = await self._create_session(workspace, sessions[-1][0], p.model)
-        return SessionResult(session_id=session.session_id)
+        session = await self._create_session(workspace, sessions[-1][0], p.model, p.effort)
+        return self._session_result(session)
 
     async def _session_list(self, p: WorkspaceParams) -> SessionListResult:
         workspace = Path(p.workspace).resolve()
@@ -183,12 +193,12 @@ class AppServer:
             (s for s in self._sessions.values() if s.session_id == p.session_id), None,
         )
         if existing is not None:
-            self._apply_model(existing, p.model)
-            return SessionResult(session_id=existing.session_id)
+            self._apply_model(existing, p.model, p.effort)
+            return self._session_result(existing)
         for store, _meta in await asyncio.to_thread(JsonlSessionStore.list_sessions, workspace):
             if store.session_id == p.session_id:
-                session = await self._create_session(workspace, store, p.model)
-                return SessionResult(session_id=session.session_id)
+                session = await self._create_session(workspace, store, p.model, p.effort)
+                return self._session_result(session)
         raise JsonRpcError(SESSION_NOT_FOUND, f"未知会话: {p.session_id}")
 
     async def _session_history(self, p: HistoryQueryParams) -> HistoryResult:
@@ -212,8 +222,10 @@ class AppServer:
         items = await load_plan_items(session.session_id)
         return PlanResult(items=[i.model_dump() for i in items])
 
-    async def _session_set_model(self, p: SetModelParams) -> None:
-        self._require(p.session_id).set_model(p.model)
+    async def _session_set_model(self, p: SetModelParams) -> SessionResult:
+        session = self._require(p.session_id)
+        self._apply_model(session, p.model, p.effort)
+        return self._session_result(session)
 
     async def _turn_start(self, p: TurnStartParams) -> None:
         session = self._require(p.session_id)

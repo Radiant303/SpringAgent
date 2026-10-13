@@ -15,11 +15,6 @@ const CAPABILITIES = [
   { value: "image_in", label: "图像" },
 ];
 
-const DEFAULT_EFFORTS = ["low", "high", "max"];
-/** 单个模型支持的思考挡位数量上限 */
-const MAX_EFFORTS = 8;
-/** 单个思考挡位字符长度上限 */
-const MAX_EFFORT_LEN = 16;
 /** 默认上下文窗口大小（tokens） */
 const DEFAULT_CONTEXT_SIZE = 131072;
 /** 默认输出上限大小（tokens） */
@@ -33,18 +28,7 @@ function field(labelText, control, hintText, isLabel) {
   return wrap;
 }
 
-/**
- * 打开模型配置弹窗
- *
- * @param {object} opts
- * @param {"add"|"edit"} opts.mode 弹窗模式
- * @param {string} opts.provider 所属 Provider 名
- * @param {string} opts.model 实际模型名
- * @param {string} [opts.displayName] 预填展示名
- * @param {object|null} [opts.existing] 编辑时的模型行
- * @param {() => void} [opts.onSaved] 保存成功回调
- */
-export function openModelDialog({ mode, provider, model, displayName = "", existing = null, onSaved }) {
+export function openModelDialog({ mode, provider, model, thinkingEfforts, displayName = "", existing = null, onSaved }) {
   return new Promise((resolve) => {
     const prevFocus = document.activeElement;
     const isEdit = mode === "edit" && existing;
@@ -103,37 +87,55 @@ export function openModelDialog({ mode, provider, model, displayName = "", exist
     );
     box.appendChild(row3);
 
-    const capsBox = h("div", "md-caps");
-    const capInputs = CAPABILITIES.map((c) => {
+    const choiceTag = (text, checked, group) => {
       const input = h("input");
       input.type = "checkbox";
-      input.className = "switch";
-      input.checked = isEdit && existing.capabilities.includes(c.value);
-      const label = h("label", "md-cap");
-      label.append(input, h("span", "", c.label));
-      capsBox.appendChild(label);
-      return { value: c.value, input };
-    });
+      input.checked = checked;
+      const label = h("label", "ui-choice-tag");
+      label.append(input, h("span", "", text));
+      group.appendChild(label);
+      return input;
+    };
+    const capsBox = h("div", "ui-choice-tags");
+    capsBox.setAttribute("role", "group");
+    capsBox.setAttribute("aria-label", "能力支持");
+    const capInputs = CAPABILITIES.map((c) => ({
+      value: c.value,
+      input: choiceTag(c.label, isEdit && existing.capabilities.includes(c.value), capsBox),
+    }));
     box.appendChild(field("能力支持", capsBox));
 
-    let efforts = isEdit ? [...(existing.support_efforts || [])] : [...DEFAULT_EFFORTS];
-    const tagsBox = h("div", "md-tags");
-    const tagInput = h("input", "ui-input");
-    tagInput.type = "text";
-    tagInput.spellcheck = false;
-    tagInput.maxLength = MAX_EFFORT_LEN;
-    tagInput.placeholder = "输入挡位，回车或点添加";
-    const tagAddBtn = h("button", "ui-suffix-btn", "添加");
-    tagAddBtn.type = "button";
-    const tagControl = h("span", "ui-control has-suffix-btn");
-    tagControl.append(tagInput, tagAddBtn);
-    const tagField = field("思考挡位", h("div", "md-efforts"));
-    tagField.querySelector(".md-efforts").append(tagsBox, tagControl);
-    box.appendChild(tagField);
-
+    const effortChoices = h("div", "ui-choice-tags");
+    effortChoices.setAttribute("role", "group");
+    effortChoices.setAttribute("aria-label", "思考挡位");
+    const effortInputs = thinkingEfforts.map((level) => ({
+      level,
+      input: choiceTag(level, isEdit ? existing.support_efforts.includes(level) : ["low", "high", "xhigh"].includes(level), effortChoices),
+    }));
+    const choiceField = field("思考挡位", effortChoices);
+    box.appendChild(choiceField);
     const effortSel = h("select", "ui-input");
-    const effortField = field("默认挡位", effortSel);
+    const effortField = field("默认思考强度", effortSel);
     box.appendChild(effortField);
+    const selectedEfforts = () => effortInputs.filter((item) => item.input.checked).map((item) => item.level);
+    const syncEffortOptions = (prefer = effortSel.value) => {
+      const levels = selectedEfforts();
+      effortSel.textContent = "";
+      for (const level of levels) {
+        const option = h("option", "", level);
+        option.value = level;
+        effortSel.appendChild(option);
+      }
+      if (!levels.length) {
+        const option = h("option", "", "请先选择思考挡位");
+        option.value = "";
+        effortSel.appendChild(option);
+      }
+      effortSel.value = levels.includes(prefer) ? prefer : levels.includes("high") ? "high" : levels[0] || "";
+      effortSel.disabled = !levels.length;
+      effortSel.dispatchEvent(new Event("change"));
+    };
+    for (const { input } of effortInputs) input.addEventListener("change", () => syncEffortOptions());
 
     const error = h("div", "ui-dialog-error");
     error.setAttribute("role", "alert");
@@ -160,86 +162,12 @@ export function openModelDialog({ mode, provider, model, displayName = "", exist
 
     const showError = (msg, target) => {
       error.textContent = msg || "";
-      for (const el of [displayInput, ctxInput, outInput, tagInput]) el.classList.remove("invalid");
+      for (const el of [displayInput, ctxInput, outInput, effortSel]) el.classList.remove("invalid");
       if (target) {
         target.classList.add("invalid");
         target.focus();
       }
     };
-
-    const renderTags = () => {
-      tagsBox.textContent = "";
-      for (const t of efforts) {
-        const tag = h("span", "md-tag");
-        tag.append(h("span", "", t));
-        const x = h("button", "", "×");
-        x.type = "button";
-        x.setAttribute("aria-label", `删除 ${t}`);
-        x.addEventListener("click", () => {
-          efforts = efforts.filter((e) => e !== t);
-          syncEffortOptions();
-          renderTags();
-        });
-        tag.appendChild(x);
-        tagsBox.appendChild(tag);
-      }
-    };
-
-    const syncEffortOptions = (prefer) => {
-      const prev = prefer ?? effortSel.value;
-      effortSel.textContent = "";
-      if (efforts.length === 0) {
-        const opt = document.createElement("option");
-        opt.value = "";
-        opt.textContent = "无（未配置思考挡位）";
-        effortSel.appendChild(opt);
-        effortSel.value = "";
-        effortSel.disabled = true;
-      } else {
-        effortSel.disabled = false;
-        for (const t of efforts) {
-          const opt = document.createElement("option");
-          opt.value = t;
-          opt.textContent = t;
-          effortSel.appendChild(opt);
-        }
-        if (efforts.includes(prev)) {
-          effortSel.value = prev;
-        } else if (efforts.includes("high")) {
-          effortSel.value = "high";
-        } else {
-          effortSel.value = efforts[0];
-        }
-      }
-      effortSel.dispatchEvent(new Event("change"));
-    };
-
-    const addEffort = () => {
-      const v = tagInput.value.trim();
-      if (!v) return;
-      if (efforts.includes(v)) {
-        showError(`挡位 ${v} 已存在`, tagInput);
-        return;
-      }
-      if (efforts.length >= MAX_EFFORTS) {
-        showError(`挡位最多 ${MAX_EFFORTS} 个`, tagInput);
-        return;
-      }
-      const wasEmpty = efforts.length === 0;
-      efforts.push(v);
-      tagInput.value = "";
-      showError("");
-      syncEffortOptions(wasEmpty ? v : undefined);
-      renderTags();
-      tagInput.focus();
-    };
-    tagAddBtn.addEventListener("click", addEffort);
-    tagInput.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") {
-        e.preventDefault();
-        addEffort();
-      }
-    });
 
     let busy = false;
     const setBusy = (on) => {
@@ -283,6 +211,12 @@ export function openModelDialog({ mode, provider, model, displayName = "", exist
         showError("输出上限必须为非负整数", outInput);
         return;
       }
+      const thinkingEnabled = capInputs.find((c) => c.value === "thinking").input.checked;
+      const efforts = selectedEfforts();
+      if (thinkingEnabled && (!efforts.length || !efforts.includes(effortSel.value))) {
+        showError("请至少选择一个思考挡位，并选择默认挡位", effortSel);
+        return;
+      }
       const body = {
         originalId: isEdit ? existing.id : null,
         provider,
@@ -291,8 +225,8 @@ export function openModelDialog({ mode, provider, model, displayName = "", exist
         maxContextSize: ctx,
         maxOutputSize: out,
         capabilities: capInputs.filter((c) => c.input.checked).map((c) => c.value),
-        supportEfforts: efforts,
-        defaultEffort: efforts.length ? effortSel.value : "",
+        supportEfforts: thinkingEnabled ? efforts : [],
+        defaultEffort: thinkingEnabled ? effortSel.value : "",
         enabled: enabledSw.checked,
       };
       setBusy(true);
@@ -307,7 +241,16 @@ export function openModelDialog({ mode, provider, model, displayName = "", exist
       if (onSaved) onSaved();
     });
 
-    renderTags();
+    const thinkingInput = capInputs.find((c) => c.value === "thinking").input;
+    const syncThinking = () => {
+      choiceField.classList.toggle("hidden", !thinkingInput.checked);
+      effortField.classList.toggle("hidden", !thinkingInput.checked);
+    };
+    thinkingInput.addEventListener("change", () => {
+      syncThinking();
+      syncEffortOptions();
+    });
+    syncThinking();
     syncEffortOptions(isEdit ? existing.default_effort : "high");
     document.body.appendChild(overlay);
     UI.enhance(box);

@@ -57,6 +57,7 @@ public class AdminModelConfigController {
                         .map(m -> toModelView(m, defaultModel)).toList(),
                 "defaultModel", defaultModel,
                 "providerDefaults", ModelProvider.DEFAULT_BASE_URLS,
+                "thinkingEfforts", com.spring.gateway.common.ThinkingEffort.VALUES,
                 "subagentModels", modelConfigService.getSubagentModels()));
     }
 

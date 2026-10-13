@@ -113,6 +113,8 @@ class HarnessSession:
         self._store = store or JsonlSessionStore.create(self.workspace)
         self.session_id = self._store.session_id
         self._model_name = model_name
+        self._effort: str | None = None
+        self._injected_agent = agent is not None
         self._agent = agent
         self._deps = deps or CodingAgentDeps.create_default(self.workspace)
         self._deps.model_id = model_name or "__default__"
@@ -304,9 +306,32 @@ class HarnessSession:
                 self._history_loaded = True
             return page
 
-    def set_model(self, model_name: str) -> None:
+    def set_model(self, model_name: str, effort: str | None = None) -> None:
+        if self._busy:
+            raise RuntimeError("运行中不能切换模型或思考挡位")
+        if model_name not in setting.list_models():
+            raise ValueError(f"模型 '{model_name}' 不存在或未启用")
+        from spring_harness.core.config.thinking import resolve_effort
+
+        resolve_effort(setting.get_model_config(model_name), effort)
         self._model_name = model_name
+        self._effort = effort
         self._agent = None
+        self._injected_agent = False
+
+    @property
+    def model_selection(self) -> dict[str, str | None]:
+        from spring_harness.core.config.thinking import resolve_effort
+
+        model_id = self._model_name or setting.default_model()
+        if model_id not in setting.list_models():
+            model_id = setting.default_model()
+            self._model_name = model_id
+            self._effort = None
+        model_config = setting.get_model_config(model_id)
+        if self._effort is not None and (self._effort not in model_config.support_efforts or "thinking" not in model_config.capabilities):
+            self._effort = None
+        return {"model": model_id, "effort": resolve_effort(model_config, self._effort)}
 
     @property
     def history(self) -> list[ModelMessage]:
@@ -341,25 +366,20 @@ class HarnessSession:
         return task.result()
 
     def _ensure_agent(self) -> Agent[Any, Any]:
-        if self._agent is None:
+        if not self._injected_agent:
             from spring_harness.core.agent.agent import create_agent
 
-            try:
-                self._agent = self._build_agent(create_agent)
-            except ValueError:
-                if self._model_name is None:
-                    raise
-                # 会话记住的模型已被删除/改名：回退默认模型，会话不因此报废
-                logger.warning("模型 {} 不存在，会话 {} 回退默认模型", self._model_name, self.session_id)
-                self._model_name = None
-                self._agent = self._build_agent(create_agent)
+            self._agent = self._build_agent(create_agent)
+        assert self._agent is not None
         return self._agent
 
     def _build_agent(self, create_agent: Any) -> Agent[Any, Any]:
-        self._deps.model_id = self._model_name or setting.default_model()
+        selection = self.model_selection
+        self._deps.model_id = selection["model"]
         return create_agent(
             self.workspace,
-            model_name=self._model_name,
+            model_name=selection["model"],
+            effort=selection["effort"],
             session_id=self.session_id,
             plan_on_change=lambda items: self._emit(
                 PlanUpdated(items=[i.model_dump() for i in items])),

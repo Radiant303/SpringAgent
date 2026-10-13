@@ -12,6 +12,8 @@ export const state = {
   workspace: null,
   models: [],
   model: null,
+  effort: null,
+  modelChanging: false,
   sessionId: null,
   workId: localStorage.getItem("sh.workId") || null,
   works: [],

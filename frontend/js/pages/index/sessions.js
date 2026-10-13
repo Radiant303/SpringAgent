@@ -10,16 +10,20 @@ import { state } from "./state.js";
 import { addSystem } from "./chatView.js";
 import { clearMessages, loadHistory } from "./history.js";
 import { loadPlan } from "./stream.js";
-import { updateInputState } from "./input.js";
+import { applyModelSelection, updateInputState } from "./input.js";
 
 let attaching = false;
 
 export async function attachSession(sid) {
-  const params = { workspace: state.workspace, sessionId: sid, model: state.model };
+  const params = { workspace: state.workspace, sessionId: sid, model: state.model, effort: state.effort };
   const socket = rpc.ws;
   const workId = state.workId;
+  const apply = (result) => {
+    if (rpc.ws === socket && state.workId === workId && !state.connectionReplaced) applyModelSelection(result);
+    return result;
+  };
   try {
-    return await rpc.request("session/attach", params);
+    return apply(await rpc.request("session/attach", params));
   } catch (err) {
     if (err.code !== -32003) throw err;
     let result = null;
@@ -34,7 +38,7 @@ export async function attachSession(sid) {
         result = await rpc.request("session/attach", { ...params, takeover: true });
       },
     });
-    return accepted ? result : null;
+    return accepted ? apply(result) : null;
   }
 }
 
@@ -46,6 +50,7 @@ export function subscribeStream(sid, refreshStatus = false) {
       const result = await rpc.request("session/status", { sessionId: sid });
       if (state.sessionId === sid && !state.connectionReplaced && state.lastSeq[sid] === seq) {
         state.busy = !!result.busy;
+        applyModelSelection(result);
         updateInputState();
       }
     })

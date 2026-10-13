@@ -564,6 +564,7 @@ function openAddModel({ model, displayName = "" }) {
     return;
   }
   openModelDialog({
+    thinkingEfforts: modelConfig.thinkingEfforts,
     mode: "add",
     provider: currentProvider,
     model,
@@ -577,6 +578,7 @@ function openAddModel({ model, displayName = "" }) {
 
 function openEditModel(m) {
   openModelDialog({
+    thinkingEfforts: modelConfig.thinkingEfforts,
     mode: "edit",
     provider: m.provider,
     model: m.model,

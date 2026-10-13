@@ -238,3 +238,41 @@
   color: var(--text-faint, rgba(0, 0, 0, 0.45));
   cursor: default;
 }
+
+.ui-choice-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.ui-choice-tag {
+  position: relative;
+  cursor: pointer;
+  user-select: none;
+}
+.ui-choice-tag input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.ui-choice-tag span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 32px;
+  padding: 0 14px;
+  border-radius: 999px;
+  background: #f2f2f2;
+  color: var(--text-dim);
+  font-size: 14px;
+  transition: background-color 0.15s, color 0.15s;
+}
+.ui-choice-tag:hover span { background: #ebebeb; color: var(--text); }
+.ui-choice-tag input:checked + span { background: #111; color: #fff; }
+.ui-choice-tag:hover input:checked + span { background: #000; }
+.ui-choice-tag input:focus-visible + span { outline: 2px solid rgba(23, 131, 255, 0.4); outline-offset: 2px; }
+.ui-choice-tag:has(input:disabled) { cursor: default; opacity: 0.5; }

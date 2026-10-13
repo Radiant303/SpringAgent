@@ -172,20 +172,33 @@ class AdminModelConfigServiceTests {
     }
 
     @Test
-    @DisplayName("默认档位校验：非空档位列表时默认档位必须命中；未配档位时不可设默认档位")
+    @DisplayName("思考挡位：只允许标准挡位子集；默认挡位必须已选；关闭思考清空配置")
     void defaultEffortValidation() {
         String name = randomName();
         modelConfigService.upsertProvider(providerReq(name));
-
-        BizException notInList = assertThrows(BizException.class, () -> modelConfigService.upsertModel(
-                new AdminModelDefRequest(null, name, "m1", "展示名", 1_000_000L, 0L,
-                        List.of(), List.of("low", "high"), "medium", true)));
-        assertEquals(400, notInList.getStatus());
-
-        BizException noEfforts = assertThrows(BizException.class, () -> modelConfigService.upsertModel(
-                new AdminModelDefRequest(null, name, "m1", "展示名", 1_000_000L, 0L,
-                        List.of(), List.of(), "low", true)));
-        assertEquals(400, noEfforts.getStatus());
+        for (String effort : java.util.Arrays.asList("max", " high", "HIGH", "", null, "low")) {
+            BizException error = assertThrows(BizException.class, () -> modelConfigService.upsertModel(
+                    new AdminModelDefRequest(null, name, "m1", "展示名", 1000L, 0L,
+                            List.of("thinking"), List.of("high"), effort, true)));
+            assertEquals(400, error.getStatus());
+        }
+        for (List<String> levels : List.of(List.<String>of(), List.of("high", "high"), List.of("max"))) {
+            BizException error = assertThrows(BizException.class, () -> modelConfigService.upsertModel(
+                    new AdminModelDefRequest(null, name, "m1", "展示名", 1000L, 0L,
+                            List.of("thinking"), levels, "high", true)));
+            assertEquals(400, error.getStatus());
+        }
+        for (String level : com.spring.gateway.common.ThinkingEffort.VALUES) {
+            modelConfigService.upsertModel(new AdminModelDefRequest(null, name, "m1", "展示名", 1000L, 0L,
+                    List.of("thinking"), List.of(level), level, true));
+            ModelDefinition row = modelMapper.selectById(name + "/m1");
+            assertEquals(level, row.getDefaultEffort());
+            assertEquals(level, row.getSupportEfforts());
+        }
+        modelConfigService.upsertModel(new AdminModelDefRequest(null, name, "m1", "展示名", 1000L, 0L,
+                List.of(), List.of("on"), "on", true));
+        assertEquals("", modelMapper.selectById(name + "/m1").getDefaultEffort());
+        assertEquals("", modelMapper.selectById(name + "/m1").getSupportEfforts());
     }
 
     @Test

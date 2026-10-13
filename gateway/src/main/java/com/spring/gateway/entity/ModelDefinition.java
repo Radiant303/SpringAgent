@@ -39,10 +39,10 @@ public class ModelDefinition {
     /** 能力列表，CSV。 */
     private String capabilities;
 
-    /** 支持的思考档位，CSV（low,medium,high）。 */
+    /** 可选思考挡位，CSV。 */
     private String supportEfforts;
 
-    /** 默认思考档位；空串 = 不指定。 */
+    /** 默认思考挡位；关闭思考时为空。 */
     private String defaultEffort;
 
     /** 是否启用；停用后不出现在用户 picker。 */

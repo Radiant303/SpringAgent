@@ -22,6 +22,7 @@ from spring_harness.cloud.registry import (
 from spring_harness.cloud.ws import CloudAppServer, ws_endpoint
 from spring_harness.core.config.model import build_model, set_catalog
 from spring_harness.core.config.settings import config
+from spring_harness.core.config.thinking import thinking_capability
 from spring_harness.core.log import logger
 from spring_harness.core.services.web_server import DEFAULT_FRONTEND_DIR
 
@@ -120,7 +121,8 @@ def create_app() -> FastAPI:
 
         started = time.monotonic()
         try:
-            agent = Agent(build_model(model_config, provider_config))
+            agent = Agent(build_model(model_config, provider_config),
+                          capabilities=[thinking_capability(model_config)])
             await asyncio.wait_for(agent.run("say hi"), timeout=30)
         except asyncio.TimeoutError:
             return {"ok": False, "error": "测试超时（30s）"}

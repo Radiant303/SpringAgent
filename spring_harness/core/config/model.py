@@ -58,12 +58,13 @@ class TomlCatalog:
         return config.subagents.get(name, SubAgentConfig()).model
 
 
-def _profile(native: bool = False) -> ModelProfile:
+def _profile(model_config: ModelConfig, native: bool = False) -> ModelProfile:
     """统一的 profile 配置。"""
     return ModelProfile(
         supports_json_schema_output=native,
         supports_json_object_output=not native,
         default_structured_output_mode='native' if native else 'prompted',
+        supports_thinking="thinking" in model_config.capabilities,
     )
 
 
@@ -77,7 +78,7 @@ def _openai(model_name: str, provider_config: Any, model_config: Any) -> Model:
         model_name,
         provider=_provider(OpenAIProvider,
                            base_url=provider_config.base_url, api_key=provider_config.api_key),
-        profile=_profile(),
+        profile=_profile(model_config),
     )
 
 
@@ -87,7 +88,7 @@ def _alibaba(model_name: str, provider_config: Any, model_config: Any) -> Model:
         provider=_provider(AlibabaProvider,
                            base_url=provider_config.base_url or "https://dashscope.aliyuncs.com/compatible-mode/v1",
                            api_key=provider_config.api_key),
-        profile=_profile(native=True),
+        profile=_profile(model_config, native=True),
     )
 
 
@@ -95,7 +96,7 @@ def _deepseek(model_name: str, provider_config: Any, model_config: Any) -> Model
     return OpenAIChatModel(
         model_name,
         provider=_provider(DeepSeekProvider, api_key=provider_config.api_key),
-        profile=_profile(),
+        profile=_profile(model_config),
     )
 
 
@@ -104,7 +105,7 @@ def _responses(model_name: str, provider_config: Any, model_config: Any) -> Mode
         model_name,
         provider=_provider(OpenAIProvider,
                            base_url=provider_config.base_url, api_key=provider_config.api_key),
-        profile=_profile(),
+        profile=_profile(model_config),
     )
 
 

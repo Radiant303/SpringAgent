@@ -16,8 +16,12 @@ export function updateInputState() {
   send.classList.toggle("hidden", state.busy);
   stop.classList.toggle("hidden", !state.busy);
   const controlled = !state.connectionReplaced && (!state.sessionId || state.sessionReady);
-  send.disabled = !state.connected || !controlled || !input.value.trim();
+  send.disabled = !state.connected || !controlled || state.modelChanging || !input.value.trim();
   stop.disabled = !state.connected || !controlled;
+  for (const id of ["model-btn", "effort-btn"]) {
+    if ($(id)) $(id).disabled = !state.connected || !controlled || state.busy || state.modelChanging;
+  }
+  if (!state.connected || !controlled || state.busy || state.modelChanging) closeModelMenu();
 }
 
 export async function send() {
@@ -33,8 +37,8 @@ export async function send() {
     addSystem("当前页面未控制此会话，请重新连接或接管会话", true);
     return;
   }
-  if (state.busy) {
-    addSystem("运行中，不能发送消息");
+  if (state.busy || state.modelChanging) {
+    addSystem("运行或切换模型中，不能发送消息");
     return;
   }
   state.busy = true;
@@ -53,7 +57,8 @@ export async function send() {
   try {
     // 草稿态下首条消息：先建会话再开回合
     if (!state.sessionId) {
-      const r = await rpc.request("session/new", { workspace: state.workspace, model: state.model, workId: state.workId });
+      const r = await rpc.request("session/new", { workspace: state.workspace, model: state.model, effort: state.effort, workId: state.workId });
+      applyModelSelection(r);
       state.sessionId = r.sessionId;
       state.sessionReady = true;
       localStorage.setItem("sh.sessionId", r.sessionId);
@@ -78,66 +83,237 @@ export async function cancelTurn() {
   }
 }
 
-export function populateModelSelect() {
+function effortLabel(effort) {
+  return effort ? effort[0].toUpperCase() + effort.slice(1) : "";
+}
+
+function selectedEffort(model, effort) {
+  if (!model?.thinkingEnabled) return null;
+  return model.supportEfforts.includes(effort) ? effort : model.defaultEffort;
+}
+
+export function applyModelSelection(result) {
+  if (!result?.model) return;
+  state.model = result.model;
+  state.effort = result.effort ?? null;
+  populateModelSelect();
+}
+
+function selectionItem(name, selected, option, choose) {
+  const item = el("button", "model-item");
+  item.type = "button";
+  item.title = name;
+  item.dataset.option = option;
+  item.setAttribute("role", "menuitemradio");
+  item.setAttribute("aria-checked", String(selected));
+  item.disabled = state.busy || state.modelChanging;
+  const check = el("span", "model-check");
+  if (selected) check.appendChild(icon("tick"));
+  item.append(check, el("span", "model-item-name", name));
+  item.onclick = () => {
+    closeModelMenu(true);
+    choose();
+  };
+  return item;
+}
+
+function modelMenuItems(menu) {
+  return [...(menu?.querySelectorAll("button:not(:disabled)") || [])]
+    .filter((item) => item.getClientRects().length);
+}
+
+export function positionModelMenus() {
   const menu = $("model-menu");
-  if (!menu) return;
-  menu.textContent = "";
+  if (!menu || menu.classList.contains("hidden")) return;
+  const width = document.documentElement.clientWidth;
+  const height = window.innerHeight;
+  const anchor = $("model-btn").getBoundingClientRect();
+  menu.style.left = Math.max(8, Math.min(anchor.right - menu.offsetWidth, width - menu.offsetWidth - 8)) + "px";
+  menu.style.top = Math.max(8, anchor.top - menu.offsetHeight - 8) + "px";
+  const child = $("effort-menu");
+  if (!child || child.classList.contains("hidden")) return;
+  const row = $("effort-btn").getBoundingClientRect();
+  const parent = menu.getBoundingClientRect();
+  const right = parent.right + 8;
+  const left = parent.left - child.offsetWidth - 8;
+  const side = right + child.offsetWidth <= width - 8 ? right : left >= 8 ? left : null;
+  child.style.left = (side ?? Math.max(8, Math.min(parent.left, width - child.offsetWidth - 8))) + "px";
+  child.style.top = Math.max(8, Math.min(side === null ? row.top - child.offsetHeight - 8 : row.top,
+    height - child.offsetHeight - 8)) + "px";
+}
+
+export function populateModelSelect() {
+  const list = $("model-list");
+  const effortMenu = $("effort-menu");
+  if (!list || !effortMenu) return;
+  const activeMenu = effortMenu.contains(document.activeElement) ? effortMenu : $("model-menu");
+  const focused = activeMenu?.contains(document.activeElement) ? document.activeElement : null;
+  const option = focused?.dataset.option;
+  list.textContent = "";
   for (const m of state.models) {
-    const item = el("div", "model-item");
-    const check = el("span", "model-check");
-    if (m.id === state.model) check.appendChild(icon("tick"));
-    item.appendChild(check);
-    item.appendChild(el("span", "model-item-name", m.displayName || m.id));
-    item.onclick = () => {
-      closeModelMenu();
-      onModelChange(m.id);
-    };
-    menu.appendChild(item);
+    list.appendChild(selectionItem(m.displayName || m.id, m.id === state.model, `model:${m.id}`, () => onModelChange(m.id)));
   }
   const cur = state.models.find((m) => m.id === state.model);
-  const nameEl = $("model-name");
-  if (nameEl) nameEl.textContent = cur ? (cur.displayName || cur.id) : "默认模型";
+  const name = cur ? (cur.displayName || cur.id) : "默认模型";
+  const effort = selectedEffort(cur, state.effort);
+  const label = effortLabel(effort);
+  if ($("model-name")) $("model-name").textContent = name;
+  if ($("model-btn")) $("model-btn").title = label ? `${name} · ${label}` : name;
+  $("model-effort")?.classList.toggle("hidden", !cur?.thinkingEnabled);
+  $("effort-section")?.classList.toggle("hidden", !cur?.thinkingEnabled);
+  if ($("effort-name")) $("effort-name").textContent = label;
+  if ($("effort-value")) $("effort-value").textContent = label;
+  effortMenu.textContent = "";
+  for (const level of cur?.thinkingEnabled ? cur.supportEfforts : []) {
+    effortMenu.appendChild(selectionItem(effortLabel(level), level === effort, `effort:${level}`, () => onEffortChange(level)));
+  }
+  if (!cur?.thinkingEnabled) closeEffortMenu();
+  positionModelMenus();
+  if (focused && !$("model-menu").classList.contains("hidden")) {
+    const items = modelMenuItems(activeMenu).length ? modelMenuItems(activeMenu) : modelMenuItems($("model-menu"));
+    const target = option ? items.find((item) => item.dataset.option === option) : focused;
+    (items.includes(target) ? target : items.find((item) => item.getAttribute("aria-checked") === "true") || items[0])?.focus();
+  }
 }
 
-export function closeModelMenu() {
-  const menu = $("model-menu");
-  if (menu) menu.classList.add("hidden");
-  const pill = $("model-pill");
-  if (pill) pill.classList.remove("open");
+function focusSelection(menu) {
+  const items = modelMenuItems(menu);
+  (items.find((item) => item.getAttribute("aria-checked") === "true") || items[0])?.focus();
 }
 
-let modelListRefreshing = false;
-export async function refreshModelList() {
-  if (modelListRefreshing) return;
-  modelListRefreshing = true;
-  try {
-    const res = await rpc.request("models/list", {});
-    if (res && Array.isArray(res.models)) {
-      state.models = res.models;
-      // 选中的模型已被站长删除：回退默认模型
-      if (state.model && !res.models.some((m) => m.id === state.model)) {
-        state.model = res.defaultModel || null;
-      }
-      if (!state.model && res.defaultModel) state.model = res.defaultModel;
-      populateModelSelect();
+export function openModelMenu() {
+  if ($("model-btn")?.disabled) return;
+  closeEffortMenu();
+  $("model-menu")?.classList.remove("hidden");
+  $("model-pill")?.classList.add("open");
+  $("model-btn")?.setAttribute("aria-expanded", "true");
+  positionModelMenus();
+  focusSelection($("model-menu"));
+}
+
+export function openEffortMenu(focus = true) {
+  if ($("model-btn")?.disabled || $("model-menu")?.classList.contains("hidden")
+      || !state.models.find((m) => m.id === state.model)?.thinkingEnabled) return;
+  $("effort-menu")?.classList.remove("hidden");
+  $("effort-btn")?.setAttribute("aria-expanded", "true");
+  positionModelMenus();
+  if (focus) focusSelection($("effort-menu"));
+}
+
+export function closeEffortMenu(restoreFocus = false) {
+  $("effort-menu")?.classList.add("hidden");
+  $("effort-btn")?.setAttribute("aria-expanded", "false");
+  if (restoreFocus) $("effort-btn")?.focus();
+}
+
+export function closeModelMenu(restoreFocus = false) {
+  closeEffortMenu();
+  $("model-menu")?.classList.add("hidden");
+  $("model-pill")?.classList.remove("open");
+  $("model-btn")?.setAttribute("aria-expanded", "false");
+  if (restoreFocus) $("model-btn")?.focus();
+}
+
+export function modelMenuKeydown(event) {
+  const { key } = event;
+  const open = !$("model-menu")?.classList.contains("hidden");
+  if (!open) {
+    if (event.target === $("model-btn") && (key === "ArrowDown" || key === "ArrowUp")) {
+      event.preventDefault();
+      openModelMenu();
+      refreshModelList();
     }
-  } catch {
-    /* 保留旧列表 */
+    return;
+  }
+  if (key === "Tab") {
+    closeModelMenu();
+    $("model-btn")?.focus();
+    return;
+  }
+  const childOpen = !$("effort-menu")?.classList.contains("hidden");
+  if (key === "Escape" || (key === "ArrowLeft" && childOpen)) {
+    event.preventDefault();
+    event.stopPropagation();
+    if (childOpen) closeEffortMenu(true);
+    else closeModelMenu(true);
+    return;
+  }
+  if (key === "ArrowRight" && event.target === $("effort-btn")) {
+    event.preventDefault();
+    openEffortMenu();
+    return;
+  }
+  const childFocused = $("effort-menu")?.contains(document.activeElement);
+  const items = modelMenuItems($(childFocused ? "effort-menu" : "model-menu"));
+  const index = items.indexOf(document.activeElement);
+  const next = key === "Home" ? 0 : key === "End" ? items.length - 1
+    : key === "ArrowDown" ? (index + 1) % items.length
+    : key === "ArrowUp" ? (index - 1 + items.length) % items.length : null;
+  if (next !== null) {
+    event.preventDefault();
+    if (!childFocused) closeEffortMenu();
+    items[next]?.focus();
+  }
+}
+
+let modelListRequest;
+export function refreshModelList() {
+  if (modelListRequest) return modelListRequest;
+  modelListRequest = (async () => {
+    try {
+      const res = await rpc.request("models/list", {});
+      if (!Array.isArray(res?.models)) return;
+      state.models = res.models;
+      const current = state.models.find((m) => m.id === state.model);
+      const model = current || state.models.find((m) => m.id === res.defaultModel);
+      const effort = selectedEffort(model, current ? state.effort : null);
+      if (!state.busy && !state.modelChanging && model && (state.model !== model.id || state.effort !== effort)) {
+        await changeSelection(model.id, effort);
+      }
+      populateModelSelect();
+    } catch {
+      /* 连接恢复后重新获取 */
+    } finally {
+      modelListRequest = null;
+    }
+  })();
+  return modelListRequest;
+}
+
+async function changeSelection(model, effort) {
+  if (state.busy || state.modelChanging || !state.connected || state.connectionReplaced
+      || (state.sessionId && !state.sessionReady)) return false;
+  state.modelChanging = true;
+  updateInputState();
+  const sessionId = state.sessionId;
+  const socket = rpc.ws;
+  try {
+    const result = sessionId
+      ? await rpc.request("session/set_model", { sessionId, model, effort })
+      : { model, effort };
+    if (state.sessionId !== sessionId || rpc.ws !== socket || state.connectionReplaced) return false;
+    applyModelSelection(result);
+    return true;
+  } catch (e) {
+    addSystem("切换模型或思考强度失败：" + e.message, true);
+    return false;
   } finally {
-    modelListRefreshing = false;
+    state.modelChanging = false;
+    populateModelSelect();
+    updateInputState();
   }
 }
 
 export async function onModelChange(picked) {
   if (!picked || picked === state.model) return;
-  state.model = picked;
-  populateModelSelect();
-  try {
-    if (state.sessionId) await rpc.request("session/set_model", { sessionId: state.sessionId, model: picked });
-    addSystem(`已切换到 ${$("model-name") ? $("model-name").textContent : picked}`);
-  } catch (e) {
-    addSystem("❌ 切换模型失败：" + e.message, true);
-  }
+  const model = state.models.find((m) => m.id === picked);
+  if (model) await changeSelection(picked, selectedEffort(model, null));
+}
+
+export async function onEffortChange(effort) {
+  const model = state.models.find((m) => m.id === state.model);
+  if (!model?.thinkingEnabled || !model.supportEfforts.includes(effort) || effort === state.effort) return;
+  await changeSelection(model.id, effort);
 }
 
 export function syncEmpty() {

@@ -20,9 +20,9 @@ from spring_harness.core.log import logger
 from spring_harness.core.rpc.connection import JsonRpcConnection, JsonRpcError
 from spring_harness.core.rpc.schema import (
     AttachParams, SessionListResult, SessionParams, SessionResult, SessionSummary,
-    TurnStartParams, WorkspaceParams,
+    SetModelParams, TurnStartParams, WorkspaceParams,
 )
-from spring_harness.core.rpc.server import PROTOCOL_VERSION, SESSION_NOT_FOUND, AppServer
+from spring_harness.core.rpc.server import BUSY, PROTOCOL_VERSION, SESSION_NOT_FOUND, AppServer
 from spring_harness.core.services.web_server import ModelsListResult, WebInitializeResult, _model_infos
 
 SESSION_OCCUPIED = -32003
@@ -128,7 +128,8 @@ class CloudAppServer(AppServer):
                 except (WebSocketDisconnect, RuntimeError):
                     pass
 
-    def _adopt(self, handle: CloudSessionHandle, model: str | None, *, takeover: bool = False) -> None:
+    def _adopt(self, handle: CloudSessionHandle, model: str | None, effort: str | None = None,
+               *, takeover: bool = False) -> None:
         self._check_connection()
         session_id = handle.session_id
         owner = self._active_owners.get(session_id)
@@ -137,6 +138,9 @@ class CloudAppServer(AppServer):
                 raise JsonRpcError(SESSION_NOT_FOUND, "未知会话")
             if not takeover:
                 raise JsonRpcError(SESSION_OCCUPIED, "会话正被其他连接使用")
+        if not handle.busy:
+            self._apply_model(handle.session, model, effort)
+        if owner is not None and owner is not self:
             owner._shutting_down = True
             owner._reject_requests()
             for previous in tuple(owner._owned_sessions):
@@ -150,8 +154,6 @@ class CloudAppServer(AppServer):
         self._owned_sessions.add(session_id)
         handle.remember_user(self._user_id)
         handle.set_approval_target(self)
-        if model and not handle.busy:
-            handle.session.set_model(model)
         self._sessions[session_id] = handle.session
         self._current_session = session_id
 
@@ -173,6 +175,16 @@ class CloudAppServer(AppServer):
         )
 
     async def _session_new(self, p: WorkspaceParams) -> CloudSessionResult:
+        from spring_harness.core.config.thinking import resolve_effort
+        from spring_harness.core.rpc.connection import INVALID_PARAMS
+
+        model = p.model or model_setting.default_model()
+        try:
+            if model not in model_setting.list_models():
+                raise ValueError(f"模型 '{model}' 不存在或未启用")
+            resolve_effort(model_setting.get_model_config(model), p.effort)
+        except ValueError as e:
+            raise JsonRpcError(INVALID_PARAMS, str(e)) from e
         session_id = str(uuid.uuid4())
         if p.work_id:
             work = await asyncio.to_thread(gateway_store.get_work, p.work_id)
@@ -187,8 +199,8 @@ class CloudAppServer(AppServer):
         handle = await registry.get_or_create(
             session_id, workspace=Path(work.workspace_path), store=store, work_id=work.work_id,
         )
-        self._adopt(handle, p.model)
-        return CloudSessionResult(session_id=session_id, busy=handle.busy)
+        self._adopt(handle, p.model, p.effort)
+        return self._cloud_result(handle)
 
     async def _session_resume_last(self, p: WorkspaceParams) -> SessionResult:
         rows = await asyncio.to_thread(list_sessions_for_user, self._user_id)
@@ -197,7 +209,7 @@ class CloudAppServer(AppServer):
         if not rows:
             return CloudSessionResult(session_id=None)
         return await self._session_attach(AttachParams(
-            workspace=p.workspace, session_id=rows[0].id, model=p.model,
+            workspace=p.workspace, session_id=rows[0].id, model=p.model, effort=p.effort,
         ))
 
     async def _session_list(self, p: WorkspaceParams) -> SessionListResult:
@@ -224,8 +236,23 @@ class CloudAppServer(AppServer):
             handle = await registry.get_or_create(
                 p.session_id, workspace=Path(row.workspace_path), store=store, work_id=row.work_id,
             )
-        self._adopt(handle, p.model, takeover=p.takeover)
-        return CloudSessionResult(session_id=handle.session_id, busy=handle.busy)
+        self._adopt(handle, p.model, p.effort, takeover=p.takeover)
+        return self._cloud_result(handle)
+
+    def _cloud_result(self, handle: CloudSessionHandle) -> CloudSessionResult:
+        return CloudSessionResult(session_id=handle.session_id, busy=handle.busy,
+                                  **handle.session.model_selection)
+
+    async def _session_set_model(self, p: SetModelParams) -> CloudSessionResult:
+        self._require(p.session_id)
+        registry = get_registry()
+        assert registry is not None
+        handle = registry.get(p.session_id)
+        assert handle is not None
+        if handle.busy:
+            raise JsonRpcError(BUSY, "运行中不能切换模型或思考挡位")
+        self._apply_model(handle.session, p.model, p.effort)
+        return self._cloud_result(handle)
 
     async def _turn_start(self, p: TurnStartParams) -> None:
         self._require(p.session_id)
@@ -241,7 +268,7 @@ class CloudAppServer(AppServer):
         assert registry is not None
         handle = registry.get(p.session_id)
         assert handle is not None
-        return CloudSessionResult(session_id=p.session_id, busy=handle.busy)
+        return self._cloud_result(handle)
 
     async def _turn_cancel(self, p: SessionParams) -> None:
         self._require(p.session_id)

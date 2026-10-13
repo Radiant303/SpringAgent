@@ -24,6 +24,7 @@ from spring_harness.core.agent import (
 from spring_harness.core.agent.deps import CodingAgentDeps
 from spring_harness.core.config.model import get_model, get_model_config, setting
 from spring_harness.core.config.settings import loop_control
+from spring_harness.core.config.thinking import resolve_effort, thinking_capability
 from spring_harness.core.hooks.model import hooks, request_hooks
 from spring_harness.instructions.default import register_default_instructions
 from spring_harness.toolsets.ask_user import ask_user_toolset
@@ -53,6 +54,7 @@ def create_agent(
     plan_on_change: OnPlanChange | None = None,
     teach_on_change: OnTeachingChange | None = None,
     compact_on_change: OnCompaction | None = None,
+    effort: str | None = None,
 ) -> SpringAgent:
     """
     创建 Spring Harness Agent
@@ -61,6 +63,7 @@ def create_agent(
     model_id = model_name or setting.default_model()
     model = get_model(model_id)
     model_config = get_model_config(model_id)
+    effort = resolve_effort(model_config, effort)
     agent = SpringAgent(
         model=model,
         toolsets=[
@@ -75,13 +78,14 @@ def create_agent(
         ],
         deps_type=CodingAgentDeps,
         capabilities=[
+            thinking_capability(model_config, effort),
             hooks,
             request_hooks(model_id),
             skills(),
             planning(session_id, on_change=plan_on_change),
             repo_context(root),
             code_mode(root),
-            subagents(str(root), model_id),
+            subagents(str(root), model_id, effort),
             background(extra_tools=("run_command", "edit_knowledge")),
             NotifyingCompaction(
                 max_fraction=0.8,

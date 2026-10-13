@@ -107,6 +107,22 @@ class AdminModelConfigControllerTests {
     }
 
     @Test
+    @DisplayName("接口拒绝无效思考挡位")
+    void rejectsUnsupportedEfforts() throws Exception {
+        String token = tokenFor(User.ROLE_OWNER);
+        for (String effort : new String[]{"max", "HIGH", "", " high", "custom"}) {
+            mockMvc.perform(post("/api/admin/model-config/models")
+                            .header(HttpHeaders.AUTHORIZATION, bearer(token))
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"provider\":\"test\",\"model\":\"model\",\"displayName\":\"测试模型\","
+                                    + "\"maxContextSize\":1000,\"maxOutputSize\":0,"
+                                    + "\"capabilities\":[\"thinking\"],"
+                                    + "\"defaultEffort\":\"" + effort + "\",\"enabled\":true}"))
+                    .andExpect(status().isBadRequest());
+        }
+    }
+
+    @Test
     @DisplayName("站长全链路：建 Provider → 建模型 → 设默认 → GET 快照 → 删默认被拒")
     void ownerFullFlow() throws Exception {
         String token = tokenFor(User.ROLE_OWNER);
@@ -125,8 +141,8 @@ class AdminModelConfigControllerTests {
                         .content("{\"provider\":\"" + name + "\","
                                 + "\"model\":\"real-model\",\"displayName\":\"展示名\","
                                 + "\"maxContextSize\":1000000,\"maxOutputSize\":0,"
-                                + "\"capabilities\":[\"thinking\"],\"supportEfforts\":[],"
-                                + "\"defaultEffort\":\"\",\"enabled\":true}"))
+                                + "\"capabilities\":[\"thinking\"],\"supportEfforts\":[\"high\"],"
+                                + "\"defaultEffort\":\"high\",\"enabled\":true}"))
                 .andExpect(status().isOk());
 
         String modelId = name + "/real-model";

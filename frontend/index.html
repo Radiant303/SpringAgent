@@ -183,11 +183,22 @@
               <span id="usage-tip" role="tooltip">上下文用量</span>
             </span>
             <div id="model-pill">
-              <button id="model-btn" type="button" title="模型">
+              <button id="model-btn" type="button" title="模型与思考强度" aria-label="选择模型与思考强度" aria-expanded="false" aria-controls="model-menu" aria-haspopup="menu">
                 <span id="model-name"></span>
+                <span id="model-effort" class="hidden"><span class="model-separator" aria-hidden="true">·</span><span id="effort-name"></span></span>
                 <span class="model-caret"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></span>
               </button>
-              <div id="model-menu" class="hidden"></div>
+              <div id="model-menu" class="hidden">
+                <div id="model-list" class="model-menu-list" role="menu" aria-label="模型"></div>
+                <div id="effort-section" class="hidden">
+                  <button id="effort-btn" class="model-item model-effort-row" type="button" aria-label="选择思考强度" aria-haspopup="menu" aria-expanded="false" aria-controls="effort-menu">
+                    <span class="model-item-name">思考强度</span>
+                    <span id="effort-value" class="model-menu-value"></span>
+                    <svg class="model-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>
+                  </button>
+                </div>
+              </div>
+              <div id="effort-menu" class="hidden" role="menu" aria-label="思考强度"></div>
             </div>
             <button id="send-btn" class="round-btn" title="发送" aria-label="发送">
               <svg viewBox="0 0 1024 1024"><path d="M705.536 433.664a38.4 38.4 0 1 1-54.272 54.272L550.4 387.114667V729.6a38.4 38.4 0 0 1-76.8 0V387.114667l-100.864 100.821333a38.4 38.4 0 1 1-54.272-54.272l166.4-166.4a38.4 38.4 0 0 1 54.272 0l166.4 166.4z" fill="currentColor"/></svg>
