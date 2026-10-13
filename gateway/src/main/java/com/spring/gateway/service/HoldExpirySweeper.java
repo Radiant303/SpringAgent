@@ -13,7 +13,7 @@ import java.time.ZoneOffset;
 import java.util.List;
 
 /**
- * 在途预扣的过期扫描。
+ * 请求冻结单超时扫描。
  *
  * @author hanbing
  * @since 2026-10-05
@@ -23,7 +23,7 @@ import java.util.List;
 @RequiredArgsConstructor
 public class HoldExpirySweeper {
 
-    /** 在途超过该时长视为悬挂（一轮对话的正常时长远低于此）。 */
+    /** 请求冻结超过该时长标记为待核对。 */
     private static final long EXPIRE_MINUTES = 10;
 
     /** 单轮扫描处理上限，防积压长尾。 */
@@ -41,11 +41,11 @@ public class HoldExpirySweeper {
                 .last("LIMIT " + BATCH_LIMIT));
         for (PointsHold hold : stale) {
             try {
-                billingService.releaseHold(hold.getTurnId());
-                log.info("过期预扣已释放: turnId={} userId={} amount={}",
-                        hold.getTurnId(), hold.getUserId(), hold.getAmount());
+                billingService.markStale(hold.getRequestId());
+                log.warn("模型请求结算超时，冻结保留待核对: requestId={} userId={} amount={}",
+                        hold.getRequestId(), hold.getUserId(), hold.getAmount());
             } catch (Exception e) {
-                log.error("过期预扣释放失败: turnId={} error={}", hold.getTurnId(), e.toString());
+                log.error("请求超时标记失败: requestId={} error={}", hold.getRequestId(), e.toString());
             }
         }
     }

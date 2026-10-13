@@ -1,7 +1,12 @@
 package com.spring.gateway.service;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.spring.gateway.common.BizException;
 import com.spring.gateway.common.SnowflakeIdGenerator;
+import com.spring.gateway.dto.ReserveModelRequest;
+import com.spring.gateway.dto.SettleModelRequest;
+import com.spring.gateway.entity.ModelDefinition;
+import com.spring.gateway.entity.ModelProvider;
 import com.spring.gateway.entity.PointsHold;
 import com.spring.gateway.entity.PointsLedger;
 import com.spring.gateway.entity.RateCard;
@@ -10,6 +15,8 @@ import com.spring.gateway.entity.SystemSetting;
 import com.spring.gateway.entity.UsageRecord;
 import com.spring.gateway.entity.User;
 import com.spring.gateway.entity.Work;
+import com.spring.gateway.mapper.ModelDefinitionMapper;
+import com.spring.gateway.mapper.ModelProviderMapper;
 import com.spring.gateway.mapper.PointsHoldMapper;
 import com.spring.gateway.mapper.PointsLedgerMapper;
 import com.spring.gateway.mapper.RateCardMapper;
@@ -18,7 +25,6 @@ import com.spring.gateway.mapper.UsageRecordMapper;
 import com.spring.gateway.mapper.UserMapper;
 import com.spring.gateway.mapper.WorkMapper;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -27,79 +33,51 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
-import java.util.List;
 import java.util.UUID;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * 积分计费集成测试。
+ * 单次模型请求计费测试。
  *
  * @author hanbing
- * @since 2026-10-05
+ * @since 2026-10-13
  */
 @SpringBootTest
 @Transactional
 class BillingServiceTests {
-
-    /** 固定测试配置下的预扣估算额。 */
-    private static final BigDecimal EST_HOLD = new BigDecimal("0.790000");
-
-    @Autowired
-    private BillingService billingService;
-    @Autowired
-    private PointsHoldMapper holdMapper;
-    @Autowired
-    private PointsLedgerMapper ledgerMapper;
-    @Autowired
-    private RateCardMapper rateCardMapper;
-    @Autowired
-    private UsageRecordMapper usageRecordMapper;
-    @Autowired
-    private UserMapper userMapper;
-    @Autowired
-    private WorkMapper workMapper;
-    @Autowired
-    private SessionMapper sessionMapper;
-    @Autowired
-    private SnowflakeIdGenerator idGenerator;
-    @Autowired
-    private SystemSettingService systemSettingService;
+    @Autowired private BillingService billingService;
+    @Autowired private PointsHoldMapper holdMapper;
+    @Autowired private PointsLedgerMapper ledgerMapper;
+    @Autowired private RateCardMapper rateCardMapper;
+    @Autowired private UsageRecordMapper usageMapper;
+    @Autowired private UserMapper userMapper;
+    @Autowired private WorkMapper workMapper;
+    @Autowired private SessionMapper sessionMapper;
+    @Autowired private ModelProviderMapper providerMapper;
+    @Autowired private ModelDefinitionMapper modelMapper;
+    @Autowired private SnowflakeIdGenerator ids;
+    @Autowired private SystemSettingService settings;
+    private long userId;
+    private String sessionId;
+    private String modelId;
 
     @BeforeEach
-    void configureBilling() {
-        RateCard fallback = rateCard(RateCard.DEFAULT_MODEL_ID, "10", "30");
-        fallback.setCacheReadPoints(BigDecimal.ONE);
-        fallback.setCacheWritePoints(BigDecimal.TEN);
-        rateCardMapper.insertOrUpdate(fallback);
-        rateCardMapper.deleteById("test-model");
-        systemSettingService.set(SystemSetting.KEY_BILLING_EST_CACHE_READ_TOKENS, "90000");
-        systemSettingService.set(SystemSetting.KEY_BILLING_EST_INPUT_TOKENS, "10000");
-        systemSettingService.set(SystemSetting.KEY_BILLING_EST_OUTPUT_TOKENS, "20000");
-    }
-
-    private Long insertUser(String points) {
+    void fixture() {
         User user = new User();
-        user.setId(idGenerator.nextId());
+        user.setId(ids.nextId());
         user.setUsername("t_" + UUID.randomUUID().toString().substring(0, 8));
         user.setPasswordHash("test-only");
-        user.setPointsBalance(new BigDecimal(points));
+        user.setStatus(User.STATUS_ACTIVE);
+        user.setPointsBalance(BigDecimal.TEN);
         userMapper.insert(user);
-        return user.getId();
-    }
-
-    private String insertSession(Long userId) {
+        userId = user.getId();
         Work work = new Work();
         work.setId(UUID.randomUUID().toString());
         work.setUserId(userId);
         work.setName("测试项目");
         work.setSizeBytes(0L);
         work.setIsDefault(false);
-        work.setCreatedAt(LocalDateTime.of(2026, 1, 1, 0, 0, 0));
-        work.setUpdatedAt(LocalDateTime.of(2026, 1, 1, 0, 0, 0));
         workMapper.insert(work);
         Session session = new Session();
         session.setId(UUID.randomUUID().toString());
@@ -107,241 +85,246 @@ class BillingServiceTests {
         session.setWorkId(work.getId());
         session.setCurrentSegment(0);
         session.setStatus(Session.STATUS_ACTIVE);
-        session.setCreatedAt(LocalDateTime.of(2026, 1, 1, 0, 0, 0));
-        session.setUpdatedAt(LocalDateTime.of(2026, 1, 1, 0, 0, 0));
         sessionMapper.insert(session);
-        return session.getId();
+        sessionId = session.getId();
+        ModelProvider provider = new ModelProvider();
+        provider.setName("t_" + UUID.randomUUID().toString().substring(0, 8));
+        provider.setType("openai");
+        provider.setApiKey("test-only");
+        providerMapper.insert(provider);
+        modelId = provider.getName() + "/test-model";
+        ModelDefinition model = new ModelDefinition();
+        model.setId(modelId);
+        model.setProvider(provider.getName());
+        model.setModel("test-model");
+        model.setDisplayName("测试模型");
+        model.setMaxContextSize(1000000L);
+        model.setMaxOutputSize(20000L);
+        model.setEnabled(true);
+        modelMapper.insert(model);
+        RateCard rate = new RateCard();
+        rate.setModelId(modelId);
+        rate.setInputPoints(BigDecimal.TEN);
+        rate.setCacheReadPoints(BigDecimal.ONE);
+        rate.setCacheWritePoints(new BigDecimal("20"));
+        rate.setOutputPoints(new BigDecimal("30"));
+        rate.setEnabled(true);
+        rate.setCreatedAt(LocalDateTime.now(ZoneOffset.UTC));
+        rate.setUpdatedAt(LocalDateTime.now(ZoneOffset.UTC));
+        rateCardMapper.insert(rate);
+        settings.set(SystemSetting.KEY_BILLING_EST_CACHE_READ_TOKENS, "90000");
+        settings.set(SystemSetting.KEY_BILLING_EST_INPUT_TOKENS, "10000");
+        settings.set(SystemSetting.KEY_BILLING_EST_OUTPUT_TOKENS, "20000");
     }
 
-    /** 装配一条用量记录：input=uncached+cr+cw（inclusive 桶）。 */
-    private UsageRecord usage(Long userId, String sessionId, String turnId,
-                              long uncached, long cacheRead, long cacheWrite, long output) {
-        UsageRecord record = new UsageRecord();
-        record.setTurnId(turnId);
-        record.setSessionId(sessionId);
-        record.setUserId(userId);
-        record.setModelId("test-model");
-        record.setRequests(1);
-        record.setInputTokens(uncached + cacheRead + cacheWrite);
-        record.setCacheReadTokens(cacheRead);
-        record.setCacheWriteTokens(cacheWrite);
-        record.setOutputTokens(output);
-        record.setStatus(UsageRecord.STATUS_FINISHED);
-        record.setIsWake(false);
-        record.setCreatedAt(LocalDateTime.now(ZoneOffset.UTC));
-        return record;
+    private ReserveModelRequest request(String turn, String agent, boolean wake) {
+        return new ReserveModelRequest(UUID.randomUUID().toString().replace("-", ""), userId,
+                turn, sessionId, modelId, agent, wake);
     }
 
-    private RateCard rateCard(String modelId, String inputPoints, String outputPoints) {
-        RateCard row = new RateCard();
-        row.setModelId(modelId);
-        row.setInputPoints(new BigDecimal(inputPoints));
-        row.setCacheReadPoints(BigDecimal.ZERO);
-        row.setCacheWritePoints(BigDecimal.ZERO);
-        row.setOutputPoints(new BigDecimal(outputPoints));
-        row.setEnabled(true);
-        row.setCreatedAt(LocalDateTime.now(ZoneOffset.UTC));
-        row.setUpdatedAt(LocalDateTime.now(ZoneOffset.UTC));
-        return row;
+    private SettleModelRequest usage(ReserveModelRequest request, long input, long cr, long cw, long output) {
+        return new SettleModelRequest(request.requestId(), request.userId(), "finished", true,
+                input, cr, cw, output);
     }
 
-    private static void assertAmount(String expected, BigDecimal actual) {
-        assertEquals(0, new BigDecimal(expected).compareTo(actual), "期望 " + expected + " 实际 " + actual);
+    private void amount(String expected) {
+        assertEquals(0, new BigDecimal(expected).compareTo(billingService.balanceOf(userId)));
     }
 
-    private BigDecimal balance(Long userId) {
-        return userMapper.selectById(userId).getPointsBalance();
-    }
-
-    private List<PointsLedger> ledgerOf(Long userId) {
-        return ledgerMapper.selectList(new com.baomidou.mybatisplus.core.conditions.query
-                .LambdaQueryWrapper<PointsLedger>()
-                .eq(PointsLedger::getUserId, userId)
-                .orderByAsc(PointsLedger::getId));
-    }
-
-    @Test
-    @DisplayName("预扣：建 HELD 单 + HOLD 流水 + 按估算额扣款")
-    void preDeductOk() {
-        Long userId = insertUser("10");
-        String turnId = String.valueOf(idGenerator.nextId());
-
-        billingService.preDeduct(userId, turnId);
-
-        PointsHold hold = holdMapper.selectById(turnId);
-        assertNotNull(hold);
-        assertEquals(PointsHold.STATUS_HELD, hold.getStatus());
-        assertAmount(EST_HOLD.toPlainString(), hold.getAmount());
-        assertAmount("9.21", balance(userId));
-        List<PointsLedger> ledger = ledgerOf(userId);
-        assertEquals(1, ledger.size());
-        assertEquals(PointsLedger.TYPE_HOLD, ledger.get(0).getType());
-        assertEquals(turnId, ledger.get(0).getRefId());
-        assertAmount("-0.79", ledger.get(0).getChangeAmount());
-        assertAmount("9.21", ledger.get(0).getBalanceAfter());
+    private long usageCount() {
+        return usageMapper.selectCount(new LambdaQueryWrapper<UsageRecord>().eq(UsageRecord::getUserId, userId));
     }
 
     @Test
-    @DisplayName("预扣：余额不足抛 409，hold/流水/余额零副作用")
-    void preDeductInsufficient() {
-        Long userId = insertUser("0.5");
-        String turnId = String.valueOf(idGenerator.nextId());
-
-        BizException e = assertThrows(BizException.class, () -> billingService.preDeduct(userId, turnId));
-        assertEquals(409, e.getStatus());
-        assertNull(holdMapper.selectById(turnId));
-        assertEquals(0, ledgerOf(userId).size());
-        assertAmount("0.5", balance(userId));
+    void everyRequestReservesAndSettlesImmediately() {
+        ReserveModelRequest first = request("same-turn", "main", false);
+        billingService.reserveRequest(first);
+        billingService.reserveRequest(first);
+        amount("9.21");
+        billingService.settleRequest(usage(first, 1000, 0, 0, 100));
+        amount("9.987");
+        ReserveModelRequest next = request("same-turn", "main", false);
+        billingService.reserveRequest(next);
+        billingService.settleRequest(usage(next, 1000, 0, 0, 100));
+        amount("9.974");
+        assertEquals(2, usageCount());
+        assertEquals(PointsHold.STATUS_SETTLED, holdMapper.selectById(first.requestId()).getStatus());
     }
 
     @Test
-    @DisplayName("结算多退：实际成本低于预扣，差额退回，hold → SETTLED")
-    void settleRefund() {
-        Long userId = insertUser("10");
-        String sessionId = insertSession(userId);
-        String turnId = String.valueOf(idGenerator.nextId());
-        billingService.preDeduct(userId, turnId);
-
-        // 成本 = (1000×10 + 100×30) / 1e6 = 0.013（模型未注册，按兜底卡）
-        billingService.recordUsageAndSettle(usage(userId, sessionId, turnId, 1000, 0, 0, 100));
-
-        assertEquals(PointsHold.STATUS_SETTLED, holdMapper.selectById(turnId).getStatus());
-        // 10 - 0.79 + (0.79 - 0.013) = 9.987
-        assertAmount("9.987", balance(userId));
-        List<PointsLedger> ledger = ledgerOf(userId);
-        assertEquals(2, ledger.size());
-        assertEquals(PointsLedger.TYPE_SETTLE, ledger.get(1).getType());
-        assertAmount("0.777", ledger.get(1).getChangeAmount());
+    void insufficientBalanceHasNoSideEffects() {
+        userMapper.updateBalance(userId, new BigDecimal("0.5"));
+        ReserveModelRequest request = request("turn", "main", false);
+        BizException error = assertThrows(BizException.class, () -> billingService.reserveRequest(request));
+        assertEquals(409, error.getStatus());
+        assertNull(holdMapper.selectById(request.requestId()));
+        assertEquals(0, ledgerMapper.selectCount(new LambdaQueryWrapper<PointsLedger>()
+                .eq(PointsLedger::getUserId, userId)));
+        amount("0.5");
     }
 
     @Test
-    @DisplayName("结算少补：实际成本高于预扣，允许扣成负余额（欠费）")
-    void settleExtraChargeGoesNegative() {
-        Long userId = insertUser("10");
-        String sessionId = insertSession(userId);
-        String turnId = String.valueOf(idGenerator.nextId());
-        billingService.preDeduct(userId, turnId);
-
-        // 成本 = (1e6×10 + 1e6×30) / 1e6 = 40
-        billingService.recordUsageAndSettle(usage(userId, sessionId, turnId, 1_000_000, 0, 0, 1_000_000));
-
-        // 9.21 - (40 - 0.79) = -30
-        assertAmount("-30", balance(userId));
-        List<PointsLedger> ledger = ledgerOf(userId);
-        assertEquals(2, ledger.size());
-        assertAmount("-39.21", ledger.get(1).getChangeAmount());
+    void cachesAreNotChargedAsUncachedInput() {
+        ReserveModelRequest request = request("turn", "main", false);
+        billingService.reserveRequest(request);
+        billingService.settleRequest(usage(request, 1300, 100, 200, 100));
+        amount("9.9829");
     }
 
     @Test
-    @DisplayName("无预扣直接结算（wake 轮路径）：按实际成本 DIRECT 扣款")
-    void directSettleWithoutHold() {
-        Long userId = insertUser("10");
-        String sessionId = insertSession(userId);
-        String turnId = "wake-test" + UUID.randomUUID().toString().substring(0, 6);
-
-        // 成本 = (2000×10 + 500×30) / 1e6 = 0.035
-        billingService.recordUsageAndSettle(usage(userId, sessionId, turnId, 2000, 0, 0, 500));
-
-        assertNull(holdMapper.selectById(turnId));
-        assertAmount("9.965", balance(userId));
-        List<PointsLedger> ledger = ledgerOf(userId);
-        assertEquals(1, ledger.size());
-        assertEquals(PointsLedger.TYPE_DIRECT, ledger.get(0).getType());
+    void retriesAreIdempotentAndConflictsRejected() {
+        ReserveModelRequest request = request("turn", "main", false);
+        billingService.reserveRequest(request);
+        SettleModelRequest usage = usage(request, 1000, 0, 0, 100);
+        billingService.settleRequest(usage);
+        billingService.settleRequest(usage);
+        amount("9.987");
+        assertEquals(1, usageCount());
+        assertEquals(409, assertThrows(BizException.class,
+                () -> billingService.settleRequest(usage(request, 2000, 0, 0, 100))).getStatus());
+        assertThrows(BizException.class, () -> billingService.reserveRequest(request));
     }
 
     @Test
-    @DisplayName("释放：预扣全额退回，hold → RELEASED；重复释放无副作用")
-    void releaseRefundsFully() {
-        Long userId = insertUser("10");
-        String turnId = String.valueOf(idGenerator.nextId());
-        billingService.preDeduct(userId, turnId);
-
-        billingService.releaseHold(turnId);
-
-        assertEquals(PointsHold.STATUS_RELEASED, holdMapper.selectById(turnId).getStatus());
-        assertAmount("10", balance(userId));
-        assertEquals(2, ledgerOf(userId).size());
-
-        billingService.releaseHold(turnId);  // 已收口，静默跳过
-        assertAmount("10", balance(userId));
-        assertEquals(2, ledgerOf(userId).size());
+    void priceSnapshotSurvivesRateChanges() {
+        ReserveModelRequest request = request("turn", "reviewer", false);
+        billingService.reserveRequest(request);
+        RateCard rate = rateCardMapper.selectById(modelId);
+        rate.setInputPoints(new BigDecimal("10000"));
+        rateCardMapper.updateById(rate);
+        billingService.settleRequest(usage(request, 1000, 0, 0, 100));
+        amount("9.987");
     }
 
     @Test
-    @DisplayName("幂等：同一 turn 的用量事件重复消费，用量与结算整单跳过")
-    void duplicateLifecycleSkipped() {
-        Long userId = insertUser("10");
-        String sessionId = insertSession(userId);
-        String turnId = String.valueOf(idGenerator.nextId());
-        billingService.preDeduct(userId, turnId);
-        UsageRecord record = usage(userId, sessionId, turnId, 1000, 0, 0, 100);
-
-        billingService.recordUsageAndSettle(record);
-        BigDecimal afterFirst = balance(userId);
-        billingService.recordUsageAndSettle(record);
-
-        assertAmount(afterFirst.toPlainString(), balance(userId));
-        assertEquals(2, ledgerOf(userId).size());  // HOLD + SETTLE，没有第三条
+    void unknownUsageKeepsReservationAndCanBeReconciled() {
+        ReserveModelRequest request = request("turn", "main", false);
+        billingService.reserveRequest(request);
+        billingService.settleRequest(new SettleModelRequest(request.requestId(), userId, "error",
+                false, 0L, 0L, 0L, 0L));
+        amount("9.21");
+        assertEquals(PointsHold.STATUS_UNKNOWN, holdMapper.selectById(request.requestId()).getStatus());
+        billingService.settleRequest(usage(request, 1000, 0, 0, 100));
+        amount("9.987");
+        assertEquals(1, usageCount());
     }
 
     @Test
-    @DisplayName("收口互斥：已 SETTLED 的预扣再 release 无效，已 RELEASED 再结算只走 DIRECT 判定")
-    void settleReleaseMutex() {
-        Long userId = insertUser("10");
-        String sessionId = insertSession(userId);
-        String turnId = String.valueOf(idGenerator.nextId());
-        billingService.preDeduct(userId, turnId);
-        billingService.recordUsageAndSettle(usage(userId, sessionId, turnId, 1000, 0, 0, 100));
-        BigDecimal settled = balance(userId);
-
-        billingService.releaseHold(turnId);  // 已结算，不得退回
-        assertAmount(settled.toPlainString(), balance(userId));
-        assertEquals(2, ledgerOf(userId).size());
+    void staleReservationsAreNotAutomaticallyRefunded() {
+        ReserveModelRequest request = request("turn", "main", false);
+        billingService.reserveRequest(request);
+        billingService.markStale(request.requestId());
+        amount("9.21");
+        billingService.settleRequest(usage(request, 1000, 0, 0, 100));
+        billingService.markStale(request.requestId());
+        amount("9.987");
     }
 
     @Test
-    @DisplayName("调账：正向入账带操作人与事由；调成负余额被拒 409")
-    void adjustRules() {
-        Long operator = insertUser("1000");
-        Long target = insertUser("10");
-
-        billingService.adjust(operator, target, new BigDecimal("100"), "开站赠送");
-
-        assertAmount("110", balance(target));
-        PointsLedger row = ledgerOf(target).get(0);
-        assertEquals(PointsLedger.TYPE_ADJUST, row.getType());
-        assertEquals(operator, row.getOperatorId());
-        assertEquals("开站赠送", row.getReason());
-        assertNotNull(row.getRefId());
-
-        BizException e = assertThrows(BizException.class,
-                () -> billingService.adjust(operator, target, new BigDecimal("-200"), "扣减"));
-        assertEquals(409, e.getStatus());
-        assertAmount("110", balance(target));
-
-        assertThrows(BizException.class,
-                () -> billingService.adjust(operator, target, BigDecimal.ZERO, "无意义"));
+    void explicitFailureRefundsAndCancellationBillsKnownTokens() {
+        ReserveModelRequest failure = request("turn", "main", false);
+        billingService.reserveRequest(failure);
+        billingService.settleRequest(new SettleModelRequest(failure.requestId(), userId, "error",
+                true, 0L, 0L, 0L, 0L));
+        amount("10");
+        ReserveModelRequest cancelled = request("turn", "main", false);
+        billingService.reserveRequest(cancelled);
+        billingService.settleRequest(new SettleModelRequest(cancelled.requestId(), userId, "cancelled",
+                true, 1000L, 0L, 0L, 100L));
+        amount("9.987");
     }
 
     @Test
-    @DisplayName("多模型用量：按各自模型 ID 资费结算")
-    void settlesMultipleModelsByTheirOwnRates() {
-        Long userId = insertUser("10");
-        String sessionId = insertSession(userId);
-        String turnId = String.valueOf(idGenerator.nextId());
-        billingService.preDeduct(userId, turnId);
-        rateCardMapper.insert(rateCard("test/model-a", "100", "200"));
-        rateCardMapper.insert(rateCard("test/model-b", "300", "400"));
-        UsageRecord first = usage(userId, sessionId, turnId, 1_000, 0, 0, 1_000);
-        first.setModelId("test/model-a");
-        UsageRecord second = usage(userId, sessionId, turnId, 1_000, 0, 0, 1_000);
-        second.setModelId("test/model-b");
+    void overspendBlocksNextRequest() {
+        ReserveModelRequest request = request("turn", "main", false);
+        billingService.reserveRequest(request);
+        billingService.settleRequest(usage(request, 1000000, 0, 0, 1000000));
+        amount("-30");
+        assertThrows(BizException.class, () -> billingService.reserveRequest(request("turn", "searcher", false)));
+    }
 
-        billingService.recordUsageAndSettle(List.of(first, second));
+    @Test
+    void wakeUsesTheSameRequestBilling() {
+        ReserveModelRequest request = request("wake-test", "main", true);
+        billingService.reserveRequest(request);
+        billingService.settleRequest(usage(request, 1000, 0, 0, 100));
+        UsageRecord record = usageMapper.selectOne(new LambdaQueryWrapper<UsageRecord>()
+                .eq(UsageRecord::getRequestId, request.requestId()));
+        assertTrue(record.getIsWake());
+        assertEquals("main", record.getAgentName());
+        amount("9.987");
+    }
 
-        assertAmount("9", balance(userId));
-        assertEquals(2, usageRecordMapper.selectList(
-                new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<UsageRecord>()
-                        .eq(UsageRecord::getTurnId, turnId)).size());
+    @Test
+    void rejectsInvalidCacheAndUnreservedUsage() {
+        ReserveModelRequest request = request("turn", "main", false);
+        assertThrows(BizException.class, () -> billingService.settleRequest(usage(request, 1, 0, 0, 1)));
+        billingService.reserveRequest(request);
+        assertThrows(BizException.class, () -> billingService.settleRequest(usage(request, 1, 2, 0, 1)));
+        amount("9.21");
+    }
+
+    @Test
+    void mainAndSubagentUseDifferentModelRatesInOneTurn() {
+        String childId = modelId.replace("/test-model", "/child");
+        ModelDefinition original = modelMapper.selectById(modelId);
+        ModelDefinition child = new ModelDefinition();
+        child.setId(childId);
+        child.setProvider(original.getProvider());
+        child.setModel("child");
+        child.setDisplayName("子代理模型");
+        child.setMaxContextSize(1000000L);
+        child.setMaxOutputSize(20000L);
+        child.setEnabled(true);
+        modelMapper.insert(child);
+        RateCard rate = new RateCard();
+        rate.setModelId(childId);
+        rate.setInputPoints(new BigDecimal("100"));
+        rate.setCacheReadPoints(new BigDecimal("10"));
+        rate.setCacheWritePoints(new BigDecimal("200"));
+        rate.setOutputPoints(new BigDecimal("300"));
+        rate.setEnabled(true);
+        rate.setCreatedAt(LocalDateTime.now(ZoneOffset.UTC));
+        rate.setUpdatedAt(LocalDateTime.now(ZoneOffset.UTC));
+        rateCardMapper.insert(rate);
+        ReserveModelRequest main = request("same-turn", "main", false);
+        billingService.reserveRequest(main);
+        billingService.settleRequest(usage(main, 1000, 0, 0, 100));
+        ReserveModelRequest subagent = new ReserveModelRequest(UUID.randomUUID().toString().replace("-", ""),
+                userId, "same-turn", sessionId, childId, "reviewer", false);
+        billingService.reserveRequest(subagent);
+        billingService.settleRequest(usage(subagent, 1000, 0, 0, 100));
+        amount("9.857");
+        assertEquals(2, usageCount());
+    }
+
+    @Test
+    void rejectsCrossUserReservationAndRequestIdConflicts() {
+        ReserveModelRequest request = request("turn", "main", false);
+        billingService.reserveRequest(request);
+        ReserveModelRequest conflict = new ReserveModelRequest(request.requestId(), userId,
+                "another-turn", sessionId, modelId, "main", false);
+        assertThrows(BizException.class, () -> billingService.reserveRequest(conflict));
+        User other = new User();
+        other.setId(ids.nextId());
+        other.setUsername("t_" + UUID.randomUUID().toString().substring(0, 8));
+        other.setPasswordHash("test-only");
+        other.setStatus(User.STATUS_ACTIVE);
+        other.setPointsBalance(BigDecimal.TEN);
+        userMapper.insert(other);
+        ReserveModelRequest unauthorized = new ReserveModelRequest(UUID.randomUUID().toString().replace("-", ""),
+                other.getId(), "turn", sessionId, modelId, "main", false);
+        assertEquals(404, assertThrows(BizException.class, () -> billingService.reserveRequest(unauthorized)).getStatus());
+        assertEquals(0, billingService.balanceOf(other.getId()).compareTo(BigDecimal.TEN));
+    }
+
+    @Test
+    void adjustmentsRemainAtomic() {
+        billingService.adjust(userId, userId, new BigDecimal("100"), "充值");
+        amount("110");
+        assertThrows(BizException.class, () -> billingService.adjust(userId, userId,
+                new BigDecimal("-200"), "扣减"));
+        assertThrows(BizException.class, () -> billingService.adjust(userId, userId, BigDecimal.ZERO, "空"));
+        amount("110");
     }
 }

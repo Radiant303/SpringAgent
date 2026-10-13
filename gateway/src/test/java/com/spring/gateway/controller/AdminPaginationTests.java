@@ -148,7 +148,10 @@ class AdminPaginationTests {
 
         for (int i = 0; i < 3; i++) {
             UsageRecord r = new UsageRecord();
-            r.setTurnId("t" + idGenerator.nextId());
+            r.setRequestId(java.util.UUID.randomUUID().toString().replace("-", ""));
+            r.setAgentName("main");
+            r.setUsageKnown(true);
+            r.setTurnId("same-turn");
             r.setSessionId(session.getId());
             r.setUserId(uid);
             r.setModelId("m" + (i % 2));  // 两个模型 → 两个分组
@@ -167,7 +170,9 @@ class AdminPaginationTests {
                         .header(HttpHeaders.AUTHORIZATION, bearer(token)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.total").value(2))
-                .andExpect(jsonPath("$.data.list.length()").value(1));
+                .andExpect(jsonPath("$.data.list.length()").value(1))
+                .andExpect(jsonPath("$.data.list[0].turns").value(1))
+                .andExpect(jsonPath("$.data.list[0].requests").value(2));
 
         mockMvc.perform(get("/api/admin/usage?userId=" + uid + "&page=2&size=1")
                         .header(HttpHeaders.AUTHORIZATION, bearer(token)))

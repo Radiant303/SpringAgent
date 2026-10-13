@@ -1,5 +1,5 @@
 from collections.abc import Awaitable, Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from pydantic_ai import ModelMessage, RunContext
 from pydantic_ai_harness import SummarizingCompaction
@@ -18,6 +18,10 @@ class NotifyingCompaction(SummarizingCompaction):
     on_compaction: OnCompaction | None = None
 
     async def compact(self, messages: list[ModelMessage], ctx: RunContext) -> list[ModelMessage]:
+        from spring_harness.core.hooks.billing import RequestBillingModel
+
+        if isinstance(ctx.model, RequestBillingModel):
+            ctx = replace(ctx, model=ctx.model.for_agent("compaction"))
         before = estimate_token_count(messages, self.tokenizer)
         result = await super().compact(messages, ctx)
         # 触发后仍可能空转（保留尾把 cutoff 顶回 0），历史真变了才通知

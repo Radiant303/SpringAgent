@@ -3,18 +3,24 @@ package com.spring.gateway.service;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.spring.gateway.common.BizException;
 import com.spring.gateway.common.SnowflakeIdGenerator;
-import com.spring.gateway.entity.RateCard;
+import com.spring.gateway.dto.ReserveModelRequest;
+import com.spring.gateway.dto.SettleModelRequest;
+import com.spring.gateway.entity.ModelDefinition;
 import com.spring.gateway.entity.PointsHold;
 import com.spring.gateway.entity.PointsLedger;
+import com.spring.gateway.entity.RateCard;
+import com.spring.gateway.entity.Session;
 import com.spring.gateway.entity.SystemSetting;
 import com.spring.gateway.entity.UsageRecord;
-import com.spring.gateway.mapper.RateCardMapper;
+import com.spring.gateway.entity.User;
+import com.spring.gateway.mapper.ModelDefinitionMapper;
 import com.spring.gateway.mapper.PointsHoldMapper;
 import com.spring.gateway.mapper.PointsLedgerMapper;
+import com.spring.gateway.mapper.RateCardMapper;
+import com.spring.gateway.mapper.SessionMapper;
 import com.spring.gateway.mapper.UsageRecordMapper;
 import com.spring.gateway.mapper.UserMapper;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -23,6 +29,7 @@ import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * 积分计费。
@@ -30,16 +37,13 @@ import java.util.List;
  * @author hanbing
  * @since 2026-10-05
  */
-@Slf4j
 @Service
 @RequiredArgsConstructor
 public class BillingService {
-
-    /** 费率的单位分母：每百万 tokens。 */
     private static final BigDecimal MILLION = new BigDecimal("1000000");
-
-    /** 金额计算精度（与 DECIMAL(20,6) 列一致）。 */
+    /** 金额精度。 */
     private static final int SCALE = 6;
+    private static final BigDecimal MIN_RESERVATION = new BigDecimal("0.000001");
 
     private final UserMapper userMapper;
     private final RateCardMapper rateCardMapper;
@@ -48,102 +52,165 @@ public class BillingService {
     private final UsageRecordMapper usageRecordMapper;
     private final SnowflakeIdGenerator idGenerator;
     private final SystemSettingService systemSettingService;
+    private final SessionMapper sessionMapper;
+    private final ModelDefinitionMapper modelDefinitionMapper;
 
-    /**
-     * 派发预扣：按兜底资费卡 × 预估档位估算，余额不足抛 409，整单零副作用。
-     *
-     * @param userId 用户 ID
-     * @param turnId 轮次 ID（预扣单号）
-     * @throws BizException 余额不足（409）；用户不存在（404）
-     */
     @Transactional
-    public void preDeduct(long userId, String turnId) {
-        if (pointsHoldMapper.selectById(turnId) != null) {
-            return;  // 幂等：同一 turnId 重复派发不重复扣
+    public BigDecimal reserveRequest(ReserveModelRequest request) {
+        BigDecimal balance = lockBalance(request.userId());
+        PointsHold existing = pointsHoldMapper.selectById(request.requestId());
+        if (existing != null) {
+            if (!Objects.equals(existing.getUserId(), request.userId())
+                    || !Objects.equals(existing.getSessionId(), request.sessionId())
+                    || !Objects.equals(existing.getTurnId(), request.turnId())
+                    || !Objects.equals(existing.getModelId(), request.modelId())
+                    || !Objects.equals(existing.getAgentName(), request.agentName())
+                    || !Objects.equals(existing.getIsWake(), request.wake())) {
+                throw new BizException(409, "请求单号归属冲突");
+            }
+            if (!PointsHold.STATUS_HELD.equals(existing.getStatus())) {
+                throw new BizException(409, "模型请求已经收口，不可再次发起");
+            }
+            return existing.getAmount();
         }
-        BigDecimal amount = estimateAmount();
-        // 先扣款再建单：余额不足在这里直接抛出，hold/流水零副作用
-        BigDecimal after = applyDelta(userId, amount.negate(), false);
+        User user = userMapper.selectById(request.userId());
+        if (!User.STATUS_ACTIVE.equals(user.getStatus())) {
+            throw new BizException(403, "用户已停用");
+        }
+        Session session = sessionMapper.selectById(request.sessionId());
+        if (session == null || !Objects.equals(session.getUserId(), request.userId())
+                || !Session.STATUS_ACTIVE.equals(session.getStatus())) {
+            throw new BizException(404, "会话不存在");
+        }
+        ModelDefinition model = modelDefinitionMapper.selectById(request.modelId());
+        if (model == null || !Boolean.TRUE.equals(model.getEnabled())) {
+            throw new BizException(400, "模型不存在或未启用");
+        }
+        RateCard rate = findRate(request.modelId());
         PointsHold hold = new PointsHold();
-        hold.setTurnId(turnId);
-        hold.setUserId(userId);
+        hold.setRequestId(request.requestId());
+        hold.setUserId(request.userId());
+        hold.setTurnId(request.turnId());
+        hold.setSessionId(request.sessionId());
+        hold.setModelId(request.modelId());
+        hold.setAgentName(request.agentName());
+        hold.setIsWake(request.wake());
+        hold.setInputPoints(rate == null ? BigDecimal.ZERO : rate.getInputPoints());
+        hold.setCacheReadPoints(rate == null ? BigDecimal.ZERO : rate.getCacheReadPoints());
+        hold.setCacheWritePoints(rate == null ? BigDecimal.ZERO : rate.getCacheWritePoints());
+        hold.setOutputPoints(rate == null ? BigDecimal.ZERO : rate.getOutputPoints());
+        BigDecimal amount = costOf(hold,
+                systemSettingService.getLong(SystemSetting.KEY_BILLING_EST_INPUT_TOKENS, 10000L),
+                systemSettingService.getLong(SystemSetting.KEY_BILLING_EST_CACHE_READ_TOKENS, 90000L),
+                0L, systemSettingService.getLong(SystemSetting.KEY_BILLING_EST_OUTPUT_TOKENS, 20000L));
+        if (hold.getInputPoints().signum() > 0 || hold.getOutputPoints().signum() > 0
+                || hold.getCacheReadPoints().signum() > 0 || hold.getCacheWritePoints().signum() > 0) {
+            amount = amount.max(MIN_RESERVATION);
+        }
+        if (amount.signum() > 0 && balance.compareTo(amount) < 0) {
+            throw new BizException(409, "积分不足：当前 " + balance.stripTrailingZeros().toPlainString()
+                    + "，本次请求需冻结 " + amount.stripTrailingZeros().toPlainString());
+        }
         hold.setAmount(amount);
         hold.setStatus(PointsHold.STATUS_HELD);
         hold.setCreatedAt(LocalDateTime.now(ZoneOffset.UTC));
         pointsHoldMapper.insert(hold);
-        insertLedger(userId, amount.negate(), after, PointsLedger.TYPE_HOLD, turnId, null, null, null);
-        log.info("积分预扣: turnId={} userId={} amount={} 余额={}", turnId, userId, amount, after);
+        if (amount.signum() > 0) {
+            BigDecimal after = balance.subtract(amount);
+            userMapper.updateBalance(request.userId(), after);
+            insertLedger(request.userId(), amount.negate(), after, PointsLedger.TYPE_HOLD,
+                    request.requestId(), request.modelId(), null, null);
+        }
+        return amount;
     }
 
     @Transactional
-    public void recordUsageAndSettle(UsageRecord record) {
-        recordUsageAndSettle(List.of(record));
-    }
-
-    @Transactional
-    public void recordUsageAndSettle(List<UsageRecord> records) {
-        if (records.isEmpty()) {
-            return;
+    public String settleRequest(SettleModelRequest request) {
+        BigDecimal balance = lockBalance(request.userId());
+        PointsHold hold = pointsHoldMapper.selectById(request.requestId());
+        if (hold == null || !Objects.equals(hold.getUserId(), request.userId())) {
+            throw new BizException(404, "计费请求不存在");
         }
-        UsageRecord first = records.getFirst();
-        if (first.getTurnId() == null || first.getUserId() == null) {
-            throw new IllegalArgumentException("用量缺少轮次或用户 ID");
+        if (request.inputTokens() < 0 || request.cacheReadTokens() < 0
+                || request.cacheWriteTokens() < 0 || request.outputTokens() < 0
+                || request.cacheReadTokens() > request.inputTokens()
+                || request.cacheWriteTokens() > request.inputTokens() - request.cacheReadTokens()) {
+            throw new BizException(400, "Token 用量非法：缓存用量不能超过总输入");
         }
-        java.util.Set<String> modelIds = new java.util.HashSet<>();
-        for (UsageRecord record : records) {
-            if (!first.getTurnId().equals(record.getTurnId())
-                    || !first.getUserId().equals(record.getUserId())
-                    || !java.util.Objects.equals(first.getSessionId(), record.getSessionId())
-                    || record.getModelId() == null || record.getModelId().isBlank()
-                    || !modelIds.add(record.getModelId())) {
-                throw new IllegalArgumentException("模型用量分组非法");
+        UsageRecord previous = usageRecordMapper.selectOne(new LambdaQueryWrapper<UsageRecord>()
+                .eq(UsageRecord::getRequestId, request.requestId()));
+        if (previous != null && Boolean.TRUE.equals(previous.getUsageKnown())) {
+            if (!sameUsage(previous, request)) {
+                throw new BizException(409, "同一模型请求的结算数据不一致");
             }
+            return hold.getStatus();
         }
-        if (userMapper.selectBalanceForUpdate(first.getUserId()) == null) {
-            throw new BizException(404, "用户不存在");
+        if (previous != null && !request.usageKnown()) {
+            if (!sameUsage(previous, request)) {
+                throw new BizException(409, "同一模型请求的结算数据不一致");
+            }
+            return hold.getStatus();
         }
-        if (!usageRecordMapper.selectList(new LambdaQueryWrapper<UsageRecord>()
-                .eq(UsageRecord::getTurnId, first.getTurnId()).last("FOR UPDATE")).isEmpty()) {
-            return;
+        if (!List.of(PointsHold.STATUS_HELD, PointsHold.STATUS_UNKNOWN, PointsHold.STATUS_STALE)
+                .contains(hold.getStatus())) {
+            throw new BizException(409, "计费请求已经收口");
         }
-        BigDecimal cost = BigDecimal.ZERO;
-        for (UsageRecord record : records) {
+        UsageRecord record = previous == null ? new UsageRecord() : previous;
+        record.setRequestId(hold.getRequestId());
+        record.setTurnId(hold.getTurnId());
+        record.setSessionId(hold.getSessionId());
+        record.setUserId(hold.getUserId());
+        record.setModelId(hold.getModelId());
+        record.setAgentName(hold.getAgentName());
+        record.setIsWake(hold.getIsWake());
+        record.setRequests(1);
+        record.setInputTokens(request.inputTokens());
+        record.setCacheReadTokens(request.cacheReadTokens());
+        record.setCacheWriteTokens(request.cacheWriteTokens());
+        record.setOutputTokens(request.outputTokens());
+        record.setStatus(request.status());
+        record.setUsageKnown(request.usageKnown());
+        record.setCreatedAt(LocalDateTime.now(ZoneOffset.UTC));
+        if (request.usageKnown()) {
+            long uncached = request.inputTokens() - request.cacheReadTokens() - request.cacheWriteTokens();
+            BigDecimal cost = costOf(hold, uncached, request.cacheReadTokens(),
+                    request.cacheWriteTokens(), request.outputTokens());
+            record.setCostPoints(cost);
+            BigDecimal change = hold.getAmount().subtract(cost);
+            if (change.signum() != 0) {
+                BigDecimal after = balance.add(change);
+                userMapper.updateBalance(request.userId(), after);
+                insertLedger(request.userId(), change, after, PointsLedger.TYPE_SETTLE,
+                        request.requestId(), hold.getModelId(), null, null);
+            }
+            hold.setStatus(PointsHold.STATUS_SETTLED);
+            hold.setSettledAt(LocalDateTime.now(ZoneOffset.UTC));
+        } else {
+            hold.setStatus(PointsHold.STATUS_UNKNOWN);
+        }
+        pointsHoldMapper.updateById(hold);
+        if (previous == null) {
             usageRecordMapper.insert(record);
-            cost = cost.add(computeCost(record));
+        } else {
+            usageRecordMapper.updateById(record);
         }
-        settle(first, cost, records.size() == 1 ? first.getModelId() : null);
+        return hold.getStatus();
     }
 
-    /**
-     * 释放预扣并全额退回；无在途预扣时静默跳过。turnId 为 null（透传轮等）直接返回。
-     *
-     * @param turnId 轮次 ID
-     */
+    private static boolean sameUsage(UsageRecord record, SettleModelRequest request) {
+        return Objects.equals(record.getStatus(), request.status())
+                && Objects.equals(record.getUsageKnown(), request.usageKnown())
+                && Objects.equals(record.getInputTokens(), request.inputTokens())
+                && Objects.equals(record.getCacheReadTokens(), request.cacheReadTokens())
+                && Objects.equals(record.getCacheWriteTokens(), request.cacheWriteTokens())
+                && Objects.equals(record.getOutputTokens(), request.outputTokens());
+    }
+
     @Transactional
-    public void releaseHold(String turnId) {
-        if (turnId == null) {
-            return;
-        }
-        if (pointsHoldMapper.transition(turnId, PointsHold.STATUS_RELEASED) != 1) {
-            return;  // 不存在或已收口
-        }
-        PointsHold hold = pointsHoldMapper.selectById(turnId);
-        BigDecimal after = applyDelta(hold.getUserId(), hold.getAmount(), true);
-        insertLedger(hold.getUserId(), hold.getAmount(), after, PointsLedger.TYPE_RELEASE,
-                turnId, null, null, null);
-        log.info("预扣释放退回: turnId={} userId={} amount={} 余额={}",
-                turnId, hold.getUserId(), hold.getAmount(), after);
+    public void markStale(String requestId) {
+        pointsHoldMapper.markStale(requestId);
     }
 
-    /**
-     * 站长调账（充值/扣减）：写 ADJUST 流水，余额不许调成负。
-     *
-     * @param operatorId 操作人（站长）用户 ID
-     * @param targetId   目标用户 ID
-     * @param delta      变动额（正=充值，负=扣减，不能为 0）
-     * @param reason     事由
-     * @throws BizException 金额非法（400）；余额不足（409）
-     */
     @Transactional
     public void adjust(long operatorId, long targetId, BigDecimal delta, String reason) {
         if (delta == null || delta.signum() == 0) {
@@ -152,124 +219,37 @@ public class BillingService {
         BigDecimal after = applyDelta(targetId, delta, false);
         insertLedger(targetId, delta, after, PointsLedger.TYPE_ADJUST,
                 String.valueOf(idGenerator.nextId()), null, operatorId, reason);
-        log.info("积分调账: operator={} target={} delta={} 余额={} 事由={}",
-                operatorId, targetId, delta, after, reason);
     }
 
-    /**
-     * 当前余额（非加锁读，展示用）
-     *
-     * @param userId 用户 ID
-     * @return 积分余额
-     * @throws BizException 用户不存在（404）
-     */
     public BigDecimal balanceOf(long userId) {
-        com.spring.gateway.entity.User user = userMapper.selectById(userId);
+        User user = userMapper.selectById(userId);
         if (user == null) {
             throw new BizException(404, "用户不存在");
         }
         return user.getPointsBalance() == null ? BigDecimal.ZERO : user.getPointsBalance();
     }
 
-    /**
-     * 兑换码积分入账：写 REDEEM 流水（ref_id = 码 ID，(type, ref_id) 唯一作幂等锚）。
-     * 必须在调用方的事务内使用（与配额增量同一事务，同生共死）。
-     *
-     * @param userId 兑换人用户 ID
-     * @param points 入账积分（必须为正；零面值码由调用方跳过本方法）
-     * @param refId  码 ID（字符串）
-     * @return 入账后余额
-     */
     public BigDecimal grantRedeem(long userId, BigDecimal points, String refId) {
         BigDecimal after = applyDelta(userId, points, false);
         insertLedger(userId, points, after, PointsLedger.TYPE_REDEEM, refId, null, null, null);
-        log.info("兑换码入账: userId={} refId={} points={} 余额={}", userId, refId, points, after);
         return after;
     }
 
-    /**
-     * 用户的最近流水
-     *
-     * @param userId 用户 ID
-     * @param limit  条数上限
-     * @return 流水列表
-     */
     public List<PointsLedger> recentLedger(long userId, int limit) {
         return pointsLedgerMapper.selectList(new LambdaQueryWrapper<PointsLedger>()
-                .eq(PointsLedger::getUserId, userId)
-                .orderByDesc(PointsLedger::getId)
-                .last("LIMIT " + limit));
+                .eq(PointsLedger::getUserId, userId).orderByDesc(PointsLedger::getId).last("LIMIT " + limit));
     }
 
-    /** 结算：有在途预扣按净差多退少补；无预扣按实际成本直接扣。 */
-    private void settle(UsageRecord record, BigDecimal cost, String modelId) {
-        String turnId = record.getTurnId();
-        if (turnId != null && pointsHoldMapper.transition(turnId, PointsHold.STATUS_SETTLED) == 1) {
-            PointsHold hold = pointsHoldMapper.selectById(turnId);
-            BigDecimal delta = cost.subtract(hold.getAmount());  // 正=少补，负=多退
-            if (delta.signum() != 0) {
-                BigDecimal change = delta.negate();
-                BigDecimal after = applyDelta(hold.getUserId(), change, true);
-                insertLedger(hold.getUserId(), change, after, PointsLedger.TYPE_SETTLE,
-                        turnId, modelId, null, null);
-                log.info("预扣结算: turnId={} userId={} 预扣={} 实际={} 净差={} 余额={}",
-                        turnId, hold.getUserId(), hold.getAmount(), cost, delta, after);
-            } else {
-                log.info("预扣结算（实扣=预扣，无净差）: turnId={} amount={}", turnId, cost);
-            }
-        } else if (cost.signum() > 0) {
-            BigDecimal after = applyDelta(record.getUserId(), cost.negate(), true);
-            insertLedger(record.getUserId(), cost.negate(), after, PointsLedger.TYPE_DIRECT,
-                    turnId, modelId, null, null);
-            log.info("无预扣直接结算: turnId={} userId={} model={} 成本={} 余额={}",
-                    turnId, record.getUserId(), modelId, cost, after);
-        }
-    }
-
-    /** 实际成本：按 usage 的 modelId 精确匹配启用中的资费卡，否则回落兜底卡。 */
-    private BigDecimal computeCost(UsageRecord record) {
-        RateCard rate = findRate(record.getModelId());
-        if (rate == null) {
-            return BigDecimal.ZERO;
-        }
-        long cacheRead = record.getCacheReadTokens() == null ? 0L : record.getCacheReadTokens();
-        long cacheWrite = record.getCacheWriteTokens() == null ? 0L : record.getCacheWriteTokens();
-        long input = record.getInputTokens() == null ? 0L : record.getInputTokens();
-        long output = record.getOutputTokens() == null ? 0L : record.getOutputTokens();
-        // input_tokens 是 inclusive 桶：无缓存输入 = 总输入 - 缓存命中 - 缓存写入
-        long uncached = Math.max(0L, input - cacheRead - cacheWrite);
-        return costOf(rate, uncached, cacheRead, cacheWrite, output);
-    }
-
-    /** 预扣估算：兜底卡 × 系统设置的预估档位（缓存写入不预估，结算按实际计）。 */
-    private BigDecimal estimateAmount() {
-        RateCard rate = findRate(null);
-        if (rate == null) {
-            return BigDecimal.ZERO;
-        }
-        long estCacheRead = systemSettingService.getLong(
-                SystemSetting.KEY_BILLING_EST_CACHE_READ_TOKENS, 90000L);
-        long estInput = systemSettingService.getLong(
-                SystemSetting.KEY_BILLING_EST_INPUT_TOKENS, 10000L);
-        long estOutput = systemSettingService.getLong(
-                SystemSetting.KEY_BILLING_EST_OUTPUT_TOKENS, 20000L);
-        return costOf(rate, estInput, estCacheRead, 0L, estOutput);
-    }
-
-    /** 资费卡查找：精确匹配且启用 → 用之；否则兜底卡（停用/缺失 → null = 免费）。 */
     private RateCard findRate(String modelId) {
-        if (modelId != null && !RateCard.DEFAULT_MODEL_ID.equals(modelId)) {
-            RateCard row = rateCardMapper.selectById(modelId);
-            if (row != null && Boolean.TRUE.equals(row.getEnabled())) {
-                return row;
-            }
+        RateCard row = rateCardMapper.selectById(modelId);
+        if (row != null && Boolean.TRUE.equals(row.getEnabled())) {
+            return row;
         }
         RateCard fallback = rateCardMapper.selectById(RateCard.DEFAULT_MODEL_ID);
         return fallback != null && Boolean.TRUE.equals(fallback.getEnabled()) ? fallback : null;
     }
 
-    /** 成本 = Σ(费率 × tokens) / 1e6，六位小数。 */
-    private static BigDecimal costOf(RateCard rate, long uncached, long cacheRead,
+    private static BigDecimal costOf(PointsHold rate, long uncached, long cacheRead,
                                      long cacheWrite, long output) {
         BigDecimal total = rate.getInputPoints().multiply(BigDecimal.valueOf(uncached))
                 .add(rate.getCacheReadPoints().multiply(BigDecimal.valueOf(cacheRead)))
@@ -278,21 +258,20 @@ public class BillingService {
         return total.divide(MILLION, SCALE, RoundingMode.HALF_UP);
     }
 
-    /**
-     * 余额变动唯一收口：行锁读 → 算 → 负余额且不允许时抛 409 → 写回。
-     *
-     * @throws BizException 用户不存在（404）；余额不足（409）
-     */
-    private BigDecimal applyDelta(long userId, BigDecimal delta, boolean allowNegative) {
+    private BigDecimal lockBalance(long userId) {
         BigDecimal balance = userMapper.selectBalanceForUpdate(userId);
         if (balance == null) {
             throw new BizException(404, "用户不存在");
         }
+        return balance;
+    }
+
+    private BigDecimal applyDelta(long userId, BigDecimal delta, boolean allowNegative) {
+        BigDecimal balance = lockBalance(userId);
         BigDecimal after = balance.add(delta);
         if (!allowNegative && after.signum() < 0) {
-            throw new BizException(409, "积分不足：当前 "
-                    + balance.stripTrailingZeros().toPlainString() + "，本次需 "
-                    + delta.negate().stripTrailingZeros().toPlainString());
+            throw new BizException(409, "积分不足：当前 " + balance.stripTrailingZeros().toPlainString()
+                    + "，本次需 " + delta.negate().stripTrailingZeros().toPlainString());
         }
         userMapper.updateBalance(userId, after);
         return after;

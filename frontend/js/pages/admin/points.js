@@ -8,7 +8,7 @@ import { api } from "../../api/client.js";
 import { UI } from "../../components/ui.js";
 
 export const LEDGER_TYPE_LABELS = {
-  HOLD: "预扣",
+  HOLD: "冻结",
   SETTLE: "结算",
   RELEASE: "释放",
   DIRECT: "直扣",

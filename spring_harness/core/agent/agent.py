@@ -24,7 +24,7 @@ from spring_harness.core.agent import (
 from spring_harness.core.agent.deps import CodingAgentDeps
 from spring_harness.core.config.model import get_model, get_model_config, setting
 from spring_harness.core.config.settings import loop_control
-from spring_harness.core.hooks.model import hooks, usage_hooks
+from spring_harness.core.hooks.model import hooks, request_hooks
 from spring_harness.instructions.default import register_default_instructions
 from spring_harness.toolsets.ask_user import ask_user_toolset
 from spring_harness.toolsets.filesystem import filesystem
@@ -76,7 +76,7 @@ def create_agent(
         deps_type=CodingAgentDeps,
         capabilities=[
             hooks,
-            usage_hooks(model_id),
+            request_hooks(model_id),
             skills(),
             planning(session_id, on_change=plan_on_change),
             repo_context(root),

@@ -34,7 +34,7 @@ class TurnDispatchServiceUnitTests {
             OperationsCallback<?> callback = call.getArgument(0);
             return callback.doInRabbit(rabbit);
         }).when(rabbit).invoke(any(OperationsCallback.class));
-        TurnDispatchService service = new TurnDispatchService(rabbit, ids, billing);
+        TurnDispatchService service = new TurnDispatchService(rabbit, ids);
         assertEquals(42L, service.dispatch(7L, "session-1", "hello", "token-a"));
         service.cancel(7L, "session-1", "token-b");
         var payload = org.mockito.ArgumentCaptor.forClass(Map.class);
@@ -42,6 +42,6 @@ class TurnDispatchServiceUnitTests {
         assertEquals("token-a", payload.getValue().get("controlToken"));
         verify(rabbit).convertAndSend(eq(RabbitConfig.TURN_EXCHANGE), eq(RabbitConfig.QUEUE_CANCEL), payload.capture());
         assertEquals("token-b", payload.getValue().get("controlToken"));
-        verify(billing).preDeduct(7L, "42");
+        org.mockito.Mockito.verifyNoInteractions(billing);
     }
 }

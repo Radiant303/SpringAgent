@@ -27,9 +27,21 @@ public class PointsHold {
     /** 状态：已释放（全额退回）。 */
     public static final String STATUS_RELEASED = "RELEASED";
 
-    /** 轮次 ID（= dispatch 的雪花 turnId），主键。 */
+    public static final String STATUS_UNKNOWN = "UNKNOWN";
+    public static final String STATUS_STALE = "STALE";
+
     @TableId(type = IdType.INPUT)
+    private String requestId;
+
     private String turnId;
+    private String sessionId;
+    private String modelId;
+    private String agentName;
+    private Boolean isWake;
+    private BigDecimal inputPoints;
+    private BigDecimal cacheReadPoints;
+    private BigDecimal cacheWritePoints;
+    private BigDecimal outputPoints;
 
     /** 所属用户 ID。 */
     private Long userId;
@@ -37,7 +49,7 @@ public class PointsHold {
     /** 预扣额（积分，正数）。 */
     private BigDecimal amount;
 
-    /** 状态：HELD / SETTLED / RELEASED。 */
+    /** HELD / SETTLED / UNKNOWN / STALE / RELEASED。 */
     private String status;
 
     /** 创建时间（UTC）。 */

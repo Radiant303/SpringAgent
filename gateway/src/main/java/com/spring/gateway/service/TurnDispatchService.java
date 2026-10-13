@@ -31,24 +31,22 @@ public class TurnDispatchService {
 
     private final RabbitTemplate rabbitTemplate;
     private final SnowflakeIdGenerator idGenerator;
-    private final BillingService billingService;
 
     /**
-     * 派发一轮对话
+     * 派发一轮对话。
      *
-     * @param userId    用户 ID
+     * @param userId 用户 ID
      * @param sessionId 会话 ID
-     * @param input     用户输入
+     * @param input 用户输入
      * @param controlToken 会话控制令牌
-     * @return turnId（雪花 ID，消费端幂等键）
-     * @throws BizException 积分不足（409）；输入超长（400），调用方应直接应答用户而非回退
+     * @return 轮次 ID
+     * @throws BizException 输入超长（400）
      */
     public long dispatch(long userId, String sessionId, String input, String controlToken) {
         if (input != null && input.length() > MAX_INPUT_CHARS) {
             throw new BizException(400, "输入内容过长（最多 " + MAX_INPUT_CHARS + " 字符）");
         }
         long turnId = idGenerator.nextId();
-        billingService.preDeduct(userId, String.valueOf(turnId));
         Map<String, Object> message = new LinkedHashMap<>();
         message.put("turnId", turnId);
         message.put("sessionId", sessionId);
@@ -56,18 +54,7 @@ public class TurnDispatchService {
         message.put("controlToken", controlToken);
         message.put("input", input);
         message.put("enqueuedAt", Instant.now().toString());
-        try {
-            publish(RabbitConfig.QUEUE_DISPATCH, message);
-        } catch (Exception e) {
-            // 发布失败：补偿释放预扣（尽力而为），调用方按原路径回退透传
-            try {
-                billingService.releaseHold(String.valueOf(turnId));
-            } catch (Exception releaseError) {
-                log.error("预扣补偿释放失败（过期扫描兜底）: turnId={} error={}",
-                        turnId, releaseError.toString());
-            }
-            throw e;
-        }
+        publish(RabbitConfig.QUEUE_DISPATCH, message);
         return turnId;
     }
 

@@ -32,7 +32,7 @@ public interface UsageRecordMapper extends BaseMapper<UsageRecord> {
      */
     @Select("""
             SELECT CAST(u.id AS CHAR) AS userId, u.username AS username, r.model_id AS modelId,
-                   COUNT(*) AS turns, SUM(r.requests) AS requests,
+                   COUNT(DISTINCT r.turn_id) AS turns, SUM(r.requests) AS requests,
                    SUM(r.input_tokens) AS inputTokens,
                    SUM(r.cache_read_tokens) AS cacheReadTokens,
                    SUM(r.cache_write_tokens) AS cacheWriteTokens,

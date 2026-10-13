@@ -1,5 +1,6 @@
 import asyncio
 import time
+from pathlib import Path
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
@@ -43,6 +44,12 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
 
     # 进程级会话注册表 + Redis Stream 事件流（断线续传的前提）
     redis_client = aioredis.from_url(config.cloud.redis_url, decode_responses=True)
+    from spring_harness.cloud.billing import BillingClient, set_billing_client
+
+    billing = BillingClient(config.cloud.gateway_base_url, config.cloud.internal_token,
+                            Path(config.cloud.data_root).expanduser() / "billing-outbox.sqlite3")
+    await billing.start()
+    set_billing_client(billing)
     registry = CloudSessionRegistry(redis_client)
     set_registry(registry)
 
@@ -62,6 +69,9 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
         await dispatcher.stop()
         set_registry(None)
         await registry.close_all()
+        await billing.retry_pending()
+        set_billing_client(None)
+        await billing.close()
         await redis_client.aclose()
         catalog_cache.close()
 

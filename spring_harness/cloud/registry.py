@@ -235,7 +235,13 @@ class CloudSessionRegistry:
             if handle is not None:
                 return handle
             workspace.mkdir(parents=True, exist_ok=True)
-            session = await asyncio.to_thread(HarnessSession, workspace, store=store)
+            from spring_harness.cloud.billing import get_billing_client
+
+            billing = get_billing_client()
+            if billing is None:
+                raise RuntimeError("云端计费服务未初始化")
+            session = await asyncio.to_thread(HarnessSession, workspace, store=store,
+                                             billing_service=billing)
             handle = CloudSessionHandle(session, self._redis, work_id=work_id)
             self._handles[session_id] = handle
             logger.info("云端会话已注册: {}", session_id)

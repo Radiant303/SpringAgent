@@ -21,6 +21,7 @@ from pydantic_ai.messages import INTERRUPTED_TOOL_RETURN_CONTENT
 from spring_harness.core.agent.deps import CodingAgentDeps, RequestUsageEntry
 from spring_harness.core.approval import run_with_approval
 from spring_harness.core.background import format_notice
+from spring_harness.core.billing import BillingContext, BillingGateway
 from spring_harness.core.config.model import setting
 from spring_harness.core.history import HistoryDirection, HistoryPage
 from spring_harness.core.hooks.model import BACKGROUND_WAKE_SOURCE
@@ -106,6 +107,7 @@ class HarnessSession:
         store: SessionStore | None = None,
         deps: CodingAgentDeps | None = None,
         model_name: str | None = None,
+        billing_service: BillingGateway | None = None,
     ) -> None:
         self.workspace = Path(workspace).resolve()
         self._store = store or JsonlSessionStore.create(self.workspace)
@@ -114,6 +116,7 @@ class HarnessSession:
         self._agent = agent
         self._deps = deps or CodingAgentDeps.create_default(self.workspace)
         self._deps.model_id = model_name or "__default__"
+        self._billing_service = billing_service
         self._history: list[ModelMessage] = []
         self._history_loaded = store is None
         self._history_lock = asyncio.Lock()
@@ -153,6 +156,11 @@ class HarnessSession:
         messages: list[ModelMessage] | None = None
         allow_rewrite = False
         try:
+            if self._billing_service is not None:
+                if user_id is None or turn_id is None:
+                    raise RuntimeError("云端模型请求缺少计费归属")
+                self._deps.billing = BillingContext(self._billing_service, user_id,
+                                                    self.session_id, turn_id, wake)
             self._cancel_token = CancellationToken()
             if not self._history_loaded:
                 await self.query_history()

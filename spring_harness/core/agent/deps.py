@@ -3,6 +3,7 @@ from pathlib import Path
 
 from pydantic_ai import ModelMessage, RequestUsage
 
+from spring_harness.core.billing import BillingContext
 from spring_harness.core.background import BackgroundTaskManager
 from spring_harness.utils.monitor_file import DirectoryMonitor
 
@@ -20,6 +21,7 @@ class CodingAgentDeps:
     workspace: Path
     monitor: DirectoryMonitor
     model_id: str = "__default__"
+    billing: BillingContext | None = None
     last_messages: list[ModelMessage] = field(default_factory=list)
     usage_log: list[RequestUsageEntry] = field(default_factory=list)
     background: BackgroundTaskManager = field(default_factory=BackgroundTaskManager)

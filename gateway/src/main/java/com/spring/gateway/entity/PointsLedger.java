@@ -18,7 +18,7 @@ import java.time.LocalDateTime;
 @TableName("points_ledger")
 public class PointsLedger {
 
-    /** 类型：派发预扣。 */
+    /** 类型：模型请求冻结。 */
     public static final String TYPE_HOLD = "HOLD";
 
     /** 类型：结算净差（多退少补，可正可负）。 */
@@ -27,7 +27,7 @@ public class PointsLedger {
     /** 类型：预扣释放退回。 */
     public static final String TYPE_RELEASE = "RELEASE";
 
-    /** 类型：无预扣直接结算（wake 轮等绕过派发的路径）。 */
+    /** 历史直接扣费流水类型。 */
     public static final String TYPE_DIRECT = "DIRECT";
 
     /** 类型：站长调账。 */
@@ -52,7 +52,7 @@ public class PointsLedger {
     /** 类型：HOLD / SETTLE / RELEASE / DIRECT / ADJUST。 */
     private String type;
 
-    /** 关联单号：turn_id；ADJUST 时为调账操作单号（雪花）。 */
+    /** 计费请求单号、调账单号或兑换码 ID。 */
     private String refId;
 
     /** 结算时实际计费的模型配置 ID。 */

@@ -67,13 +67,16 @@ def _profile(native: bool = False) -> ModelProfile:
     )
 
 
+def _provider(provider_type: type[OpenAIProvider], **kwargs: Any) -> OpenAIProvider:
+    provider = provider_type(**kwargs)
+    return provider_type(openai_client=provider.client.with_options(max_retries=0))
+
+
 def _openai(model_name: str, provider_config: Any, model_config: Any) -> Model:
     return OpenAIChatModel(
         model_name,
-        provider=OpenAIProvider(
-            base_url=provider_config.base_url,
-            api_key=provider_config.api_key,
-        ),
+        provider=_provider(OpenAIProvider,
+                           base_url=provider_config.base_url, api_key=provider_config.api_key),
         profile=_profile(),
     )
 
@@ -81,10 +84,9 @@ def _openai(model_name: str, provider_config: Any, model_config: Any) -> Model:
 def _alibaba(model_name: str, provider_config: Any, model_config: Any) -> Model:
     return OpenAIChatModel(
         model_name,
-        provider=AlibabaProvider(
-            base_url=provider_config.base_url or "https://dashscope.aliyuncs.com/compatible-mode/v1",
-            api_key=provider_config.api_key,
-        ),
+        provider=_provider(AlibabaProvider,
+                           base_url=provider_config.base_url or "https://dashscope.aliyuncs.com/compatible-mode/v1",
+                           api_key=provider_config.api_key),
         profile=_profile(native=True),
     )
 
@@ -92,9 +94,7 @@ def _alibaba(model_name: str, provider_config: Any, model_config: Any) -> Model:
 def _deepseek(model_name: str, provider_config: Any, model_config: Any) -> Model:
     return OpenAIChatModel(
         model_name,
-        provider=DeepSeekProvider(
-            api_key=provider_config.api_key,
-        ),
+        provider=_provider(DeepSeekProvider, api_key=provider_config.api_key),
         profile=_profile(),
     )
 
@@ -102,10 +102,8 @@ def _deepseek(model_name: str, provider_config: Any, model_config: Any) -> Model
 def _responses(model_name: str, provider_config: Any, model_config: Any) -> Model:
     return OpenAIResponsesModel(
         model_name,
-        provider=OpenAIProvider(
-            base_url=provider_config.base_url,
-            api_key=provider_config.api_key,
-        ),
+        provider=_provider(OpenAIProvider,
+                           base_url=provider_config.base_url, api_key=provider_config.api_key),
         profile=_profile(),
     )
 

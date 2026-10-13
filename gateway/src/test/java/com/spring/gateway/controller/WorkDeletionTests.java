@@ -120,21 +120,50 @@ class WorkDeletionTests {
         return new Fixture(user, work, session, message);
     }
 
-    private UsageRecord usage(Fixture f, String turnId) {
-        UsageRecord row = new UsageRecord();
-        row.setTurnId(turnId);
-        row.setSessionId(f.session().getId());
-        row.setUserId(f.user().getId());
-        row.setModelId("test/deleted-work-model");
-        row.setRequests(1);
-        row.setInputTokens(1000L);
-        row.setCacheReadTokens(0L);
-        row.setCacheWriteTokens(0L);
-        row.setOutputTokens(100L);
-        row.setStatus(UsageRecord.STATUS_FINISHED);
-        row.setIsWake(false);
-        row.setCreatedAt(LocalDateTime.now(ZoneOffset.UTC));
-        return row;
+    @Autowired private com.spring.gateway.mapper.ModelProviderMapper providerMapper;
+    @Autowired private com.spring.gateway.mapper.ModelDefinitionMapper modelMapper;
+    @Autowired private com.spring.gateway.mapper.RateCardMapper rateMapper;
+
+    private com.spring.gateway.dto.ReserveModelRequest reserve(Fixture f) {
+        var provider = new com.spring.gateway.entity.ModelProvider();
+        provider.setName("t_" + UUID.randomUUID().toString().substring(0, 8));
+        provider.setType("openai");
+        provider.setApiKey("test-only");
+        providerMapper.insert(provider);
+        var model = new com.spring.gateway.entity.ModelDefinition();
+        model.setId(provider.getName() + "/test");
+        model.setProvider(provider.getName());
+        model.setModel("test");
+        model.setDisplayName("测试模型");
+        model.setMaxContextSize(10000L);
+        model.setMaxOutputSize(1000L);
+        model.setEnabled(true);
+        modelMapper.insert(model);
+        var rate = new com.spring.gateway.entity.RateCard();
+        rate.setModelId(model.getId());
+        rate.setInputPoints(BigDecimal.TEN);
+        rate.setCacheReadPoints(BigDecimal.ONE);
+        rate.setCacheWritePoints(BigDecimal.TEN);
+        rate.setOutputPoints(new BigDecimal("30"));
+        rate.setEnabled(true);
+        rate.setCreatedAt(LocalDateTime.now(ZoneOffset.UTC));
+        rate.setUpdatedAt(LocalDateTime.now(ZoneOffset.UTC));
+        rateMapper.insert(rate);
+        var request = new com.spring.gateway.dto.ReserveModelRequest(
+                UUID.randomUUID().toString().replace("-", ""), f.user().getId(),
+                String.valueOf(idGenerator.nextId()), f.session().getId(), model.getId(), "main", false);
+        billingService.reserveRequest(request);
+        return request;
+    }
+
+    private com.spring.gateway.dto.SettleModelRequest usage(com.spring.gateway.dto.ReserveModelRequest request) {
+        return new com.spring.gateway.dto.SettleModelRequest(request.requestId(), request.userId(),
+                "finished", true, 1000L, 0L, 0L, 100L);
+    }
+
+    private UsageRecord record(String requestId) {
+        return usageRecordMapper.selectOne(new LambdaQueryWrapper<UsageRecord>()
+                .eq(UsageRecord::getRequestId, requestId));
     }
 
     private String bearer(User user) {
@@ -149,8 +178,12 @@ class WorkDeletionTests {
     @Test
     void deletesContentButPreservesBillingAndAcceptsLateUsage() throws Exception {
         Fixture f = fixture();
-        UsageRecord original = usage(f, String.valueOf(idGenerator.nextId()));
-        billingService.recordUsageAndSettle(original);
+        var originalRequest = reserve(f);
+        var originalUsage = usage(originalRequest);
+        billingService.settleRequest(originalUsage);
+        UsageRecord original = record(originalRequest.requestId());
+        var lateRequest = reserve(f);
+        var lateUsage = usage(lateRequest);
         BigDecimal balanceBefore = userMapper.selectById(f.user().getId()).getPointsBalance();
         long ledgerBefore = ledgerCount(f.user());
         when(engineClient.activeSessionsInWork(f.work().getId())).thenReturn(0);
@@ -171,14 +204,13 @@ class WorkDeletionTests {
         assertEquals(balanceBefore, userMapper.selectById(f.user().getId()).getPointsBalance());
         assertEquals(ledgerBefore, ledgerCount(f.user()));
 
-        billingService.recordUsageAndSettle(original);
+        billingService.settleRequest(originalUsage);
         assertEquals(balanceBefore, userMapper.selectById(f.user().getId()).getPointsBalance());
-        UsageRecord late = usage(f, String.valueOf(idGenerator.nextId()));
-        billingService.recordUsageAndSettle(late);
-        assertNotNull(usageRecordMapper.selectById(late.getId()));
+        billingService.settleRequest(lateUsage);
+        assertNotNull(record(lateRequest.requestId()));
         assertEquals(ledgerBefore + 1, ledgerCount(f.user()));
         BigDecimal settled = userMapper.selectById(f.user().getId()).getPointsBalance();
-        billingService.recordUsageAndSettle(late);
+        billingService.settleRequest(lateUsage);
         assertEquals(settled, userMapper.selectById(f.user().getId()).getPointsBalance());
         assertEquals(ledgerBefore + 1, ledgerCount(f.user()));
         mockMvc.perform(get("/api/works")

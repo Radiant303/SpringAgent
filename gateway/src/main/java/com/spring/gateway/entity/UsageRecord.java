@@ -30,6 +30,11 @@ public class UsageRecord {
     @TableId(type = IdType.AUTO)
     private Long id;
 
+    private String requestId;
+    private String agentName;
+    private Boolean usageKnown;
+    private java.math.BigDecimal costPoints;
+
     /** 雪花 ID，或催醒轮本地生成的 wake-xxx。 */
     private String turnId;
 
@@ -42,7 +47,7 @@ public class UsageRecord {
     /** 模型配置 ID。 */
     private String modelId;
 
-    /** 本轮模型请求次数。 */
+    /** 模型请求次数。 */
     private Integer requests;
 
     /** 总输入 tokens（含缓存命中与缓存写入）。 */

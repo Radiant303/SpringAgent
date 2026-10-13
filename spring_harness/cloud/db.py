@@ -136,18 +136,21 @@ class MessageRow(Base):
 
 
 class UsageRecordRow(Base):
-    """一轮对话的模型用量记录。"""
+    """单次模型请求用量。"""
 
     __tablename__ = "usage_records"
     __table_args__ = (
         Index("ix_usage_user_time", "user_id", "created_at"),
         Index("ix_usage_session", "session_id"),
-        UniqueConstraint("turn_id", "model_id", name="uq_usage_turn_model"),
+        UniqueConstraint("request_id", name="uq_usage_request"),
     )
 
     id: Mapped[int] = mapped_column(_BigInt, primary_key=True, autoincrement=True)
-    # 雪花 ID 或 wake-xxx（催醒轮本地生成）
-    turn_id: Mapped[str] = mapped_column(String(32), nullable=False)
+    request_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    agent_name: Mapped[str] = mapped_column(String(32), nullable=False, default="legacy")
+    usage_known: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    cost_points: Mapped[Decimal | None] = mapped_column(DECIMAL(20, 6), nullable=True)
+    turn_id: Mapped[str] = mapped_column(String(64), nullable=False)
     session_id: Mapped[str] = mapped_column(CHAR(36), nullable=False)
     user_id: Mapped[int] = mapped_column(_BigInt, ForeignKey("users.id"), nullable=False)
     model_id: Mapped[str] = mapped_column(String(256), nullable=False)
@@ -184,12 +187,21 @@ class ModelRateRow(Base):
 
 
 class PointsHoldRow(Base):
-    """积分预扣：turn 派发时建立，结算（SETTLED）/释放（RELEASED）二选一收口。"""
+    """模型请求积分冻结单。"""
 
     __tablename__ = "points_holds"
     __table_args__ = (Index("ix_holds_status_created", "status", "created_at"),)
 
-    turn_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    request_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    turn_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    session_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    model_id: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    agent_name: Mapped[str] = mapped_column(String(32), nullable=False, default="legacy")
+    is_wake: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    input_points: Mapped[Decimal] = mapped_column(DECIMAL(20, 6), nullable=False, default=0)
+    cache_read_points: Mapped[Decimal] = mapped_column(DECIMAL(20, 6), nullable=False, default=0)
+    cache_write_points: Mapped[Decimal] = mapped_column(DECIMAL(20, 6), nullable=False, default=0)
+    output_points: Mapped[Decimal] = mapped_column(DECIMAL(20, 6), nullable=False, default=0)
     user_id: Mapped[int] = mapped_column(_BigInt, ForeignKey("users.id"), nullable=False)
     amount: Mapped[Decimal] = mapped_column(DECIMAL(20, 6), nullable=False)
     status: Mapped[str] = mapped_column(String(16), nullable=False, default="HELD")

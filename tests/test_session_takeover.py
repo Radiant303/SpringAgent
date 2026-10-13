@@ -190,7 +190,8 @@ def test_registry_constructs_single_runtime_under_concurrency(tmp_path):
         fake = SimpleNamespace(session_id="session-1")
         store = Mock()
         with patch("spring_harness.cloud.registry.HarnessSession", return_value=fake) as factory, \
-                patch("spring_harness.cloud.registry.CloudSessionHandle", return_value=handle()):
+                patch("spring_harness.cloud.registry.CloudSessionHandle", return_value=handle()), \
+                patch("spring_harness.cloud.billing.get_billing_client", return_value=Mock()):
             handles = await asyncio.gather(*[
                 registry.get_or_create("session-1", workspace=tmp_path, store=store) for _ in range(5)
             ])

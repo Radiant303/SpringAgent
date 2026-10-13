@@ -5,13 +5,12 @@ from pydantic_ai import (
     AgentRunResult,
     ModelRequest,
     ModelRequestContext,
-    ModelResponse,
     RunContext,
     UserPromptPart,
 )
 from pydantic_ai.capabilities import Hooks
 
-from spring_harness.core.agent.deps import CodingAgentDeps, RequestUsageEntry
+from spring_harness.core.agent.deps import CodingAgentDeps
 
 hooks = Hooks()
 
@@ -61,19 +60,23 @@ async def stop_monitor(
     ctx.deps.last_messages = list(request_context.messages)
     return request_context
 
-def usage_hooks(model_id: str | None = None) -> Hooks:
-    hooks = Hooks()
+def request_hooks(model_id: str | None = None, *, agent_name: str = "main") -> Hooks:
+    from spring_harness.core.hooks.billing import RequestBillingModel
 
-    @hooks.on.after_model_request
-    async def log_request_usage(
-        ctx: RunContext[CodingAgentDeps],
-        *,
-        request_context: ModelRequestContext,
-        response: ModelResponse,
-    ) -> ModelResponse:
-        ctx.deps.usage_log.append(
-            RequestUsageEntry(model_id=model_id or ctx.deps.model_id, usage=response.usage)
+    request_hooks = Hooks()
+
+    @request_hooks.on.before_model_request
+    async def prepare_billing(
+        ctx: RunContext[CodingAgentDeps], request_context: ModelRequestContext,
+    ) -> ModelRequestContext:
+        if ctx.deps.billing is not None and (request_context.model_settings or {}).get("openai_background"):
+            from spring_harness.core.billing import BillingError
+
+            raise BillingError("请求级计费不支持提供商后台轮询模式，请使用普通流式请求")
+        request_context.model = RequestBillingModel(
+            request_context.model, model_id=model_id or ctx.deps.model_id,
+            agent_name=agent_name, usage_log=ctx.deps.usage_log, billing=ctx.deps.billing,
         )
-        return response
+        return request_context
 
-    return hooks
+    return request_hooks
