@@ -16,6 +16,7 @@ import {
   foldTurnGroups,
   updateLatestPet,
   maybeScroll,
+  discardEmptyTurn,
 } from "./state.js";
 import {
   parseArgs,
@@ -287,12 +288,7 @@ export function finishTurn(event) {
   foldTurnGroups();
   state.assistant = null;
   state.tools.clear();
-  if (state.currentTurn && state.currentTurn.content.children.length === 0) {
-    if (typeof SproutManager !== "undefined" && state.currentTurn.pet && SproutManager?.unregister) {
-      SproutManager.unregister(state.currentTurn.pet);
-    }
-    state.currentTurn.el.remove();
-  }
+  discardEmptyTurn();
   state.currentTurn = null;
   updateLatestPet();
   if (event.cancelled && !event.wake) addSystem("已中断，可继续输入");

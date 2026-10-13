@@ -2,9 +2,9 @@
  * 输入框交互、模型切换与布局联动
  */
 
-import { $, el, icon, scrollToBottom, showPending, hidePending } from "../../utils/dom.js";
+import { $, el, icon, scrollToBottom, showPending } from "../../utils/dom.js";
 import { rpc } from "../../api/rpc.js";
-import { state, resetFlow, setStickToBottom, maybeScroll } from "./state.js";
+import { state, resetFlow, setStickToBottom, maybeScroll, ensureTurn, discardEmptyTurn } from "./state.js";
 import { userNode, addSystem } from "./chatView.js";
 import { subscribeStream, refreshSessionList } from "./sessions.js";
 
@@ -39,7 +39,8 @@ export async function send() {
   resetFlow();
   const box = $("messages");
   if (box) box.appendChild(userNode(text));
-  showPending();
+  const turn = ensureTurn();
+  showPending(turn.content);
   setStickToBottom(true);
   scrollToBottom();
   input.value = "";
@@ -55,7 +56,7 @@ export async function send() {
     }
     await rpc.request("turn/start", { sessionId: state.sessionId, input: text });
   } catch (e) {
-    hidePending();
+    discardEmptyTurn();
     state.busy = false;
     updateInputState();
     addSystem("❌ " + e.message, true);

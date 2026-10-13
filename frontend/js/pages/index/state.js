@@ -2,7 +2,7 @@
  * 聊天页面全局状态与回合容器管理
  */
 
-import { $, el, scrollToBottom, markScrolling } from "../../utils/dom.js";
+import { $, el, scrollToBottom, markScrolling, hidePending } from "../../utils/dom.js";
 import { SproutManager } from "../../components/sprout.js";
 import { workGroupNode, refreshWorkSummary, answerNode } from "./chatView.js";
 
@@ -144,6 +144,20 @@ export function ensureTurn() {
   state.currentTurn = turn;
   updateLatestPet();
   return turn;
+}
+
+export function discardEmptyTurn() {
+  if (!state.currentTurn) return;
+  const children = state.currentTurn.content.children;
+  if (children.length === 0 || (children.length === 1 && children[0].id === "pending-indicator")) {
+    hidePending();
+    if (typeof SproutManager !== "undefined" && state.currentTurn.pet && SproutManager?.unregister) {
+      SproutManager.unregister(state.currentTurn.pet);
+    }
+    state.currentTurn.el.remove();
+    state.currentTurn = null;
+    updateLatestPet();
+  }
 }
 
 /* ================= 流程重置与渐进展开 ================= */

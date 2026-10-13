@@ -85,6 +85,7 @@
 
 .turn-content > .pending-indicator {
   margin-top: 6px;
+  line-height: 24px;
   align-self: flex-start;
 }
 
@@ -96,5 +97,8 @@
   .sprout-pet {
     width: 32px;
     height: 32px;
+  }
+  .turn-content > .pending-indicator {
+    margin-top: 4px;
   }
 }
