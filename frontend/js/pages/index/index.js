@@ -250,9 +250,7 @@ export function bind() {
 
   if ($("scroll-bottom")) {
     $("scroll-bottom").onclick = () => {
-      setStickToBottom(true);
       smoothScrollToBottom();
-      updateStick();
     };
   }
 

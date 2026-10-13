@@ -1479,18 +1479,54 @@ pre.tool-result.error { background: var(--diff-del-bg, rgba(192, 57, 43, 0.07));
   position: absolute;
   bottom: var(--scroll-b, 140px);
   left: 50%;
-  transform: translateX(-50%);
+  transform: translateX(-50%) translateY(0);
   z-index: 5;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  white-space: nowrap;
   border-radius: 999px;
-  padding: 6px 16px;
+  padding: 6px 14px 6px 12px;
   background: var(--panel, #ffffff);
   border: 1px solid var(--border, rgba(0, 0, 0, 0.08));
   box-shadow: var(--shadow, 0 4px 20px rgba(0, 0, 0, 0.08));
   color: var(--text-dim, rgba(0, 0, 0, 0.6));
   font-size: var(--fs-sm, 16px);
+  line-height: 20px;
   cursor: pointer;
+  user-select: none;
+  opacity: 1;
+  pointer-events: auto;
+  will-change: transform, opacity;
+  backface-visibility: hidden;
+  transition:
+    opacity 0.2s cubic-bezier(0.16, 1, 0.3, 1),
+    transform 0.2s cubic-bezier(0.16, 1, 0.3, 1),
+    color 0.15s ease,
+    box-shadow 0.15s ease;
 }
-#scroll-bottom:hover { color: var(--text, rgba(0, 0, 0, 0.9)); }
+#scroll-bottom:hover {
+  color: var(--text, rgba(0, 0, 0, 0.9));
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.12);
+}
+#scroll-bottom.hidden {
+  display: inline-flex !important;
+  opacity: 0;
+  transform: translateX(-50%) translateY(8px);
+  pointer-events: none;
+  visibility: hidden;
+  transition:
+    opacity 0.18s cubic-bezier(0.16, 1, 0.3, 1),
+    transform 0.18s cubic-bezier(0.16, 1, 0.3, 1),
+    visibility 0s linear 0.18s;
+}
+#scroll-bottom .sb-arrow {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  display: block;
+}
 
 /* ---- Agent 提问卡 ---- */
 #question-card {

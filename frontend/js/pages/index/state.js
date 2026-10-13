@@ -72,6 +72,9 @@ export function maybeScroll(layoutOnly = false) {
 export function smoothScrollToBottom() {
   const box = $("messages");
   if (!box) return;
+  stickToBottom = true;
+  hasNewBelow = false;
+  syncScrollBtn();
   const start = box.scrollTop;
   const delta = box.scrollHeight - box.clientHeight - start;
   if (delta <= 0) return;
