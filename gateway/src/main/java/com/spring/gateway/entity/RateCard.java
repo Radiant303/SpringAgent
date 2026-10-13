@@ -1,6 +1,5 @@
 package com.spring.gateway.entity;
 
-import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.Data;
@@ -18,15 +17,11 @@ import java.time.LocalDateTime;
 @TableName("models")
 public class RateCard {
 
-    /** 兜底资费卡的 model_name。 */
-    public static final String DEFAULT_MODEL_NAME = "default";
+    /** 兜底资费卡的模型配置 ID。 */
+    public static final String DEFAULT_MODEL_ID = "__default__";
 
-    /** 主键，雪花 ID。 */
-    @TableId(type = IdType.INPUT)
-    private Long id;
-
-    /** 模型名（与 usage_records.model_name 精确匹配），唯一。 */
-    private String modelName;
+    @TableId
+    private String modelId;
 
     /** 无缓存输入费率（积分/百万 tokens）。 */
     private BigDecimal inputPoints;

@@ -22,9 +22,9 @@ from spring_harness.core.agent import (
     shell_patch as _shell_patch,  # noqa: F401  # Windows 杀进程补丁，导入即生效
 )
 from spring_harness.core.agent.deps import CodingAgentDeps
-from spring_harness.core.config.model import get_model, get_model_config
+from spring_harness.core.config.model import get_model, get_model_config, setting
 from spring_harness.core.config.settings import loop_control
-from spring_harness.core.hooks.model import hooks
+from spring_harness.core.hooks.model import hooks, usage_hooks
 from spring_harness.instructions.default import register_default_instructions
 from spring_harness.toolsets.ask_user import ask_user_toolset
 from spring_harness.toolsets.filesystem import filesystem
@@ -58,8 +58,9 @@ def create_agent(
     创建 Spring Harness Agent
     """
     root = Path(root_dir).expanduser().resolve()
-    model = get_model(model_name)
-    model_config = get_model_config(model_name)
+    model_id = model_name or setting.default_model()
+    model = get_model(model_id)
+    model_config = get_model_config(model_id)
     agent = SpringAgent(
         model=model,
         toolsets=[
@@ -75,11 +76,12 @@ def create_agent(
         deps_type=CodingAgentDeps,
         capabilities=[
             hooks,
+            usage_hooks(model_id),
             skills(),
             planning(session_id, on_change=plan_on_change),
             repo_context(root),
             code_mode(root),
-            subagents(str(root)),
+            subagents(str(root), model_id),
             background(extra_tools=("run_command", "edit_knowledge")),
             NotifyingCompaction(
                 max_fraction=0.8,

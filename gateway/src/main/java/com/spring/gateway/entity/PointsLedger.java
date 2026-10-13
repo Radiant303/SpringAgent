@@ -55,8 +55,8 @@ public class PointsLedger {
     /** 关联单号：turn_id；ADJUST 时为调账操作单号（雪花）。 */
     private String refId;
 
-    /** 结算时实际计费的模型名。 */
-    private String modelName;
+    /** 结算时实际计费的模型配置 ID。 */
+    private String modelId;
 
     /** ADJUST 的操作人用户 ID。 */
     private Long operatorId;

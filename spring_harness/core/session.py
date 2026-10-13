@@ -21,6 +21,7 @@ from pydantic_ai.messages import INTERRUPTED_TOOL_RETURN_CONTENT
 from spring_harness.core.agent.deps import CodingAgentDeps, RequestUsageEntry
 from spring_harness.core.approval import run_with_approval
 from spring_harness.core.background import format_notice
+from spring_harness.core.config.model import setting
 from spring_harness.core.history import HistoryDirection, HistoryPage
 from spring_harness.core.hooks.model import BACKGROUND_WAKE_SOURCE
 from spring_harness.core.log import logger
@@ -31,6 +32,7 @@ from spring_harness.core.stream.emit import EventEmitter, PendingRequests
 from spring_harness.core.stream.events import (
     BackgroundNotification,
     CompactionNotice,
+    ModelUsage,
     PlanUpdated,
     ServerEvent,
     TeachingUpdated,
@@ -45,15 +47,21 @@ BACKGROUND_WAKE_PROMPT = (
 
 
 def _sum_usage(entries: list[RequestUsageEntry]) -> TurnUsage:
-    """汇总一轮内的模型请求用量；model_name 取最后一次非空请求的模型。"""
+    """汇总一轮内的模型请求用量。"""
+    grouped: dict[str, ModelUsage] = {}
     total = TurnUsage(requests=len(entries))
     for entry in entries:
-        if entry.model_name:
-            total.model_name = entry.model_name
+        group = grouped.setdefault(entry.model_id, ModelUsage(model_id=entry.model_id))
+        group.requests += 1
+        group.input_tokens += entry.usage.input_tokens
+        group.cache_read_tokens += entry.usage.cache_read_tokens
+        group.cache_write_tokens += entry.usage.cache_write_tokens
+        group.output_tokens += entry.usage.output_tokens
         total.input_tokens += entry.usage.input_tokens
         total.cache_read_tokens += entry.usage.cache_read_tokens
         total.cache_write_tokens += entry.usage.cache_write_tokens
         total.output_tokens += entry.usage.output_tokens
+    total.usages = list(grouped.values())
     return total
 
 
@@ -105,6 +113,7 @@ class HarnessSession:
         self._model_name = model_name
         self._agent = agent
         self._deps = deps or CodingAgentDeps.create_default(self.workspace)
+        self._deps.model_id = model_name or "__default__"
         self._history: list[ModelMessage] = []
         self._history_loaded = store is None
         self._history_lock = asyncio.Lock()
@@ -339,6 +348,7 @@ class HarnessSession:
         return self._agent
 
     def _build_agent(self, create_agent: Any) -> Agent[Any, Any]:
+        self._deps.model_id = self._model_name or setting.default_model()
         return create_agent(
             self.workspace,
             model_name=self._model_name,

@@ -79,7 +79,7 @@ public class AdminPointsController {
                 row.getBalanceAfter(),
                 row.getType(),
                 row.getRefId(),
-                row.getModelName(),
+                row.getModelId(),
                 row.getOperatorId() == null ? null : String.valueOf(row.getOperatorId()),
                 row.getReason(),
                 TimeFormat.isoUtc(row.getCreatedAt()));

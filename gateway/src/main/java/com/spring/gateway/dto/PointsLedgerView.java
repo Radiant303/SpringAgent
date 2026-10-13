@@ -15,7 +15,7 @@ import java.math.BigDecimal;
  * @param balanceAfter 变动后余额
  * @param type         类型（HOLD/SETTLE/RELEASE/DIRECT/ADJUST）
  * @param refId        关联单号（turn_id 或调账单号）
- * @param modelName    结算时实际模型
+ * @param modelId    结算时实际模型
  * @param operatorId   ADJUST 操作人 ID（字符串）
  * @param reason       ADJUST 事由
  * @param createdAt    记录时间（ISO UTC）
@@ -27,7 +27,7 @@ public record PointsLedgerView(
         @JsonProperty("balance_after") BigDecimal balanceAfter,
         String type,
         @JsonProperty("ref_id") String refId,
-        @JsonProperty("model_name") String modelName,
+        @JsonProperty("model_id") String modelId,
         @JsonProperty("operator_id") String operatorId,
         String reason,
         @JsonProperty("created_at") String createdAt

@@ -61,12 +61,19 @@ async def stop_monitor(
     ctx.deps.last_messages = list(request_context.messages)
     return request_context
 
-@hooks.on.after_model_request
-async def log_request_usage(
-    ctx: RunContext[CodingAgentDeps],
-    *,
-    request_context: ModelRequestContext,
-    response: ModelResponse,
-) -> ModelResponse:
-    ctx.deps.usage_log.append(RequestUsageEntry(model_name=response.model_name, usage=response.usage))
-    return response
+def usage_hooks(model_id: str | None = None) -> Hooks:
+    hooks = Hooks()
+
+    @hooks.on.after_model_request
+    async def log_request_usage(
+        ctx: RunContext[CodingAgentDeps],
+        *,
+        request_context: ModelRequestContext,
+        response: ModelResponse,
+    ) -> ModelResponse:
+        ctx.deps.usage_log.append(
+            RequestUsageEntry(model_id=model_id or ctx.deps.model_id, usage=response.usage)
+        )
+        return response
+
+    return hooks

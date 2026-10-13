@@ -33,18 +33,18 @@ STREAM_TTL_SECONDS = 3600
 STREAM_TTL_AFTER_FINISH = 600
 
 
-def _usage_payload(usage: TurnUsage | None) -> dict | None:
-    """TurnUsage 转 lifecycle 消息里的用量块。"""
+def _usage_payload(usage: TurnUsage | None) -> list[dict]:
+    """模型分组的生命周期用量。"""
     if usage is None:
-        return None
-    return {
-        "modelName": usage.model_name,
-        "requests": usage.requests,
-        "inputTokens": usage.input_tokens,
-        "cacheReadTokens": usage.cache_read_tokens,
-        "cacheWriteTokens": usage.cache_write_tokens,
-        "outputTokens": usage.output_tokens,
-    }
+        return []
+    return [{
+        "modelId": group.model_id,
+        "requests": group.requests,
+        "inputTokens": group.input_tokens,
+        "cacheReadTokens": group.cache_read_tokens,
+        "cacheWriteTokens": group.cache_write_tokens,
+        "outputTokens": group.output_tokens,
+    } for group in usage.usages]
 
 
 class CloudSessionHandle:

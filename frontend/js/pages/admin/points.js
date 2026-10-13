@@ -76,7 +76,7 @@ export async function loadMyPoints() {
     }
     for (const r of rows) {
       const change = Number(r.change_amount);
-      const meta = [fmtDT(r.created_at), r.model_name, r.reason].filter(Boolean).join(" · ");
+      const meta = [fmtDT(r.created_at), r.model_id, r.reason].filter(Boolean).join(" · ");
       const div = document.createElement("div");
       div.className = "ledger-row";
       div.innerHTML = `

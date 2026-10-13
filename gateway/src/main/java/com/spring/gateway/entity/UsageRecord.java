@@ -30,7 +30,7 @@ public class UsageRecord {
     @TableId(type = IdType.AUTO)
     private Long id;
 
-    /** 轮次 ID（雪花 ID，或催醒轮本地生成的 wake-xxx），全局唯一。 */
+    /** 雪花 ID，或催醒轮本地生成的 wake-xxx。 */
     private String turnId;
 
     /** 所属会话 ID。 */
@@ -39,8 +39,8 @@ public class UsageRecord {
     /** 所属用户 ID。 */
     private Long userId;
 
-    /** 本轮最后一次模型请求的模型名；纯错误轮可能为 null。 */
-    private String modelName;
+    /** 模型配置 ID。 */
+    private String modelId;
 
     /** 本轮模型请求次数。 */
     private Integer requests;

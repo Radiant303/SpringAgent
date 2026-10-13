@@ -27,11 +27,11 @@ public interface UsageRecordMapper extends BaseMapper<UsageRecord> {
      * @param userId 只看该用户；null 为全部
      * @param from   起始时间（含），如 2026-10-01 或 2026-10-01 08:00:00；null 不限
      * @param to     截止时间（不含），格式同上；null 不限
-     * @return 分页结果，每行含 userId/username/modelName/turns/requests/inputTokens/
+     * @return 分页结果，每行含 userId/username/modelId/turns/requests/inputTokens/
      *         cacheReadTokens/cacheWriteTokens/outputTokens
      */
     @Select("""
-            SELECT CAST(u.id AS CHAR) AS userId, u.username AS username, r.model_name AS modelName,
+            SELECT CAST(u.id AS CHAR) AS userId, u.username AS username, r.model_id AS modelId,
                    COUNT(*) AS turns, SUM(r.requests) AS requests,
                    SUM(r.input_tokens) AS inputTokens,
                    SUM(r.cache_read_tokens) AS cacheReadTokens,
@@ -41,7 +41,7 @@ public interface UsageRecordMapper extends BaseMapper<UsageRecord> {
             WHERE (#{userId} IS NULL OR r.user_id = #{userId})
               AND (#{from} IS NULL OR r.created_at >= #{from})
               AND (#{to} IS NULL OR r.created_at < #{to})
-            GROUP BY u.id, u.username, r.model_name
+            GROUP BY u.id, u.username, r.model_id
             ORDER BY u.id ASC, inputTokens DESC
             """)
     IPage<Map<String, Object>> sumByUser(Page<Map<String, Object>> page,

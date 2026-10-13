@@ -15,7 +15,6 @@ import com.spring.gateway.mapper.UsageRecordMapper;
 import com.spring.gateway.mapper.UserMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -76,20 +75,43 @@ public class BillingService {
         log.info("积分预扣: turnId={} userId={} amount={} 余额={}", turnId, userId, amount, after);
     }
 
-    /**
-     * usage 落账与结算：同一事务，重放时撞 usage_records.turn_id 唯一键整单跳过。
-     *
-     * @param record 装配好的用量记录（turnId/userId/modelName/token 量已填）
-     */
     @Transactional
     public void recordUsageAndSettle(UsageRecord record) {
-        try {
-            usageRecordMapper.insert(record);
-        } catch (DuplicateKeyException e) {
-            log.info("turn 用量已存在，用量与结算整单跳过: turnId={}", record.getTurnId());
+        recordUsageAndSettle(List.of(record));
+    }
+
+    @Transactional
+    public void recordUsageAndSettle(List<UsageRecord> records) {
+        if (records.isEmpty()) {
             return;
         }
-        settle(record);
+        UsageRecord first = records.getFirst();
+        if (first.getTurnId() == null || first.getUserId() == null) {
+            throw new IllegalArgumentException("用量缺少轮次或用户 ID");
+        }
+        java.util.Set<String> modelIds = new java.util.HashSet<>();
+        for (UsageRecord record : records) {
+            if (!first.getTurnId().equals(record.getTurnId())
+                    || !first.getUserId().equals(record.getUserId())
+                    || !java.util.Objects.equals(first.getSessionId(), record.getSessionId())
+                    || record.getModelId() == null || record.getModelId().isBlank()
+                    || !modelIds.add(record.getModelId())) {
+                throw new IllegalArgumentException("模型用量分组非法");
+            }
+        }
+        if (userMapper.selectBalanceForUpdate(first.getUserId()) == null) {
+            throw new BizException(404, "用户不存在");
+        }
+        if (!usageRecordMapper.selectList(new LambdaQueryWrapper<UsageRecord>()
+                .eq(UsageRecord::getTurnId, first.getTurnId()).last("FOR UPDATE")).isEmpty()) {
+            return;
+        }
+        BigDecimal cost = BigDecimal.ZERO;
+        for (UsageRecord record : records) {
+            usageRecordMapper.insert(record);
+            cost = cost.add(computeCost(record));
+        }
+        settle(first, cost, records.size() == 1 ? first.getModelId() : null);
     }
 
     /**
@@ -179,9 +201,8 @@ public class BillingService {
                 .last("LIMIT " + limit));
     }
 
-    /** 结算：有在途预扣按净差多退少补；无预扣（wake 轮等）按实际成本直接扣。 */
-    private void settle(UsageRecord record) {
-        BigDecimal cost = computeCost(record);
+    /** 结算：有在途预扣按净差多退少补；无预扣按实际成本直接扣。 */
+    private void settle(UsageRecord record, BigDecimal cost, String modelId) {
         String turnId = record.getTurnId();
         if (turnId != null && pointsHoldMapper.transition(turnId, PointsHold.STATUS_SETTLED) == 1) {
             PointsHold hold = pointsHoldMapper.selectById(turnId);
@@ -190,7 +211,7 @@ public class BillingService {
                 BigDecimal change = delta.negate();
                 BigDecimal after = applyDelta(hold.getUserId(), change, true);
                 insertLedger(hold.getUserId(), change, after, PointsLedger.TYPE_SETTLE,
-                        turnId, record.getModelName(), null, null);
+                        turnId, modelId, null, null);
                 log.info("预扣结算: turnId={} userId={} 预扣={} 实际={} 净差={} 余额={}",
                         turnId, hold.getUserId(), hold.getAmount(), cost, delta, after);
             } else {
@@ -199,15 +220,15 @@ public class BillingService {
         } else if (cost.signum() > 0) {
             BigDecimal after = applyDelta(record.getUserId(), cost.negate(), true);
             insertLedger(record.getUserId(), cost.negate(), after, PointsLedger.TYPE_DIRECT,
-                    turnId, record.getModelName(), null, null);
+                    turnId, modelId, null, null);
             log.info("无预扣直接结算: turnId={} userId={} model={} 成本={} 余额={}",
-                    turnId, record.getUserId(), record.getModelName(), cost, after);
+                    turnId, record.getUserId(), modelId, cost, after);
         }
     }
 
-    /** 实际成本：按 usage 的 modelName 精确匹配启用中的资费卡，否则回落兜底卡。 */
+    /** 实际成本：按 usage 的 modelId 精确匹配启用中的资费卡，否则回落兜底卡。 */
     private BigDecimal computeCost(UsageRecord record) {
-        RateCard rate = findRate(record.getModelName());
+        RateCard rate = findRate(record.getModelId());
         if (rate == null) {
             return BigDecimal.ZERO;
         }
@@ -236,16 +257,14 @@ public class BillingService {
     }
 
     /** 资费卡查找：精确匹配且启用 → 用之；否则兜底卡（停用/缺失 → null = 免费）。 */
-    private RateCard findRate(String modelName) {
-        if (modelName != null && !RateCard.DEFAULT_MODEL_NAME.equals(modelName)) {
-            RateCard row = rateCardMapper.selectOne(new LambdaQueryWrapper<RateCard>()
-                    .eq(RateCard::getModelName, modelName));
+    private RateCard findRate(String modelId) {
+        if (modelId != null && !RateCard.DEFAULT_MODEL_ID.equals(modelId)) {
+            RateCard row = rateCardMapper.selectById(modelId);
             if (row != null && Boolean.TRUE.equals(row.getEnabled())) {
                 return row;
             }
         }
-        RateCard fallback = rateCardMapper.selectOne(new LambdaQueryWrapper<RateCard>()
-                .eq(RateCard::getModelName, RateCard.DEFAULT_MODEL_NAME));
+        RateCard fallback = rateCardMapper.selectById(RateCard.DEFAULT_MODEL_ID);
         return fallback != null && Boolean.TRUE.equals(fallback.getEnabled()) ? fallback : null;
     }
 
@@ -280,7 +299,7 @@ public class BillingService {
     }
 
     private void insertLedger(long userId, BigDecimal change, BigDecimal after, String type,
-                              String refId, String modelName, Long operatorId, String reason) {
+                              String refId, String modelId, Long operatorId, String reason) {
         PointsLedger row = new PointsLedger();
         row.setId(idGenerator.nextId());
         row.setUserId(userId);
@@ -288,7 +307,7 @@ public class BillingService {
         row.setBalanceAfter(after);
         row.setType(type);
         row.setRefId(refId);
-        row.setModelName(modelName);
+        row.setModelId(modelId);
         row.setOperatorId(operatorId);
         row.setReason(reason);
         row.setCreatedAt(LocalDateTime.now(ZoneOffset.UTC));

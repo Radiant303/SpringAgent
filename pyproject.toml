@@ -36,6 +36,9 @@ dev = [
     "httpx>=0.28",
 ]
 
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
 [tool.basedpyright]
 typeCheckingMode = "basic"
 pythonVersion = "3.14"

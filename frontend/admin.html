@@ -292,13 +292,13 @@
               <col style="width: 110px">
             </colgroup>
             <thead>
-              <tr><th>模型名</th><th class="num">输入</th><th class="num">缓存命中</th><th class="num">缓存写入</th><th class="num">输出</th><th>状态</th><th>更新时间</th><th>操作</th></tr>
+              <tr><th>模型 ID</th><th class="num">输入</th><th class="num">缓存命中</th><th class="num">缓存写入</th><th class="num">输出</th><th>状态</th><th>更新时间</th><th>操作</th></tr>
             </thead>
             <tbody id="model-tbody"></tbody>
           </table>
         </div>
         <form id="model-form" class="model-form">
-          <input type="text" id="model-name" placeholder="模型名（与用量记录的 modelName 一致）" required>
+          <select id="model-id" required title="选择已配置模型"></select>
           <input type="number" id="model-input" min="0" step="any" placeholder="输入" title="无缓存输入" required>
           <input type="number" id="model-cache-read" min="0" step="any" placeholder="缓存命中" required>
           <input type="number" id="model-cache-write" min="0" step="any" placeholder="缓存写入" required>

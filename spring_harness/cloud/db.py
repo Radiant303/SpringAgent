@@ -136,25 +136,21 @@ class MessageRow(Base):
 
 
 class UsageRecordRow(Base):
-    """一轮对话的模型 token 消耗（计费底账）。
-
-    turn_id 全局唯一：MQ 重投/DLQ 重放导致重复消费时撞唯一键即视为已入账。
-    只存原始 token 量与 model_name，不存金额。
-    """
+    """一轮对话的模型用量记录。"""
 
     __tablename__ = "usage_records"
     __table_args__ = (
         Index("ix_usage_user_time", "user_id", "created_at"),
         Index("ix_usage_session", "session_id"),
+        UniqueConstraint("turn_id", "model_id", name="uq_usage_turn_model"),
     )
 
     id: Mapped[int] = mapped_column(_BigInt, primary_key=True, autoincrement=True)
     # 雪花 ID 或 wake-xxx（催醒轮本地生成）
-    turn_id: Mapped[str] = mapped_column(String(32), unique=True, nullable=False)
+    turn_id: Mapped[str] = mapped_column(String(32), nullable=False)
     session_id: Mapped[str] = mapped_column(CHAR(36), ForeignKey("sessions.id"), nullable=False)
     user_id: Mapped[int] = mapped_column(_BigInt, ForeignKey("users.id"), nullable=False)
-    # 本轮最后一次模型请求的模型；纯错误轮可能没有任何模型请求
-    model_name: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    model_id: Mapped[str] = mapped_column(String(256), nullable=False)
     requests: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     # 含 cache_read/cache_write（inclusive 桶）
     input_tokens: Mapped[int] = mapped_column(_BigInt, nullable=False, default=0)
@@ -169,12 +165,11 @@ class UsageRecordRow(Base):
 
 
 class ModelRateRow(Base):
-    """模型资费卡：每项费率单位 = 积分/百万 tokens；default 行是兜底卡。"""
+    """模型资费卡。"""
 
     __tablename__ = "models"
 
-    id: Mapped[int] = mapped_column(_BigInt, primary_key=True, autoincrement=False)  # 雪花，网关侧生成
-    model_name: Mapped[str] = mapped_column(String(128), unique=True, nullable=False)
+    model_id: Mapped[str] = mapped_column(String(256), primary_key=True)
     input_points: Mapped[Decimal] = mapped_column(DECIMAL(20, 6), nullable=False)
     cache_read_points: Mapped[Decimal] = mapped_column(DECIMAL(20, 6), nullable=False)
     cache_write_points: Mapped[Decimal] = mapped_column(DECIMAL(20, 6), nullable=False)
@@ -220,7 +215,7 @@ class PointsLedgerRow(Base):
     balance_after: Mapped[Decimal] = mapped_column(DECIMAL(20, 6), nullable=False)
     type: Mapped[str] = mapped_column(String(16), nullable=False)
     ref_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    model_name: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    model_id: Mapped[str | None] = mapped_column(String(256), nullable=True)
     operator_id: Mapped[int | None] = mapped_column(
         _BigInt, ForeignKey("users.id"), nullable=True,
     )

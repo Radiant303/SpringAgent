@@ -9,9 +9,9 @@ from spring_harness.utils.monitor_file import DirectoryMonitor
 
 @dataclass
 class RequestUsageEntry:
-    """一次模型请求的用量记录；model_name 取自响应，可能为 None。"""
+    """一次模型请求的用量记录。"""
 
-    model_name: str | None
+    model_id: str
     usage: RequestUsage
 
 
@@ -19,6 +19,7 @@ class RequestUsageEntry:
 class CodingAgentDeps:
     workspace: Path
     monitor: DirectoryMonitor
+    model_id: str = "__default__"
     last_messages: list[ModelMessage] = field(default_factory=list)
     usage_log: list[RequestUsageEntry] = field(default_factory=list)
     background: BackgroundTaskManager = field(default_factory=BackgroundTaskManager)

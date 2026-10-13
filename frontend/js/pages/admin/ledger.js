@@ -49,9 +49,11 @@ export async function loadLedger(p = page) {
       <td>${LEDGER_TYPE_LABELS[r.type] || r.type}</td>
       <td class="num ${change >= 0 ? "points-in" : "points-out"}">${change >= 0 ? "+" : ""}${fmtPoints(r.change_amount)}</td>
       <td class="num">${fmtPoints(r.balance_after)}</td>
-      <td>${r.model_name || "-"}</td>
+      <td></td>
       <td class="ref-cell" title="${r.ref_id || ""}">${r.ref_id || "-"}</td>
       <td>${r.reason || "-"}</td>`;
     tr.cells[1].textContent = nameOf[r.user_id] || r.user_id;
+    tr.cells[5].textContent = r.model_id || "-";
+    tr.cells[5].title = r.model_id || "";
   }, "暂无流水");
 }

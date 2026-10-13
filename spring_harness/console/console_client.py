@@ -364,7 +364,7 @@ class ConsoleClient(CliApp):
                         if not wake and usage is not None and usage.requests:
                             cache = f"，其中缓存命中 {usage.cache_read_tokens:,}" if usage.cache_read_tokens else ""
                             await self.show_system(
-                                f"本轮消耗：{usage.model_name or '未知模型'} "
+                                f"本轮消耗：{', '.join(group.model_id for group in usage.usages)} "
                                 f"输入 {usage.input_tokens:,}{cache}，输出 {usage.output_tokens:,}\n"
                             )
                         if not wake:

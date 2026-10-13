@@ -1,6 +1,6 @@
 from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class TextDelta(BaseModel):
@@ -41,15 +41,24 @@ class UsageUpdated(BaseModel):
     kind: Literal["usage"] = "usage"
     context_tokens: int
 
-class TurnUsage(BaseModel):
-    """一轮对话的模型用量合计（input_tokens 含缓存命中与缓存写入）。"""
-
-    model_name: str | None = None  # 本轮最后一次模型请求的模型
+class ModelUsage(BaseModel):
+    model_id: str
     requests: int = 0
     input_tokens: int = 0
     cache_read_tokens: int = 0
     cache_write_tokens: int = 0
     output_tokens: int = 0
+
+
+class TurnUsage(BaseModel):
+    """一轮对话的模型分组用量。"""
+
+    requests: int = 0
+    input_tokens: int = 0
+    cache_read_tokens: int = 0
+    cache_write_tokens: int = 0
+    output_tokens: int = 0
+    usages: list[ModelUsage] = Field(default_factory=list)
 
 class PlanUpdated(BaseModel):
     kind: Literal["plan_updated"] = "plan_updated"

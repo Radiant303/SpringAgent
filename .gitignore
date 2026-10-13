@@ -1,6 +1,10 @@
 .env
 *pyc
 test*
+!tests/
+!tests/**
+!gateway/src/test/
+!gateway/src/test/**
 config.toml
 logs/app.log
 codex/
