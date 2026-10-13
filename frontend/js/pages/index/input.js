@@ -132,20 +132,23 @@ export function positionModelMenus() {
   menu.style.top = Math.max(8, anchor.top - menu.offsetHeight - 8) + "px";
   const child = $("effort-menu");
   if (!child || child.classList.contains("hidden")) return;
-  const row = $("effort-btn").getBoundingClientRect();
-  const parent = menu.getBoundingClientRect();
-  const right = parent.right + 8;
-  const left = parent.left - child.offsetWidth - 8;
+  const rowTop = menu.offsetTop + $("effort-btn").offsetTop;
+  const right = menu.offsetLeft + menu.offsetWidth + 8;
+  const left = menu.offsetLeft - child.offsetWidth - 8;
   const side = right + child.offsetWidth <= width - 8 ? right : left >= 8 ? left : null;
-  child.style.left = (side ?? Math.max(8, Math.min(parent.left, width - child.offsetWidth - 8))) + "px";
-  child.style.top = Math.max(8, Math.min(side === null ? row.top - child.offsetHeight - 8 : row.top,
+  child.style.left = (side ?? Math.max(8, Math.min(menu.offsetLeft, width - child.offsetWidth - 8))) + "px";
+  child.style.top = Math.max(8, Math.min(side === null ? rowTop - child.offsetHeight - 8 : rowTop,
     height - child.offsetHeight - 8)) + "px";
 }
+
+let modelMenuSnapshot;
 
 export function populateModelSelect() {
   const list = $("model-list");
   const effortMenu = $("effort-menu");
   if (!list || !effortMenu) return;
+  const snapshot = JSON.stringify([state.models, state.model, state.effort, state.busy, state.modelChanging]);
+  if (snapshot === modelMenuSnapshot) return;
   const activeMenu = effortMenu.contains(document.activeElement) ? effortMenu : $("model-menu");
   const focused = activeMenu?.contains(document.activeElement) ? document.activeElement : null;
   const option = focused?.dataset.option;
@@ -172,13 +175,14 @@ export function populateModelSelect() {
   if (focused && !$("model-menu").classList.contains("hidden")) {
     const items = modelMenuItems(activeMenu).length ? modelMenuItems(activeMenu) : modelMenuItems($("model-menu"));
     const target = option ? items.find((item) => item.dataset.option === option) : focused;
-    (items.includes(target) ? target : items.find((item) => item.getAttribute("aria-checked") === "true") || items[0])?.focus();
+    (items.includes(target) ? target : items.find((item) => item.getAttribute("aria-checked") === "true") || items[0])?.focus({ preventScroll: true });
   }
+  modelMenuSnapshot = snapshot;
 }
 
 function focusSelection(menu) {
   const items = modelMenuItems(menu);
-  (items.find((item) => item.getAttribute("aria-checked") === "true") || items[0])?.focus();
+  (items.find((item) => item.getAttribute("aria-checked") === "true") || items[0])?.focus({ preventScroll: true });
 }
 
 export function openModelMenu() {

@@ -1471,8 +1471,7 @@ pre.tool-result.error { background: var(--diff-del-bg, rgba(192, 57, 43, 0.07));
   cursor: pointer;
   transition: background-color 0.15s;
 }
-#model-btn:hover:not(:disabled) { background: var(--surface, #f5f5f5); }
-#model-btn:active:not(:disabled), #model-btn[aria-expanded="true"] { background: #ebebeb; }
+#model-btn:hover:not(:disabled), #model-btn[aria-expanded="true"]:not(:disabled) { background: var(--surface, #f5f5f5); }
 #model-effort { display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0; }
 .model-separator { color: var(--text-faint); }
 #effort-name { color: var(--text-faint); white-space: nowrap; }
@@ -1500,6 +1499,10 @@ pre.tool-result.error { background: var(--diff-del-bg, rgba(192, 57, 43, 0.07));
   border: 1px solid var(--border);
   border-radius: 12px;
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.08), 0 1px 3px rgba(0, 0, 0, 0.04);
+  animation: ui-pop 0.14s ease both;
+}
+@media (prefers-reduced-motion: reduce) {
+  #model-menu, #effort-menu { animation: none; }
 }
 #effort-menu {
   z-index: 21;
