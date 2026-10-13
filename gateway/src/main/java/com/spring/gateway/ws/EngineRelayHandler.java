@@ -4,6 +4,7 @@ import com.spring.gateway.common.BizException;
 import com.spring.gateway.common.TimeFormat;
 import com.spring.gateway.common.UnknownSessionException;
 import com.spring.gateway.entity.Session;
+import com.spring.gateway.service.EngineClient;
 import com.spring.gateway.service.InternalStoreService;
 import com.spring.gateway.service.SessionHistoryService;
 import com.spring.gateway.service.TurnDispatchService;
@@ -60,6 +61,8 @@ public class EngineRelayHandler extends TextWebSocketHandler {
     private final InternalStoreService internalStoreService;
     private final SessionHistoryService sessionHistoryService;
     private final WebSocketContainer webSocketContainer;
+    private final EngineClient engineClient;
+    private final String internalToken;
 
     /**
      * 控制面方法 → 本地处理器注册表：表内方法由网关本地应答，不透传给引擎；
@@ -95,7 +98,9 @@ public class EngineRelayHandler extends TextWebSocketHandler {
                               TurnStreamReader turnStreamReader,
                               InternalStoreService internalStoreService,
                               SessionHistoryService sessionHistoryService,
-                              WebSocketContainer webSocketContainer) {
+                              WebSocketContainer webSocketContainer,
+                              EngineClient engineClient,
+                              @Value("${app.internal-token}") String internalToken) {
         // http(s)://host:port → ws(s)://host:port
         this.engineWsBase = engineBaseUrl.replaceFirst("^http", "ws");
         this.objectMapper = objectMapper;
@@ -104,6 +109,8 @@ public class EngineRelayHandler extends TextWebSocketHandler {
         this.internalStoreService = internalStoreService;
         this.sessionHistoryService = sessionHistoryService;
         this.webSocketContainer = webSocketContainer;
+        this.engineClient = engineClient;
+        this.internalToken = internalToken;
     }
 
     @Override
@@ -120,10 +127,15 @@ public class EngineRelayHandler extends TextWebSocketHandler {
                 + URLEncoder.encode(token, StandardCharsets.UTF_8));
 
         StandardWebSocketClient client = new StandardWebSocketClient(webSocketContainer);
+        WebSocketHttpHeaders headers = new WebSocketHttpHeaders();
+        headers.set("X-Internal-Token", internalToken);
+        String connectionId = java.util.UUID.randomUUID().toString();
+        browserSession.getAttributes().put("controlConnectionId", connectionId);
+        headers.set("X-Connection-Id", connectionId);
         WebSocketSession engineSession;
         try {
             engineSession = client
-                    .execute(new EngineToBrowserHandler(browserSession), new WebSocketHttpHeaders(), engineUri)
+                    .execute(new EngineToBrowserHandler(browserSession), headers, engineUri)
                     .get(ENGINE_CONNECT_TIMEOUT_SECONDS, TimeUnit.SECONDS);
         } catch (Exception e) {
             log.warn("连接引擎 WS 失败: userId={} uri={} error={}", userId, engineWsBase, e.getMessage());
@@ -234,6 +246,10 @@ public class EngineRelayHandler extends TextWebSocketHandler {
         if (sessionId == null) {
             return true;
         }
+        if (requireControl(session, idNode, sessionId, userId) == null) {
+            return true;
+        }
+        turnStreamReader.closeFor(session);
         JsonNode lastSeqNode = params.get("lastSeq");
         String lastSeq = lastSeqNode == null || lastSeqNode.isNull() ? null : lastSeqNode.asText();
         turnStreamReader.subscribe(session, sessionId, lastSeq);
@@ -248,10 +264,14 @@ public class EngineRelayHandler extends TextWebSocketHandler {
         if (sessionId == null) {
             return true;
         }
+        String controlToken = requireControl(session, idNode, sessionId, userId);
+        if (controlToken == null) {
+            return true;
+        }
         JsonNode inputNode = params.get("input");
         String input = inputNode == null ? "" : inputNode.asText();
         return dispatchViaMq(session, idNode, "turn/start", () -> {
-            long turnId = turnDispatchService.dispatch(userId, sessionId, input);
+            long turnId = turnDispatchService.dispatch(userId, sessionId, input, controlToken);
             log.info("turn 已派发 MQ: turnId={} sessionId={} userId={}", turnId, sessionId, userId);
         });
     }
@@ -263,8 +283,12 @@ public class EngineRelayHandler extends TextWebSocketHandler {
         if (sessionId == null) {
             return true;
         }
+        String controlToken = requireControl(session, idNode, sessionId, userId);
+        if (controlToken == null) {
+            return true;
+        }
         return dispatchViaMq(session, idNode, "turn/cancel", () -> {
-            turnDispatchService.cancel(userId, sessionId);
+            turnDispatchService.cancel(userId, sessionId, controlToken);
             log.info("turn 取消已派发 MQ: sessionId={} userId={}", sessionId, userId);
         });
     }
@@ -286,6 +310,23 @@ public class EngineRelayHandler extends TextWebSocketHandler {
         }
         sendRpcResult(session, idNode);
         return true;
+    }
+
+    private String requireControl(WebSocketSession session, JsonNode idNode, String sessionId, Long userId)
+            throws IOException {
+        try {
+            String connectionId = (String) session.getAttributes().get("controlConnectionId");
+            String token = connectionId == null ? null
+                    : engineClient.sessionControlToken(sessionId, userId, connectionId);
+            if (token != null && session.isOpen()) {
+                return token;
+            }
+            sendRpcError(session, idNode, -32003, "当前连接未控制此会话，请重新挂载或接管");
+        } catch (Exception e) {
+            log.warn("会话控制权校验失败: session={} error={}", sessionId, e.toString());
+            sendRpcError(session, idNode, INTERNAL_ERROR, "会话控制权校验失败，请稍后重试");
+        }
+        return null;
     }
 
     /** 提取 sessionId；缺失/非法时直接应答参数错误并返回 null（调用方按已处理收尾） */

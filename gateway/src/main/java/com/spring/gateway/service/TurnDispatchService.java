@@ -39,10 +39,11 @@ public class TurnDispatchService {
      * @param userId    用户 ID
      * @param sessionId 会话 ID
      * @param input     用户输入
+     * @param controlToken 会话控制令牌
      * @return turnId（雪花 ID，消费端幂等键）
      * @throws BizException 积分不足（409）；输入超长（400），调用方应直接应答用户而非回退
      */
-    public long dispatch(long userId, String sessionId, String input) {
+    public long dispatch(long userId, String sessionId, String input, String controlToken) {
         if (input != null && input.length() > MAX_INPUT_CHARS) {
             throw new BizException(400, "输入内容过长（最多 " + MAX_INPUT_CHARS + " 字符）");
         }
@@ -52,6 +53,7 @@ public class TurnDispatchService {
         message.put("turnId", turnId);
         message.put("sessionId", sessionId);
         message.put("userId", userId);
+        message.put("controlToken", controlToken);
         message.put("input", input);
         message.put("enqueuedAt", Instant.now().toString());
         try {
@@ -70,15 +72,17 @@ public class TurnDispatchService {
     }
 
     /**
-     * 取消某会话当前轮次（按会话寻址：同会话串行，任一时刻只有一个活跃 turn）
+     * 取消会话当前轮次。
      *
      * @param userId    用户 ID
      * @param sessionId 会话 ID
+     * @param controlToken 会话控制令牌
      */
-    public void cancel(long userId, String sessionId) {
+    public void cancel(long userId, String sessionId, String controlToken) {
         Map<String, Object> message = new LinkedHashMap<>();
         message.put("sessionId", sessionId);
         message.put("userId", userId);
+        message.put("controlToken", controlToken);
         message.put("enqueuedAt", Instant.now().toString());
         publish(RabbitConfig.QUEUE_CANCEL, message);
     }

@@ -20,11 +20,16 @@ export class RpcClient {
   }
 
   connect(url) {
+    const previous = this.ws;
+    this.ws = null;
+    if (previous) previous.close();
+    this._failAll(new Error("连接已更换"));
     return new Promise((resolve, reject) => {
       let opened = false;
       const ws = new WebSocket(url);
       this.ws = ws;
       ws.onopen = () => {
+        if (this.ws !== ws) { reject(new Error("连接已更换")); return; }
         opened = true;
         resolve();
       };
@@ -32,10 +37,12 @@ export class RpcClient {
         if (!opened) reject(new Error("WebSocket 连接失败"));
       };
       ws.onclose = (e) => {
+        if (!opened) reject(new Error("连接已断开"));
+        if (this.ws !== ws) return;
         this._failAll(new Error("连接已断开"));
         if (this.onClose) this.onClose(e && e.code);
       };
-      ws.onmessage = (e) => this._onMessage(e.data);
+      ws.onmessage = (e) => { if (this.ws === ws) this._onMessage(e.data, ws); };
     });
   }
 
@@ -72,7 +79,7 @@ export class RpcClient {
     this.pending.clear();
   }
 
-  _onMessage(data) {
+  _onMessage(data, socket = this.ws) {
     let msg;
     try {
       msg = JSON.parse(data);
@@ -83,9 +90,14 @@ export class RpcClient {
       if (msg.id !== undefined) {
         // 服务器 → 客户端请求（approval/question），必须应答
         Promise.resolve()
-          .then(() => (this.onServerRequest ? this.onServerRequest(msg.method, msg.params || {}) : {}))
-          .then((result) => this.respond(msg.id, result))
-          .catch((err) => this.respondError(msg.id, (err && err.message) || err));
+          .then(() => socket === this.ws && socket?.readyState === WebSocket.OPEN
+            ? (this.onServerRequest ? this.onServerRequest(msg.method, msg.params || {}) : {}) : {})
+          .then((result) => {
+            if (socket === this.ws && socket?.readyState === WebSocket.OPEN) this.respond(msg.id, result);
+          })
+          .catch((err) => {
+            if (socket === this.ws && socket?.readyState === WebSocket.OPEN) this.respondError(msg.id, err.message || err);
+          });
       } else if (this.onNotification) {
         this.onNotification(msg.method, msg.params || {});
       }

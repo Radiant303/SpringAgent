@@ -16,6 +16,8 @@ export const state = {
   workId: localStorage.getItem("sh.workId") || null,
   works: [],
   connected: false,
+  sessionReady: false,
+  connectionReplaced: false,
   busy: false,
   assistant: null,      // 当前流式正文气泡 {el, answer, text}
   work: null,           // 当前「工作过程」分组（连续的思考 + 工具调用）

@@ -100,12 +100,14 @@ class TurnDispatcher:
 
             from spring_harness.cloud.registry import get_registry
 
+            from spring_harness.cloud.ws import CloudAppServer
+
             registry = get_registry()
             handle = registry.get(session_id) if registry is not None else None
-            if handle is None:
+            if handle is None or not CloudAppServer.controls(session_id, user_id, payload.get("controlToken")):
                 await self.publish_lifecycle({
                     "turnId": turn_id, "sessionId": session_id, "userId": user_id,
-                    "status": "error", "error": "会话未挂载（客户端未连接）",
+                    "status": "error", "error": "会话控制权已失效", "usage": [],
                 })
             else:
                 try:
@@ -113,7 +115,7 @@ class TurnDispatcher:
                 except JsonRpcError as e:
                     await self.publish_lifecycle({
                         "turnId": turn_id, "sessionId": session_id, "userId": user_id,
-                        "status": "error", "error": e.message,
+                        "status": "error", "error": str(e), "usage": [],
                     })
         except Exception:
             # 意外失败（如消息体损坏）：有限重投，超限进 DLQ
@@ -132,7 +134,11 @@ class TurnDispatcher:
 
             registry = get_registry()
             handle = registry.get(session_id) if registry is not None else None
-            if handle is not None:
+            from spring_harness.cloud.ws import CloudAppServer
+
+            if handle is not None and CloudAppServer.controls(
+                session_id, payload.get("userId"), payload.get("controlToken"),
+            ):
                 handle.cancel_turn()
         except Exception:
             logger.exception("turn 取消处理失败")

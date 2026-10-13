@@ -55,6 +55,7 @@ export function setConnected(ok) {
 }
 
 export async function connectAndSetup() {
+  state.sessionReady = false;
   await rpc.connect(`${WS_BASE}/ws?token=${encodeURIComponent(getToken())}`);
   const info = await rpc.request("initialize", {});
   state.workspace = info.workspace;
@@ -70,6 +71,7 @@ export async function connectAndSetup() {
 }
 
 export function scheduleReconnect() {
+  if (state.connectionReplaced || reconnectTimer) return;
   reconnectTimer = setTimeout(async () => {
     reconnectTimer = null;
     try {
@@ -89,11 +91,27 @@ rpc.onServerRequest = (method, params) => {
   throw new Error("未知请求: " + method);
 };
 
+function markReplaced() {
+  if (state.connectionReplaced) return;
+  state.connectionReplaced = true;
+  state.sessionReady = false;
+  clearTimeout(reconnectTimer);
+  reconnectTimer = null;
+  setConnected(false);
+  hideApproval();
+  hideQuestion();
+  $("reconnect-btn")?.classList.remove("hidden");
+  addSystem("会话已被其他页面或设备接管，本页面已断开。可点击重新连接后主动接管。");
+}
+
 rpc.onNotification = (method, params) => {
-  if (method === "session/event") onSessionEvent(params.sessionId, params.event, params.seq);
+  if (method === "session/replaced") markReplaced();
+  if (method === "session/event" && !state.connectionReplaced) onSessionEvent(params.sessionId, params.event, params.seq);
 };
 
 rpc.onClose = (code) => {
+  if (code === 4409) markReplaced();
+  state.sessionReady = false;
   setConnected(false);
   state.busy = false;
   resetFlow();
@@ -108,6 +126,7 @@ rpc.onClose = (code) => {
     goLogin("disabled");
     return;
   }
+  if (state.connectionReplaced) return;
   if (!reconnectTimer) {
     addSystem("连接已断开，正在重连…");
     scheduleReconnect();
@@ -190,6 +209,21 @@ export function bindAccountMenu() {
 /* ================= 事件绑定 ================= */
 
 export function bind() {
+  if ($("reconnect-btn")) $("reconnect-btn").onclick = async () => {
+    const button = $("reconnect-btn");
+    if (button.disabled) return;
+    button.disabled = true;
+    state.connectionReplaced = false;
+    try {
+      await connectAndSetup();
+      if (!state.connectionReplaced) button.classList.add("hidden");
+    } catch (e) {
+      addSystem("重新连接失败：" + e.message, true);
+      scheduleReconnect();
+    } finally {
+      button.disabled = false;
+    }
+  };
   if ($("send-btn")) $("send-btn").onclick = send;
   if ($("stop-btn")) $("stop-btn").onclick = cancelTurn;
   if ($("new-session-btn")) $("new-session-btn").onclick = newSession;
@@ -358,7 +392,7 @@ export async function init() {
   try {
     await connectAndSetup();
   } catch (e) {
-    if (!getToken()) return;
+    if (!getToken() || state.connectionReplaced) return;
     UI.clearSkeleton("messages");
     addSystem("❌ 初始化失败：" + (e && e.message || e) + "，将自动重连", true);
     scheduleReconnect();

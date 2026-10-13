@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import asyncio
-import threading
+import secrets
 import uuid
+from collections.abc import Awaitable, Callable
 from pathlib import Path
 from typing import ClassVar
 
@@ -11,45 +12,31 @@ from fastapi import WebSocket, WebSocketDisconnect
 from spring_harness.cloud import gateway_store
 from spring_harness.cloud.auth import decode_user_id
 from spring_harness.cloud.db import UserRow, get_sessionmaker
-from spring_harness.cloud.gateway_store import (
-    GatewaySessionStore,
-    find_active_session,
-    list_sessions_for_user,
-)
+from spring_harness.cloud.gateway_store import GatewaySessionStore, find_active_session, list_sessions_for_user
 from spring_harness.cloud.registry import CloudSessionHandle, get_registry
 from spring_harness.core.config.model import setting as model_setting
 from spring_harness.core.config.settings import config
 from spring_harness.core.log import logger
 from spring_harness.core.rpc.connection import JsonRpcConnection, JsonRpcError
 from spring_harness.core.rpc.schema import (
-    AttachParams,
-    SessionListResult,
-    SessionResult,
-    SessionSummary,
-    WorkspaceParams,
+    AttachParams, SessionListResult, SessionParams, SessionResult, SessionSummary,
+    TurnStartParams, WorkspaceParams,
 )
-from spring_harness.core.rpc.server import (
-    PROTOCOL_VERSION,
-    SESSION_NOT_FOUND,
-    AppServer,
-)
-from spring_harness.core.services.web_server import (
-    ModelsListResult,
-    WebInitializeResult,
-    _model_infos,
-)
+from spring_harness.core.rpc.server import PROTOCOL_VERSION, SESSION_NOT_FOUND, AppServer
+from spring_harness.core.services.web_server import ModelsListResult, WebInitializeResult, _model_infos
 
-# 会话已被其他连接占用（同会话串行的进程内拒绝码）
 SESSION_OCCUPIED = -32003
-
+SESSION_REPLACED = -32004
 WS_UNAUTHORIZED_CLOSE_CODE = 4401
-# 账号被禁用：与 token 无效（4401）区分开
 WS_DISABLED_CLOSE_CODE = 4403
+WS_REPLACED_CLOSE_CODE = 4409
+
+
+class CloudSessionResult(SessionResult):
+    busy: bool = False
 
 
 def _user_close_code(user_id: int) -> int | None:
-    """握手时按用户行复核（token 无状态，签名有效不代表账号仍可用）：
-    用户不存在 → 4401（幽灵用户）；已禁用 → 4403；正常 → None。"""
     with get_sessionmaker()() as s:
         user = s.get(UserRow, user_id)
         if user is None:
@@ -60,67 +47,115 @@ def _user_close_code(user_id: int) -> int | None:
 
 
 class CloudAppServer(AppServer):
-    """按 user_id 隔离的 JSON-RPC 协议面。"""
+    """按用户隔离的会话控制连接。"""
 
-    # 类级别注册表：session_id -> 持有它的连接（进程内"同会话串行"锁）
     _active_owners: ClassVar[dict[str, CloudAppServer]] = {}
-    _active_lock: ClassVar[threading.Lock] = threading.Lock()
 
     def __init__(
-        self,
-        connection: JsonRpcConnection,
-        *,
-        user_id: int,
-        data_root: Path,
+        self, connection: JsonRpcConnection, *, user_id: int, data_root: Path,
+        connection_id: str | None = None,
+        close_connection: Callable[[int], Awaitable[None]] | None = None,
     ) -> None:
         super().__init__(connection)
         self._user_id = user_id
         self._data_root = data_root
-        # 本连接登记的会话：连接关闭时统一卸载
+        self._connection_id = connection_id or uuid.uuid4().hex
+        self._close_connection = close_connection
         self._owned_sessions: set[str] = set()
-        # 当前挂载的会话：同一时间只服务一个，切换时卸载上一个
         self._current_session: str | None = None
-        # 模型列表实时拉取：打开模型菜单时调用，保证看到最新配置
+        self._control_tokens: dict[str, str] = {}
         self._routes["models/list"] = (None, self._models_list)
+        self._routes["session/status"] = (SessionParams, self._session_status)
+
+    @classmethod
+    def control_token(cls, session_id: str, user_id: int, connection_id: str) -> str | None:
+        owner = cls._active_owners.get(session_id)
+        if owner is None or owner._shutting_down:
+            return None
+        if owner._user_id != user_id or owner._connection_id != connection_id:
+            return None
+        return owner._control_tokens.get(session_id)
+
+    @classmethod
+    def controls(cls, session_id: str, user_id: int, token: str | None) -> bool:
+        owner = cls._active_owners.get(session_id)
+        return bool(owner is not None and not owner._shutting_down
+                    and owner._user_id == user_id and token
+                    and owner._control_tokens.get(session_id) == token)
+
+    async def handle_request(self, method: str, params: dict):
+        self._check_connection()
+        return await super().handle_request(method, params)
+
+    def _check_connection(self) -> None:
+        if self._shutting_down:
+            raise JsonRpcError(SESSION_REPLACED, "连接已失效，请重新连接")
+
+    def _require(self, session_id: str):
+        self._check_connection()
+        if self._active_owners.get(session_id) is not self:
+            raise JsonRpcError(SESSION_OCCUPIED, "当前连接未控制此会话")
+        return super()._require(session_id)
 
     async def _models_list(self, _: None) -> ModelsListResult:
         return ModelsListResult(models=_model_infos(), default_model=model_setting.default_model())
 
-    # ---- 注册表：进程内同会话串行 ----
-
-    def _acquire(self, session_id: str) -> None:
-        """登记会话占用；已被别的连接持有则拒绝。同步临界区，无 await 穿插。"""
-        with CloudAppServer._active_lock:
-            owner = CloudAppServer._active_owners.get(session_id)
-            if owner is not None and owner is not self:
-                raise JsonRpcError(SESSION_OCCUPIED, "会话正被其他连接使用")
-            CloudAppServer._active_owners[session_id] = self
-            self._owned_sessions.add(session_id)
-
     def _release(self, session_id: str) -> None:
-        with CloudAppServer._active_lock:
-            if CloudAppServer._active_owners.get(session_id) is self:
-                del CloudAppServer._active_owners[session_id]
-            self._owned_sessions.discard(session_id)
+        if self._active_owners.get(session_id) is self:
+            del self._active_owners[session_id]
+        self._owned_sessions.discard(session_id)
+        self._control_tokens.pop(session_id, None)
 
-    def _adopt(self, handle: CloudSessionHandle, model: str | None) -> None:
-        """把注册表中的会话绑定到本连接：占位 + 审批路由 + 基类 _sessions 视图。
+    def _reject_requests(self) -> None:
+        for request_id, (session_id, kind) in list(self._inflight_requests.items()):
+            session = self._sessions.get(session_id)
+            if session is not None:
+                session.respond(request_id, False if kind == "approval" else None)
+            self._connection.discard_response(request_id)
+        self._inflight_requests.clear()
+        for task in tuple(self._tasks):
+            task.cancel()
 
-        同一时间只挂载一个会话；切换时卸载上一个（会话本体不动，断线期间的
-        审批/提问由注册表暂存，下次挂载补投）。"""
-        previous = self._current_session
-        if previous is not None and previous != handle.session_id:
-            self._unmount(previous)
-        self._acquire(handle.session_id)
+    async def _close_replaced(self, session_id: str) -> None:
+        try:
+            await self._connection.send_notification("session/replaced", {"sessionId": session_id})
+        except Exception:
+            logger.debug("被接管连接无法接收通知: {}", session_id)
+        finally:
+            if self._close_connection is not None:
+                try:
+                    await self._close_connection(WS_REPLACED_CLOSE_CODE)
+                except (WebSocketDisconnect, RuntimeError):
+                    pass
+
+    def _adopt(self, handle: CloudSessionHandle, model: str | None, *, takeover: bool = False) -> None:
+        self._check_connection()
+        session_id = handle.session_id
+        owner = self._active_owners.get(session_id)
+        if owner is not None and owner is not self:
+            if owner._user_id != self._user_id:
+                raise JsonRpcError(SESSION_NOT_FOUND, "未知会话")
+            if not takeover:
+                raise JsonRpcError(SESSION_OCCUPIED, "会话正被其他连接使用")
+            owner._shutting_down = True
+            owner._reject_requests()
+            for previous in tuple(owner._owned_sessions):
+                owner._unmount(previous)
+            asyncio.create_task(owner._close_replaced(session_id))
+        if self._current_session is not None and self._current_session != session_id:
+            self._unmount(self._current_session)
+        if self._active_owners.get(session_id) is not self:
+            self._control_tokens[session_id] = uuid.uuid4().hex
+        self._active_owners[session_id] = self
+        self._owned_sessions.add(session_id)
         handle.remember_user(self._user_id)
         handle.set_approval_target(self)
-        if model:
+        if model and not handle.busy:
             handle.session.set_model(model)
-        self._sessions[handle.session_id] = handle.session
-        self._current_session = handle.session_id
+        self._sessions[session_id] = handle.session
+        self._current_session = session_id
 
     def _unmount(self, session_id: str) -> None:
-        """摘除挂载：审批路由置空、释放占用、移出基类视图；会话本体留在注册表。"""
         registry = get_registry()
         handle = registry.get(session_id) if registry is not None else None
         if handle is not None and handle.approval_target is self:
@@ -130,142 +165,107 @@ class CloudAppServer(AppServer):
         if self._current_session == session_id:
             self._current_session = None
 
-    # ---- 方法实现：全部按 user_id 经内部 HTTP API 操作 ----
-
     async def _initialize(self, _: None) -> WebInitializeResult:
-        # workspace 上报默认 work 目录：前端只拿它做展示与请求参数
         work = await asyncio.to_thread(gateway_store.ensure_default_work, self._user_id)
         return WebInitializeResult(
-            server_name="spring-harness",
-            protocol_version=PROTOCOL_VERSION,
-            workspace=work.workspace_path,
-            models=_model_infos(),
-            default_model=model_setting.default_model(),
+            server_name="spring-harness", protocol_version=PROTOCOL_VERSION,
+            workspace=work.workspace_path, models=_model_infos(), default_model=model_setting.default_model(),
         )
 
-    async def _session_new(self, p: WorkspaceParams) -> SessionResult:
+    async def _session_new(self, p: WorkspaceParams) -> CloudSessionResult:
         session_id = str(uuid.uuid4())
-        # workId 传了则校验归属，没传解析为默认 work；工作区目录由所属 work 决定
         if p.work_id:
             work = await asyncio.to_thread(gateway_store.get_work, p.work_id)
             if work is None or work.user_id != self._user_id:
                 raise JsonRpcError(SESSION_NOT_FOUND, f"未知项目: {p.work_id}")
         else:
             work = await asyncio.to_thread(gateway_store.ensure_default_work, self._user_id)
-        workspace = Path(work.workspace_path)
-        store = await asyncio.to_thread(
-            GatewaySessionStore.create, self._user_id, work.work_id, session_id,
-        )
+        self._check_connection()
+        store = await asyncio.to_thread(GatewaySessionStore.create, self._user_id, work.work_id, session_id)
         registry = get_registry()
-        assert registry is not None  # lifespan 已装配
+        assert registry is not None
         handle = await registry.get_or_create(
-            session_id, workspace=workspace, store=store, work_id=work.work_id,
+            session_id, workspace=Path(work.workspace_path), store=store, work_id=work.work_id,
         )
         self._adopt(handle, p.model)
-        return SessionResult(session_id=session_id)
+        return CloudSessionResult(session_id=session_id, busy=handle.busy)
 
     async def _session_resume_last(self, p: WorkspaceParams) -> SessionResult:
         rows = await asyncio.to_thread(list_sessions_for_user, self._user_id)
         if p.work_id:
-            rows = [r for r in rows if r.work_id == p.work_id]
+            rows = [row for row in rows if row.work_id == p.work_id]
         if not rows:
-            return SessionResult(session_id=None)
-        target = rows[0]
-        registry = get_registry()
-        assert registry is not None
-        handle = registry.get(target.id)
-        if handle is not None:
-            self._adopt(handle, p.model)
-            return SessionResult(session_id=handle.session_id)
-        self._acquire(target.id)
-        try:
-            store = await asyncio.to_thread(GatewaySessionStore.open, target.id)
-            if store is None:  # 理论不可达：刚才还在列表里
-                raise JsonRpcError(SESSION_NOT_FOUND, f"未知会话: {target.id}")
-            handle = await registry.get_or_create(
-                target.id, workspace=Path(target.workspace_path), store=store,
-                work_id=target.work_id,
-            )
-        except BaseException:
-            self._release(target.id)
-            raise
-        self._adopt(handle, p.model)
-        return SessionResult(session_id=handle.session_id)
+            return CloudSessionResult(session_id=None)
+        return await self._session_attach(AttachParams(
+            workspace=p.workspace, session_id=rows[0].id, model=p.model,
+        ))
 
     async def _session_list(self, p: WorkspaceParams) -> SessionListResult:
         rows = await asyncio.to_thread(list_sessions_for_user, self._user_id)
         if p.work_id:
-            rows = [r for r in rows if r.work_id == p.work_id]
-        return SessionListResult(sessions=[
-            SessionSummary(
-                session_id=row.id,
-                title=row.title,
-                # naive UTC 补 "Z"：避免前端按本地时区解析
-                created_at=row.created_at.isoformat() + "Z",
-                updated_at=row.updated_at.isoformat() + "Z",
-            )
-            for row in rows
-        ])
+            rows = [row for row in rows if row.work_id == p.work_id]
+        return SessionListResult(sessions=[SessionSummary(
+            session_id=row.id, title=row.title, created_at=row.created_at.isoformat() + "Z",
+            updated_at=row.updated_at.isoformat() + "Z",
+        ) for row in rows])
 
-    async def _session_attach(self, p: AttachParams) -> SessionResult:
+    async def _session_attach(self, p: AttachParams) -> CloudSessionResult:
+        row = await asyncio.to_thread(find_active_session, p.session_id, self._user_id)
+        if row is None:
+            raise JsonRpcError(SESSION_NOT_FOUND, f"未知会话: {p.session_id}")
+        self._check_connection()
         registry = get_registry()
         assert registry is not None
         handle = registry.get(p.session_id)
-        if handle is not None:
-            self._adopt(handle, p.model)
-            return SessionResult(session_id=handle.session_id)
-        row = await asyncio.to_thread(
-            find_active_session, p.session_id, self._user_id,
-        )
-        if row is None:
-            raise JsonRpcError(SESSION_NOT_FOUND, f"未知会话: {p.session_id}")
-        # 先占位再建会话：抢失败直接拒绝，不会留下半建的 HarnessSession
-        self._acquire(p.session_id)
-        try:
+        if handle is None:
             store = await asyncio.to_thread(GatewaySessionStore.open, p.session_id)
-            if store is None:  # 理论不可达：find_active_session 已确认存在
+            if store is None:
                 raise JsonRpcError(SESSION_NOT_FOUND, f"未知会话: {p.session_id}")
             handle = await registry.get_or_create(
-                p.session_id, workspace=Path(row.workspace_path), store=store,
-                work_id=row.work_id,
+                p.session_id, workspace=Path(row.workspace_path), store=store, work_id=row.work_id,
             )
-        except BaseException:
-            self._release(p.session_id)
-            raise
-        self._adopt(handle, p.model)
-        return SessionResult(session_id=handle.session_id)
+        self._adopt(handle, p.model, takeover=p.takeover)
+        return CloudSessionResult(session_id=handle.session_id, busy=handle.busy)
+
+    async def _turn_start(self, p: TurnStartParams) -> None:
+        self._require(p.session_id)
+        registry = get_registry()
+        assert registry is not None
+        handle = registry.get(p.session_id)
+        assert handle is not None
+        handle.start_turn(p.input, turn_id=f"ws-{uuid.uuid4().hex[:24]}", user_id=self._user_id)
+
+    async def _session_status(self, p: SessionParams) -> CloudSessionResult:
+        self._require(p.session_id)
+        registry = get_registry()
+        assert registry is not None
+        handle = registry.get(p.session_id)
+        assert handle is not None
+        return CloudSessionResult(session_id=p.session_id, busy=handle.busy)
+
+    async def _turn_cancel(self, p: SessionParams) -> None:
+        self._require(p.session_id)
+        registry = get_registry()
+        assert registry is not None
+        handle = registry.get(p.session_id)
+        assert handle is not None
+        handle.cancel_turn()
 
     async def shutdown(self) -> None:
-        """连接断开 ≠ 会话结束：会话留在注册表继续跑，本连接只摘除审批路由。"""
         self._shutting_down = True
-        # 在途审批/提问默认拒绝（宁安全勿放行），避免 turn 悬挂在等应答上
-        for request_id, (session_id, kind) in list(self._inflight_requests.items()):
-            session = self._sessions.get(session_id)
-            if session is not None:
-                session.respond(request_id, False if kind == "approval" else None)
-        for task in tuple(self._tasks):
-            task.cancel()
+        self._reject_requests()
+        for session_id in tuple(self._owned_sessions):
+            self._unmount(session_id)
         if self._tasks:
             await asyncio.gather(*self._tasks, return_exceptions=True)
-        registry = get_registry()
-        for session_id in tuple(self._owned_sessions):
-            handle = registry.get(session_id) if registry is not None else None
-            if handle is not None and handle.approval_target is self:
-                handle.set_approval_target(None)
-            self._release(session_id)
         self._tasks.clear()
 
 
 async def ws_endpoint(websocket: WebSocket) -> None:
-    """握手时验 token 得 user_id，无效则 close(4401)；token 合法但用户已不存在同样 4401。"""
     await websocket.accept()
     token = websocket.query_params.get("token")
     user_id = decode_user_id(token) if token else None
-    close_code = (
-        WS_UNAUTHORIZED_CLOSE_CODE
-        if user_id is None
-        else await asyncio.to_thread(_user_close_code, user_id)
-    )
+    close_code = WS_UNAUTHORIZED_CLOSE_CODE if user_id is None else await asyncio.to_thread(_user_close_code, user_id)
     if close_code is not None:
         await websocket.close(code=close_code)
         return
@@ -274,23 +274,23 @@ async def ws_endpoint(websocket: WebSocket) -> None:
         try:
             return await websocket.receive_text()
         except (WebSocketDisconnect, RuntimeError):
-            return None  # 对端关闭 = EOF，驱动 connection.run 收尾
+            return None
 
     async def write_line(line: str) -> None:
         try:
             await websocket.send_text(line)
         except (WebSocketDisconnect, RuntimeError) as e:
-            try:
-                await websocket.close()
-            except (WebSocketDisconnect, RuntimeError):
-                pass
             raise ConnectionError("WebSocket 已关闭") from e
 
+    async def close_connection(code: int) -> None:
+        await websocket.close(code=code)
+
+    trusted = secrets.compare_digest(websocket.headers.get("x-internal-token", ""), config.cloud.internal_token)
+    connection_id = websocket.headers.get("x-connection-id") if trusted else None
     connection = JsonRpcConnection(read_line, write_line)
     server = CloudAppServer(
-        connection,
-        user_id=user_id,
-        data_root=Path(config.cloud.data_root).expanduser(),
+        connection, user_id=user_id, data_root=Path(config.cloud.data_root).expanduser(),
+        connection_id=connection_id, close_connection=close_connection,
     )
     logger.info("云端客户端已连接: user_id={} client={}", user_id, websocket.client)
     try:

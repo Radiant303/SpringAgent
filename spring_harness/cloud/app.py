@@ -18,7 +18,7 @@ from spring_harness.cloud.registry import (
     get_registry,
     set_registry,
 )
-from spring_harness.cloud.ws import ws_endpoint
+from spring_harness.cloud.ws import CloudAppServer, ws_endpoint
 from spring_harness.core.config.model import build_model, set_catalog
 from spring_harness.core.config.settings import config
 from spring_harness.core.log import logger
@@ -27,6 +27,11 @@ from spring_harness.core.services.web_server import DEFAULT_FRONTEND_DIR
 
 class TestModelRequest(BaseModel):
     model_id: str
+
+
+class ControlRequest(BaseModel):
+    user_id: int
+    connection_id: str
 
 
 @asynccontextmanager
@@ -80,6 +85,15 @@ def create_app() -> FastAPI:
         registry = get_registry()
         active = registry.active_count_in_work(work_id) if registry is not None else 0
         return {"active": active}
+
+    @app.post("/internal/sessions/{session_id}/control")
+    async def session_control(
+        session_id: str, body: ControlRequest, x_internal_token: str | None = Header(default=None),
+    ) -> dict:
+        if x_internal_token != config.cloud.internal_token:
+            raise HTTPException(status_code=401, detail="未认证")
+        token = CloudAppServer.control_token(session_id, body.user_id, body.connection_id)
+        return {"authorized": token is not None, "controlToken": token}
 
     @app.post("/internal/models/test")
     async def test_model(

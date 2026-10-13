@@ -59,6 +59,8 @@ class CloudSessionHandle:
         self._approval_target: AppServer | None = None
         self._parked_requests: list[ApprovalRequest | QuestionRequest] = []
         self._tasks: set[asyncio.Task] = set()
+        self._turn_pending = False
+        self._cancel_pending = False
         # 最近见到该会话的用户 ID：wake 轮没有派发消息，以此归属计费用户
         self._last_user_id: int | None = None
         self._fanout_task = self._track(asyncio.create_task(self._fanout_loop()))
@@ -90,28 +92,37 @@ class CloudSessionHandle:
             self._last_user_id = user_id
             self.session.cloud_user_id = user_id
 
-    # ---- turn 驱动（MQ 派发器调用） ----
+    @property
+    def busy(self) -> bool:
+        return self.session.busy or self._turn_pending
 
     def start_turn(
-        self,
-        text: str,
-        *,
-        turn_id: str | None = None,
-        user_id: int | None = None,
+        self, text: str, *, turn_id: str | None = None, user_id: int | None = None,
     ) -> None:
-        if self.session.busy:
+        if self.busy:
             raise JsonRpcError(BUSY, "上一轮还没结束")
+        self._turn_pending = True
+        self._cancel_pending = False
         self.remember_user(user_id)
         self._track(asyncio.create_task(self._run(text, turn_id=turn_id, user_id=user_id)))
 
     def cancel_turn(self) -> None:
+        if self._turn_pending and not self.session.busy:
+            self._cancel_pending = True
         self.session.cancel()
 
     async def _run(self, text: str, *, turn_id: str | None = None, user_id: int | None = None) -> None:
         try:
+            if self._cancel_pending:
+                event = TurnFinished(cancelled=True, turn_id=turn_id, user_id=user_id)
+                await self._write_stream(event)
+                await self._publish_lifecycle(event)
+                return
             await self.session.run_turn(text, turn_id=turn_id, user_id=user_id)
-        except Exception:  # noqa: BLE001 run_turn 正常路径已自收口，到这属于意外
+        except Exception:
             logger.exception("会话 {} 的轮次异常", self.session_id)
+        finally:
+            self._turn_pending = False
 
     # ---- 事件扇出 ----
 
@@ -141,7 +152,11 @@ class CloudSessionHandle:
             self._parked_requests.append(event)
             logger.info("会话 {} 无在线连接，审批/提问暂存: {}", self.session_id, type(event).__name__)
             return
-        await target.post_session_request(self.session, event)
+        try:
+            await target.post_session_request(self.session, event)
+        except Exception:
+            self.session.respond(event.request_id, False if isinstance(event, ApprovalRequest) else None)
+            logger.warning("会话审批连接已不可用: {}", self.session_id)
 
     async def _write_stream(self, event: ServerEvent) -> None:
         if self._redis is None:
@@ -207,6 +222,7 @@ class CloudSessionRegistry:
     def __init__(self, redis: aioredis.Redis | None) -> None:
         self._redis = redis
         self._handles: dict[str, CloudSessionHandle] = {}
+        self._create_lock = asyncio.Lock()
 
     def get(self, session_id: str) -> CloudSessionHandle | None:
         return self._handles.get(session_id)
@@ -214,16 +230,16 @@ class CloudSessionRegistry:
     async def get_or_create(
         self, session_id: str, *, workspace: Path, store: SessionStore, work_id: str = "",
     ) -> CloudSessionHandle:
-        handle = self._handles.get(session_id)
-        if handle is not None:
+        async with self._create_lock:
+            handle = self._handles.get(session_id)
+            if handle is not None:
+                return handle
+            workspace.mkdir(parents=True, exist_ok=True)
+            session = await asyncio.to_thread(HarnessSession, workspace, store=store)
+            handle = CloudSessionHandle(session, self._redis, work_id=work_id)
+            self._handles[session_id] = handle
+            logger.info("云端会话已注册: {}", session_id)
             return handle
-        # 工作区目录惰性创建：work 目录可能由本进程第一个挂载的会话创建
-        workspace.mkdir(parents=True, exist_ok=True)
-        session = await asyncio.to_thread(HarnessSession, workspace, store=store)
-        handle = CloudSessionHandle(session, self._redis, work_id=work_id)
-        self._handles[session_id] = handle
-        logger.info("云端会话已注册: {}", session_id)
-        return handle
 
     def active_count_in_work(self, work_id: str) -> int:
         """进程内该 work 下"活跃"的会话数：有连接挂载或 turn 在跑即活跃，
@@ -231,7 +247,7 @@ class CloudSessionRegistry:
         return sum(
             1 for handle in self._handles.values()
             if handle.work_id == work_id
-            and (handle.approval_target is not None or handle.session.busy)
+            and (handle.approval_target is not None or handle.busy)
         )
 
     async def close_all(self) -> None:

@@ -47,11 +47,25 @@ public class EngineClient {
     }
 
     /**
-     * 请求引擎真实调用一次指定模型
+     * 获取连接持有的会话控制令牌。
      *
-     * @param modelId 模型 ID
-     * @return 引擎返回的调用结果
+     * @param sessionId 会话 ID
+     * @param userId 用户 ID
+     * @param connectionId 连接 ID
+     * @return 控制令牌；无控制权时为 null
      */
+    public String sessionControlToken(String sessionId, long userId, String connectionId) {
+        JsonNode result = restClient.post()
+                .uri("/internal/sessions/{sessionId}/control", sessionId)
+                .body(Map.of("user_id", userId, "connection_id", connectionId))
+                .retrieve().body(JsonNode.class);
+        if (result == null || !result.path("authorized").asBoolean(false)) {
+            return null;
+        }
+        JsonNode token = result.get("controlToken");
+        return token == null || !token.isTextual() || token.asText().isBlank() ? null : token.asText();
+    }
+
     public JsonNode testModel(String modelId) {
         return restClient.post()
                 .uri("/internal/models/test")

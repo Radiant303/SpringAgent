@@ -22,6 +22,7 @@ class AttachParams(_WireModel):
     workspace: str
     session_id: str = Field(validation_alias="sessionId", serialization_alias="sessionId")
     model: str | None = None
+    takeover: bool = Field(default=False, strict=True)
 
 
 class TurnStartParams(_WireModel):

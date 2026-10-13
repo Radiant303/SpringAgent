@@ -9,10 +9,13 @@ let approvalResolve = null;
 let questionResolve = null;
 let approvalQueue = Promise.resolve();
 let questionQueue = Promise.resolve();
+let approvalGeneration = 0;
+let questionGeneration = 0;
 
 export function handleApprovalRequest(params) {
-  // 串行排队，避免多个审批弹窗叠在一起
+  const generation = approvalGeneration;
   const task = approvalQueue.then(() => new Promise((resolve) => {
+    if (generation !== approvalGeneration) { resolve(false); return; }
     approvalResolve = resolve;
     if ($("approval-tool")) $("approval-tool").textContent = params.toolName || "";
     if ($("approval-args")) $("approval-args").textContent = JSON.stringify(params.args ?? {}, null, 2);
@@ -42,12 +45,14 @@ export function settleApproval(approved) {
 }
 
 export function hideApproval() {
-  if (approvalResolve) settleApproval(false);
+  approvalGeneration++;
+  settleApproval(false);
 }
 
 export function handleQuestionRequest(params) {
-  // 串行排队，避免多个提问叠在一起
+  const generation = questionGeneration;
   const task = questionQueue.then(() => new Promise((resolve) => {
+    if (generation !== questionGeneration) { resolve(null); return; }
     questionResolve = resolve;
     if ($("question-text")) $("question-text").textContent = params.question || "";
     const optionsBox = $("question-options");
@@ -82,5 +87,6 @@ export function settleQuestion(answer) {
 }
 
 export function hideQuestion() {
-  if (questionResolve) settleQuestion(null);
+  questionGeneration++;
+  settleQuestion(null);
 }

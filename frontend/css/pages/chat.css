@@ -1407,6 +1407,14 @@ pre.tool-result.error { background: var(--diff-del-bg, rgba(192, 57, 43, 0.07));
 #model-name:empty::before { width: 72px; }
 .tray-conn { flex-shrink: 0; }
 .tray-conn:has(.conn-dot.disconnected) { color: var(--text-dim, rgba(0, 0, 0, 0.6)); }
+#reconnect-btn {
+  padding: 0 4px;
+  background: transparent;
+  color: var(--link);
+  font: inherit;
+  text-decoration: none;
+}
+#reconnect-btn:hover { color: var(--text); }
 
 /* 上下文用量 */
 #usage {

@@ -267,7 +267,9 @@ class AppServer:
             logger.exception("会话 {} 的事件泵异常退出", session.session_id)
 
     async def _post_approval(self, session: HarnessSession, event) -> None:
-        # 等响应挪到后台任务：泵堵在这，等待期间产生的 TurnFinished 就发不出去
+        if self._shutting_down:
+            session.respond(event.request_id, False)
+            return
         await self._connection.post_request(
             "approval/request",
             ApprovalRequestParams(
@@ -279,6 +281,10 @@ class AppServer:
             ),
             rid=event.request_id,
         )
+        if self._shutting_down:
+            self._connection.discard_response(event.request_id)
+            session.respond(event.request_id, False)
+            return
         self._inflight_requests[event.request_id] = (session.session_id, "approval")
         self._track(asyncio.create_task(self._await_approval(session, event.request_id)))
 
@@ -287,12 +293,16 @@ class AppServer:
             result = await self._connection.wait_response(request_id)
             approved = ApprovalResult.model_validate(result or {}).approved
         except (JsonRpcError, ValidationError):
-            approved = False  # 客户端出错/断连：默认拒绝，宁安全勿放行
+            approved = False
         finally:
             self._inflight_requests.pop(request_id, None)
-        session.respond(request_id, approved)
+        if not self._shutting_down:
+            session.respond(request_id, approved)
 
     async def _post_question(self, session: HarnessSession, event) -> None:
+        if self._shutting_down:
+            session.respond(event.request_id, None)
+            return
         await self._connection.post_request(
             "question/request",
             QuestionRequestParams(
@@ -303,6 +313,10 @@ class AppServer:
             ),
             rid=event.request_id,
         )
+        if self._shutting_down:
+            self._connection.discard_response(event.request_id)
+            session.respond(event.request_id, None)
+            return
         self._inflight_requests[event.request_id] = (session.session_id, "question")
         self._track(asyncio.create_task(self._await_question(session, event.request_id)))
 
@@ -311,10 +325,11 @@ class AppServer:
             result = await self._connection.wait_response(request_id)
             answer = QuestionResult.model_validate(result or {}).answer
         except (JsonRpcError, ValidationError):
-            answer = None  # 视为用户取消提问
+            answer = None
         finally:
             self._inflight_requests.pop(request_id, None)
-        session.respond(request_id, answer)
+        if not self._shutting_down:
+            session.respond(request_id, answer)
 
     # ---- 收尾 ----
 

@@ -94,7 +94,19 @@ class JsonRpcConnection:
     async def post_request(self, method: str, params: dict | BaseModel, *, rid: str | int) -> None:
         future = asyncio.get_running_loop().create_future()
         self._pending[rid] = future
-        await self._send(JsonRpcRequest(id=rid, method=method, params=_params_dict(params)))
+        try:
+            await self._send(JsonRpcRequest(id=rid, method=method, params=_params_dict(params)))
+        except BaseException:
+            self.discard_response(rid)
+            raise
+
+    def discard_response(self, rid: str | int) -> None:
+        future = self._pending.pop(rid, None)
+        if future is not None:
+            if future.done() and not future.cancelled():
+                future.exception()
+            else:
+                future.cancel()
 
     async def wait_response(self, rid: str | int) -> Any:
         future = self._pending[rid]

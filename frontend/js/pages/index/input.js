@@ -15,8 +15,9 @@ export function updateInputState() {
   if (!send || !stop || !input) return;
   send.classList.toggle("hidden", state.busy);
   stop.classList.toggle("hidden", !state.busy);
-  send.disabled = !state.connected || !input.value.trim();
-  stop.disabled = !state.connected;
+  const controlled = !state.connectionReplaced && (!state.sessionId || state.sessionReady);
+  send.disabled = !state.connected || !controlled || !input.value.trim();
+  stop.disabled = !state.connected || !controlled;
 }
 
 export async function send() {
@@ -26,6 +27,10 @@ export async function send() {
   if (!text) return;
   if (!state.connected) {
     addSystem("尚未连接，不能发送消息", true);
+    return;
+  }
+  if (state.connectionReplaced || (state.sessionId && !state.sessionReady)) {
+    addSystem("当前页面未控制此会话，请重新连接或接管会话", true);
     return;
   }
   if (state.busy) {
@@ -50,6 +55,7 @@ export async function send() {
     if (!state.sessionId) {
       const r = await rpc.request("session/new", { workspace: state.workspace, model: state.model, workId: state.workId });
       state.sessionId = r.sessionId;
+      state.sessionReady = true;
       localStorage.setItem("sh.sessionId", r.sessionId);
       subscribeStream(r.sessionId);
       refreshSessionList();
