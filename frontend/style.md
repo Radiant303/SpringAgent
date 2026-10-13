@@ -102,6 +102,23 @@ font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-s
 - 数字列加 `font-variant-numeric: tabular-nums`（`.num`），表格里数字右对齐。
 - 标题不要加粗到 700+，也不要放大到 24px+（首页字标除外）。
 
+### Markdown 标题与排版分级（`.markdown-body`）
+
+所有标题颜色统一为主文字（`--text`，`rgba(0,0,0,0.9)`），字重统一为 600，`letter-spacing: 0`。**仅靠字号与行高分级，不做彩色标题**：
+
+| 层级 | 字号 | 行高 | 字重 | 外边距 | 变量 | 用于 |
+|---|---|---|---|---|---|---|
+| H1 | 22px | 36px | 600 | `24px 0 16px` | `--markdown-H1-font-size`, `--markdown-H1-line-height` | 文章主标题 |
+| H2 | 20px | 32px | 600 | `20px 0 16px` | `--markdown-H2-font-size`, `--markdown-H2-line-height` | 一级章节 |
+| H3 | 18px | 28px | 600 | `18px 0 16px` | `--markdown-H3-font-size`, `--markdown-H3-line-height` | 二级章节 |
+| H4–H6 | 16px | 26px | 600 | `16px 0 16px` | `--markdown-H4-font-size`, `--markdown-H4-line-height` | 段落内小标题（与正文加粗同级） |
+| 正文 (P) | 16px | 26px | 400 | `0 0 16px` | `--markdown-body-font-size`, `--markdown-body-line-height` | 消息普通段落、列表项 |
+| 行内代码 | 16px | 26px | 400 | 行内，`padding: 2px 6px` | — | 行内代码、变量名 |
+| 代码块 | 14px | 22px | 400 | `16px 0` | `--markdown-code-font-size`, `--markdown-code-line-height` | 多行代码块 |
+
+- **为什么 H4 之后不再继续变小**：在 16px 正文语境下，若 H6 继续缩小至 12px 或 10px，会低于正文的可读性阈值，看起来像脚注而非标题。现代文档系统让 H4–H6 停在正文加粗这一档，主要依靠加粗与垂直段落间距区分层级。
+- 首个子元素清除上边距（`> *:first-child { margin-top: 0 }`），末尾子元素清除下边距（`> *:last-child { margin-bottom: 0 }`）。
+
 ## 5. 尺寸、圆角、间距
 
 ### 控件高度（同类控件高度统一）
@@ -450,6 +467,22 @@ UI.enhanceDate(inp);               // 只换一个日期框
 - 浮层里按 Esc 和方向键不会冒泡到页面（不会触发"中断运行"等快捷键）。
 - 层级：页面浮层 10–60 < `.modal` 100 < 对话框 300 < 下拉/日历浮层 350 < 轻提示 400。
 - 新增别的原生控件（多选、时间选择等）时，按同样的方式在 `ui.js` 里加增强函数并挂到 `window.UI`，不要在页面脚本里各写一份。
+
+### 6.13 Markdown 排版与代码块（`.markdown-body`）
+
+聊天区域中的消息排版统一使用 `.markdown-body` 容器：
+
+- **标题与段落节奏**：
+  - 标题（H1–H6）全部使用 `font-weight: 600`，字色统一为 `var(--text)`，下边距统一为 16px，上边距按层级递增（H1 24px、H2 20px、H3 18px、H4–H6 16px）。
+  - 段落（`p`）、列表（`ul, ol`）、引用（`blockquote`）底部统一留白 16px（`margin: 0 0 16px`），列表项行距 6px。
+  - 分割线（`hr`）：`border-top: 1px solid var(--border)`，上下外边距 `32px 0`。
+- **行内代码**：
+  - `code`：16px / 26px，浅灰底 `var(--surface)`，圆角 4px，内边距 `2px 6px`。
+- **代码块（`.code-block`）**：
+  - 外部卡片：白底 `var(--bg, #fff)`、1px 细边框 `var(--border)`、12px 圆角、`margin: 16px 0`。
+  - 顶部栏（`.code-header`）：高 38px，浅灰底 `var(--surface, #f5f5f5)`，左侧展示语言名（13px，字重 500），右侧放置 28×28 复制图标按钮。
+  - 代码内容：14px 字号、22px 行高，等宽字体，透明背景，内边距 `16px 18px`，横向滚动。
+  - 语法高亮：直接使用开源库 `highlight.js` 与外部样式表（`highlight.min.css`）的原生配色，不在业务 CSS 中手工重写颜色。
 
 ## 7. 交互约定
 

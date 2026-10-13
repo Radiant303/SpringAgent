@@ -60,6 +60,20 @@
   --ic-sm: 16px;
   --ic-md: 20px;
 
+  /* ================= Markdown 排版变量 ================= */
+  --markdown-H1-font-size: 22px;
+  --markdown-H1-line-height: 36px;
+  --markdown-H2-font-size: 20px;
+  --markdown-H2-line-height: 32px;
+  --markdown-H3-font-size: 18px;
+  --markdown-H3-line-height: 28px;
+  --markdown-H4-font-size: 16px;
+  --markdown-H4-line-height: 26px;
+  --markdown-body-font-size: 16px;
+  --markdown-body-line-height: 26px;
+  --markdown-code-font-size: 14px;
+  --markdown-code-line-height: 22px;
+
   /* ================= 滚动条 ================= */
   --scrollbar-thumb: #c8c8c8;
   --scrollbar-thumb-hover: #a8a8a8;
