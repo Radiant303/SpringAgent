@@ -203,6 +203,7 @@ export async function openWorkSession(preferredSid = null) {
     localStorage.removeItem("sh.sessionId");
     clearMessages();
     await refreshSessionList();
+    updateInputState();
     $("input")?.focus();
   }
 }

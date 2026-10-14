@@ -7,19 +7,24 @@ import { rpc } from "../../api/rpc.js";
 import { state, resetFlow, setStickToBottom, maybeScroll, ensureTurn, discardEmptyTurn } from "./state.js";
 import { userNode, addSystem } from "./chatView.js";
 import { subscribeStream, refreshSessionList } from "./sessions.js";
+import { clearEditor, editorHasContent, editorText, keepAttachmentsOnClear } from "./editor.js";
 
 export function updateInputState() {
   const send = $("send-btn");
   const stop = $("stop-btn");
-  const input = $("input");
-  if (!send || !stop || !input) return;
+  if (!send || !stop || !$("input")) return;
   send.classList.toggle("hidden", state.busy);
   stop.classList.toggle("hidden", !state.busy);
   const controlled = !state.connectionReplaced && (!state.sessionId || state.sessionReady);
-  send.disabled = !state.connected || !controlled || state.modelChanging || !input.value.trim();
+  send.disabled = !state.connected || !controlled || state.modelChanging
+    || !!$("upload-btn")?.dataset.uploading || !editorHasContent();
   stop.disabled = !state.connected || !controlled;
   for (const id of ["model-btn", "effort-btn"]) {
     if ($(id)) $(id).disabled = !state.connected || !controlled || state.busy || state.modelChanging;
+  }
+  const uploadBtn = $("upload-btn");
+  if (uploadBtn && !uploadBtn.dataset.uploading) {
+    uploadBtn.disabled = !state.connected || !controlled || state.busy || state.modelChanging;
   }
   if (!state.connected || !controlled || state.busy || state.modelChanging) closeModelMenu();
 }
@@ -27,8 +32,8 @@ export function updateInputState() {
 export async function send() {
   const input = $("input");
   if (!input) return;
-  const text = input.value.trim();
-  if (!text) return;
+  const fullText = editorText().trim();
+  if (!fullText) return;
   if (!state.connected) {
     addSystem("尚未连接，不能发送消息", true);
     return;
@@ -37,8 +42,8 @@ export async function send() {
     addSystem("当前页面未控制此会话，请重新连接或接管会话", true);
     return;
   }
-  if (state.busy || state.modelChanging) {
-    addSystem("运行或切换模型中，不能发送消息");
+  if (state.busy || state.modelChanging || $("upload-btn")?.dataset.uploading) {
+    addSystem("运行、上传或切换模型中，不能发送消息");
     return;
   }
   state.busy = true;
@@ -47,13 +52,14 @@ export async function send() {
   if (welcome) welcome.remove();
   resetFlow();
   const box = $("messages");
-  if (box) box.appendChild(userNode(text));
+  if (box) box.appendChild(userNode(fullText));
   const turn = ensureTurn();
   showPending(turn.content);
   setStickToBottom(true);
   scrollToBottom();
-  input.value = "";
-  input.style.height = "auto";
+  // 附件已随消息文本发出：清编辑器时登记 chip，不触发服务端删除
+  keepAttachmentsOnClear();
+  clearEditor();
   try {
     // 草稿态下首条消息：先建会话再开回合
     if (!state.sessionId) {
@@ -65,7 +71,7 @@ export async function send() {
       subscribeStream(r.sessionId);
       refreshSessionList();
     }
-    await rpc.request("turn/start", { sessionId: state.sessionId, input: text });
+    await rpc.request("turn/start", { sessionId: state.sessionId, input: fullText });
   } catch (e) {
     discardEmptyTurn();
     state.busy = false;

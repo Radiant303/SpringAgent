@@ -79,6 +79,26 @@ public class GlobalExceptionHandler {
     }
 
     /**
+     * 存储后端失败，统一返回 502
+     */
+    @ExceptionHandler(com.spring.gateway.service.storage.StorageException.class)
+    public ResponseEntity<Result<Void>> storage(com.spring.gateway.service.storage.StorageException e) {
+        log.warn("存储操作失败: {}", e.getMessage());
+        return ResponseEntity.status(HttpStatus.BAD_GATEWAY)
+                .body(Result.error(HttpStatus.BAD_GATEWAY.value(), e.getMessage()));
+    }
+
+    /**
+     * 上传超 multipart 限制，统一返回 413
+     */
+    @ExceptionHandler(org.springframework.web.multipart.MaxUploadSizeExceededException.class)
+    public ResponseEntity<Result<Void>> tooLarge(
+            org.springframework.web.multipart.MaxUploadSizeExceededException e) {
+        return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE)
+                .body(Result.error(HttpStatus.PAYLOAD_TOO_LARGE.value(), "文件过大，单文件不能超过 20 MB"));
+    }
+
+    /**
      * 处理未捕获异常，统一返回 500；错误细节只记录日志，不写入响应
      */
     @ExceptionHandler(Exception.class)

@@ -14,7 +14,12 @@ import { loadLedger, renderLedgerUserOptions } from "./admin/ledger.js";
 import { loadModels, onModelAction, onModelFormSubmit, fillModelForm } from "./admin/models.js";
 import { loadModelConfig, bindModelConfig } from "./admin/modelConfig.js";
 import { loadRedeemCodes, openRedeemGen, onRedeemAction } from "./admin/redeem.js";
-import { loadSettings, saveSettings } from "./admin/settings.js";
+import {
+  loadRegistration, saveRegistration,
+  loadStorage, saveStorage, bindStorageSettings,
+  loadBilling, saveBilling,
+  loadCommunity, saveCommunity,
+} from "./admin/settings.js";
 
 // 注册各页数据加载器
 registerPageLoader("account", loadAccount);
@@ -25,7 +30,10 @@ registerPageLoader("ledger", () => ensureUsers().then(() => loadLedger()));
 registerPageLoader("models", () => loadModels());
 registerPageLoader("model-config", () => loadModelConfig());
 registerPageLoader("redeem", () => ensureUsers().then(() => loadRedeemCodes()));
-registerPageLoader("settings", () => loadSettings());
+registerPageLoader("registration", () => loadRegistration());
+registerPageLoader("storage", () => loadStorage());
+registerPageLoader("billing", () => loadBilling());
+registerPageLoader("community", () => loadCommunity());
 
 // 用户列表加载或刷新后，同步用量统计和积分流水页的用户筛选下拉框
 onUsersUpdated((list) => {
@@ -90,7 +98,11 @@ export function init() {
     if (role === "owner") {
       $("model-form")?.addEventListener("submit", onModelFormSubmit);
       if ($("model-cancel")) $("model-cancel").onclick = () => fillModelForm(null);
-      if ($("settings-save")) $("settings-save").onclick = saveSettings;
+      if ($("registration-save")) $("registration-save").onclick = saveRegistration;
+      if ($("storage-save")) $("storage-save").onclick = saveStorage;
+      if ($("billing-save")) $("billing-save").onclick = saveBilling;
+      if ($("community-save")) $("community-save").onclick = saveCommunity;
+      bindStorageSettings();
       if ($("redeem-open-gen")) $("redeem-open-gen").onclick = () => openRedeemGen().catch((e) => UI.toast(e.message, { type: "error" }));
 
       // 模型配置页（默认/子代理模型 + Provider 两级管理）

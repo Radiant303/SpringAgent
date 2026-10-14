@@ -3,6 +3,8 @@ package com.spring.gateway.mapper;
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.spring.gateway.entity.Work;
 import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Param;
+import org.apache.ibatis.annotations.Select;
 
 /**
  * works 表的 Mapper。
@@ -12,4 +14,13 @@ import org.apache.ibatis.annotations.Mapper;
  */
 @Mapper
 public interface WorkMapper extends BaseMapper<Work> {
+
+    /**
+     * 锁定项目行并查询。
+     *
+     * @param id 项目 ID
+     * @return 项目行，不存在时为 null
+     */
+    @Select("SELECT * FROM works WHERE id = #{id} FOR UPDATE")
+    Work selectForUpdate(@Param("id") String id);
 }

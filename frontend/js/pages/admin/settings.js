@@ -1,5 +1,6 @@
 /**
- * 系统设置（仅站长）业务逻辑
+ * 站长设置各页（注册/存储/计费/社群）业务逻辑：每页独立加载与保存，
+ * 后端对应各自的分项接口（/api/admin/settings/{registration,mail,work-max-bytes,storage,billing-est,community-link}）。
  */
 
 import { $ } from "../../utils/dom.js";
@@ -9,41 +10,39 @@ import { getRole } from "../../api/auth.js";
 import { api } from "../../api/client.js";
 import { UI } from "../../components/ui.js";
 
-export async function loadSettings() {
-  if (getRole() !== "owner") return;
-  // 数据返回前输入框呈骨架态（无文字、脉动、不可编辑），保存按钮禁用，避免先看到空值或默认值
-  const section = document.querySelector('.admin-page[data-page="settings"]');
+/** 页面骨架：加载期间整页脉动且保存按钮禁用，避免先看到空值或默认值 */
+async function withSkeleton(page, saveId, fn) {
+  if (getRole() !== "owner") return null;
+  const section = document.querySelector(`.admin-page[data-page="${page}"]`);
   section?.classList.add("is-loading");
-  if ($("settings-save")) $("settings-save").disabled = true;
-  let data;
-  let limits;
+  if ($(saveId)) $(saveId).disabled = true;
   try {
-    [data, limits] = await Promise.all([api("/api/admin/settings"), loadResourceLimits()]);
-    if ($("work-max-mb")) {
-      $("work-max-mb").max = limits.quotaMbMax;
-      $("work-max-mb").step = "1";
-      $("work-max-mb").title = `1～${limits.quotaMbMax} MB，整数`;
-    }
-    for (const id of ["est-cache-read", "est-input", "est-output"]) {
-      if ($(id)) {
-        $(id).max = limits.billingTokensMax;
-        $(id).step = "1";
-        $(id).title = `0～${limits.billingTokensMax} tokens，整数`;
-      }
-    }
+    return await fn();
   } finally {
     section?.classList.remove("is-loading");
-    if ($("settings-save")) $("settings-save").disabled = false;
+    if ($(saveId)) $(saveId).disabled = false;
   }
+}
+
+/** 保存：禁用按钮防重入，成功 toast，失败 toast 原因 */
+async function saveWith(saveId, fn) {
+  if ($(saveId)?.disabled) return;
+  if ($(saveId)) $(saveId).disabled = true;
+  try {
+    await fn();
+    UI.toast("设置已保存");
+  } catch (e) {
+    UI.toast(e.message, { type: "error" });
+  } finally {
+    if ($(saveId)) $(saveId).disabled = false;
+  }
+}
+
+/* ================= 注册设置 ================= */
+
+export async function loadRegistration() {
+  const data = await withSkeleton("registration", "registration-save", () => api("/api/admin/settings"));
   if ($("registration-open")) $("registration-open").checked = !data || data.registrationOpen !== false;
-  if ($("work-max-mb")) {
-    $("work-max-mb").value = data && data.workMaxBytes != null
-      ? Number(data.workMaxBytes) / limits.mbBytes
-      : 20;
-  }
-  if ($("est-cache-read")) $("est-cache-read").value = data?.billingEstCacheReadTokens ?? 90000;
-  if ($("est-input")) $("est-input").value = data?.billingEstInputTokens ?? 10000;
-  if ($("est-output")) $("est-output").value = data?.billingEstOutputTokens ?? 20000;
   if ($("mail-enabled")) $("mail-enabled").checked = !!data && data.mailRegisterEnabled === true;
   if ($("mail-username")) $("mail-username").value = data?.mailUsername ?? "";
   // 授权码只写不读：不回显原值，留空表示保持不变
@@ -53,27 +52,10 @@ export async function loadSettings() {
   }
   if ($("mail-resend-interval")) $("mail-resend-interval").value = data?.mailResendIntervalSeconds ?? 60;
   if ($("mail-code-ttl")) $("mail-code-ttl").value = data?.mailCodeTtlSeconds ?? 300;
-  if ($("community-link")) $("community-link").value = data?.communityLink ?? "";
 }
 
-export async function saveSettings() {
-  if ($("settings-save")?.disabled) return;
-  if ($("settings-save")) $("settings-save").disabled = true;
-  try {
-    const limits = await loadResourceLimits();
-    const mb = quotaValue($("work-max-mb")?.value, limits, { min: 1 });
-    if (mb === null) throw new Error(`单工作区配额须为 1～${limits.quotaMbMax} MB 的整数`);
-    const token = (id) => parseInteger($(id)?.value, { max: limits.billingTokensMax });
-    const estCacheRead = token("est-cache-read");
-    const estInput = token("est-input");
-    const estOutput = token("est-output");
-    if ([estCacheRead, estInput, estOutput].includes(null)) {
-      throw new Error(`冻结预估须为 0～${limits.billingTokensMax} tokens 的整数`);
-    }
-    const communityLink = $("community-link").value.trim();
-    if (communityLink && !/^https?:\/\//.test(communityLink)) {
-      throw new Error("社群链接必须以 http:// 或 https:// 开头");
-    }
+export async function saveRegistration() {
+  await saveWith("registration-save", async () => {
     const mailResend = parseInteger($("mail-resend-interval").value, { min: 10, max: 3600 });
     const mailTtl = parseInteger($("mail-code-ttl").value, { min: 60, max: 3600 });
     if (mailResend === null || mailTtl === null) {
@@ -82,18 +64,6 @@ export async function saveSettings() {
     await api("/api/admin/settings/registration", {
       method: "POST",
       body: { open: $("registration-open").checked },
-    });
-    await api("/api/admin/settings/work-max-bytes", {
-      method: "POST",
-      body: { bytes: mb * limits.mbBytes },
-    });
-    await api("/api/admin/settings/billing-est", {
-      method: "POST",
-      body: { cacheReadTokens: estCacheRead, inputTokens: estInput, outputTokens: estOutput },
-    });
-    await api("/api/admin/settings/community-link", {
-      method: "POST",
-      body: { link: communityLink },
     });
     await api("/api/admin/settings/mail", {
       method: "POST",
@@ -105,11 +75,133 @@ export async function saveSettings() {
         codeTtlSeconds: mailTtl,
       },
     });
-    if ($("settings-tip")) $("settings-tip").textContent = "";
-    UI.toast("设置已保存");
-  } catch (e) {
-    UI.toast(e.message, { type: "error" });
-  } finally {
-    if ($("settings-save")) $("settings-save").disabled = false;
+  });
+}
+
+/* ================= 存储设置 ================= */
+
+/** 存储类型为本地时隐藏 OSS 配置行 */
+function syncOssRows() {
+  const section = document.querySelector('.admin-page[data-page="storage"]');
+  section?.classList.toggle("oss-hidden", $("storage-type")?.value !== "aliyun_oss");
+}
+
+/** 一次性绑定（admin.js init 调用） */
+export function bindStorageSettings() {
+  $("storage-type")?.addEventListener("change", syncOssRows);
+}
+
+export async function loadStorage() {
+  const [data, limits] = await withSkeleton("storage", "storage-save", () =>
+    Promise.all([api("/api/admin/settings"), loadResourceLimits()]));
+  if ($("work-max-mb")) {
+    $("work-max-mb").max = limits.quotaMbMax;
+    $("work-max-mb").step = "1";
+    $("work-max-mb").title = `1～${limits.quotaMbMax} MB，整数`;
+    $("work-max-mb").value = data && data.workMaxBytes != null
+      ? Number(data.workMaxBytes) / limits.mbBytes
+      : 20;
   }
+  if ($("storage-type")) {
+    $("storage-type").value = data?.storageType ?? "local";
+    // 自绘下拉与原生值同步，再联动 OSS 行显隐
+    $("storage-type").dispatchEvent(new Event("change", { bubbles: true }));
+  }
+  if ($("oss-endpoint")) $("oss-endpoint").value = data?.ossEndpoint ?? "";
+  if ($("oss-bucket")) $("oss-bucket").value = data?.ossBucket ?? "";
+  if ($("oss-access-key-id")) $("oss-access-key-id").value = data?.ossAccessKeyId ?? "";
+  // AccessKey Secret 只写不读：不回显原值，留空表示保持不变
+  if ($("oss-access-key-secret")) {
+    $("oss-access-key-secret").value = "";
+    $("oss-access-key-secret").placeholder = data && data.ossAccessKeySecretConfigured ? "已配置，留空保持不变" : "未配置";
+  }
+  if ($("storage-reconcile-cron")) {
+    $("storage-reconcile-cron").value = data?.storageReconcileCron ?? "";
+  }
+  syncOssRows();
+}
+
+export async function saveStorage() {
+  await saveWith("storage-save", async () => {
+    const limits = await loadResourceLimits();
+    const mb = quotaValue($("work-max-mb")?.value, limits, { min: 1 });
+    if (mb === null) throw new Error(`单工作区配额须为 1～${limits.quotaMbMax} MB 的整数`);
+    const ossEndpoint = $("oss-endpoint").value.trim();
+    if (ossEndpoint && !/^https?:\/\//.test(ossEndpoint)) {
+      throw new Error("OSS endpoint 必须以 http:// 或 https:// 开头");
+    }
+    const reconcileCron = $("storage-reconcile-cron").value.trim();
+    if (reconcileCron && reconcileCron.split(/\s+/).length !== 6) {
+      throw new Error("对账 cron 须为六段式：秒 分 时 日 月 周");
+    }
+    await api("/api/admin/settings/work-max-bytes", {
+      method: "POST",
+      body: { bytes: mb * limits.mbBytes },
+    });
+    await api("/api/admin/settings/storage", {
+      method: "POST",
+      body: {
+        type: $("storage-type").value,
+        endpoint: ossEndpoint,
+        bucket: $("oss-bucket").value.trim(),
+        accessKeyId: $("oss-access-key-id").value.trim(),
+        accessKeySecret: $("oss-access-key-secret").value.trim(),
+        reconcileCron,
+      },
+    });
+  });
+}
+
+/* ================= 计费设置 ================= */
+
+export async function loadBilling() {
+  const [data, limits] = await withSkeleton("billing", "billing-save", () =>
+    Promise.all([api("/api/admin/settings"), loadResourceLimits()]));
+  for (const id of ["est-cache-read", "est-input", "est-output"]) {
+    if ($(id)) {
+      $(id).max = limits.billingTokensMax;
+      $(id).step = "1";
+      $(id).title = `0～${limits.billingTokensMax} tokens，整数`;
+    }
+  }
+  if ($("est-cache-read")) $("est-cache-read").value = data?.billingEstCacheReadTokens ?? 90000;
+  if ($("est-input")) $("est-input").value = data?.billingEstInputTokens ?? 10000;
+  if ($("est-output")) $("est-output").value = data?.billingEstOutputTokens ?? 20000;
+}
+
+export async function saveBilling() {
+  await saveWith("billing-save", async () => {
+    const limits = await loadResourceLimits();
+    const token = (id) => parseInteger($(id)?.value, { max: limits.billingTokensMax });
+    const estCacheRead = token("est-cache-read");
+    const estInput = token("est-input");
+    const estOutput = token("est-output");
+    if ([estCacheRead, estInput, estOutput].includes(null)) {
+      throw new Error(`冻结预估须为 0～${limits.billingTokensMax} tokens 的整数`);
+    }
+    await api("/api/admin/settings/billing-est", {
+      method: "POST",
+      body: { cacheReadTokens: estCacheRead, inputTokens: estInput, outputTokens: estOutput },
+    });
+  });
+}
+
+/* ================= 社群设置 ================= */
+
+export async function loadCommunity() {
+  const data = await withSkeleton("community", "community-save", () => api("/api/admin/settings"));
+  if ($("community-link")) $("community-link").value = data?.communityLink ?? "";
+}
+
+export async function saveCommunity() {
+  await saveWith("community-save", async () => {
+    const communityLink = $("community-link").value.trim();
+    if (communityLink && !/^https?:\/\//.test(communityLink)) {
+      throw new Error("社群链接必须以 http:// 或 https:// 开头");
+    }
+    await api("/api/admin/settings/community-link", {
+      method: "POST",
+      body: { link: communityLink },
+    });
+  });
 }

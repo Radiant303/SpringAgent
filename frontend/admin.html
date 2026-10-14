@@ -70,9 +70,21 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/><path d="M9 2v2M15 2v2M9 20v2M15 20v2M2 9h2M2 15h2M20 9h2M20 15h2"/></svg>
           模型配置
         </div>
-        <div class="nav-item" data-page="settings">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h9M17 8h3M4 16h3M11 16h9"/><circle cx="15" cy="8" r="2.2"/><circle cx="9" cy="16" r="2.2"/></svg>
-          系统设置
+        <div class="nav-item" data-page="registration">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6M22 11h-6"/></svg>
+          注册设置
+        </div>
+        <div class="nav-item" data-page="storage">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/><path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></svg>
+          存储设置
+        </div>
+        <div class="nav-item" data-page="billing">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2h16v20l-2-1.5L16 22l-2-1.5L12 22l-2-1.5L8 22l-2-1.5L4 22z"/><path d="M8 7h8M8 11h8M8 15h5"/></svg>
+          计费设置
+        </div>
+        <div class="nav-item" data-page="community">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          社群设置
         </div>
       </div>
     </aside>
@@ -412,11 +424,11 @@
         <div class="mc-list" id="mc-avail-list" data-slot="card" data-card-hover="false"></div>
       </section>
 
-      <!-- 系统设置（仅站长） -->
-      <section class="admin-page" data-page="settings">
-        <h1 class="page-title">系统设置</h1>
+      <!-- 注册设置（仅站长） -->
+      <section class="admin-page" data-page="registration">
+        <h1 class="page-title">注册设置</h1>
 
-        <div class="section-caption">注册与存储</div>
+        <div class="section-caption">注册</div>
         <div class="card group-card" data-slot="card">
           <label class="row">
             <span class="row-text">
@@ -424,18 +436,9 @@
             </span>
             <input type="checkbox" id="registration-open" class="switch">
           </label>
-          <div class="row">
-            <span class="row-text">
-              <span class="row-label">单工作区配额</span>
-            </span>
-            <span class="row-control">
-              <input type="number" id="work-max-mb" min="1" step="1" class="settings-number">
-              <span class="unit">MB</span>
-            </span>
-          </div>
         </div>
 
-        <div class="section-caption">邮箱验证码注册（QQ 邮箱 SMTP）</div>
+        <div class="section-caption">邮箱验证码（QQ 邮箱 SMTP）</div>
         <div class="card group-card" data-slot="card">
           <label class="row">
             <span class="row-text">
@@ -479,6 +482,98 @@
             </span>
           </div>
         </div>
+        <div class="settings-actions">
+          <button id="registration-save" class="wide-btn primary">保存设置</button>
+          <span id="registration-tip" class="settings-tip"></span>
+        </div>
+      </section>
+
+      <!-- 存储设置（仅站长） -->
+      <section class="admin-page" data-page="storage">
+        <h1 class="page-title">存储设置</h1>
+
+        <div class="section-caption">工作区</div>
+        <div class="card group-card" data-slot="card">
+          <div class="row">
+            <span class="row-text">
+              <span class="row-label">单工作区配额</span>
+            </span>
+            <span class="row-control">
+              <input type="number" id="work-max-mb" min="1" step="1" class="settings-number">
+              <span class="unit">MB</span>
+            </span>
+          </div>
+        </div>
+
+        <div class="section-caption">文件存储</div>
+        <div class="card group-card" data-slot="card">
+          <div class="row">
+            <span class="row-text">
+              <span class="row-label">存储类型</span>
+            </span>
+            <span class="row-control">
+              <select id="storage-type" class="settings-number settings-text">
+                <option value="local">本地服务器</option>
+                <option value="aliyun_oss">阿里云 OSS</option>
+              </select>
+            </span>
+          </div>
+          <div class="row oss-row">
+            <span class="row-text">
+              <span class="row-label">OSS Endpoint</span>
+            </span>
+            <span class="row-control">
+              <input type="text" id="oss-endpoint" class="settings-number settings-text"
+                     placeholder="https://oss-cn-hangzhou.aliyuncs.com" maxlength="256">
+            </span>
+          </div>
+          <div class="row oss-row">
+            <span class="row-text">
+              <span class="row-label">OSS Bucket</span>
+            </span>
+            <span class="row-control">
+              <input type="text" id="oss-bucket" class="settings-number settings-text" maxlength="128">
+            </span>
+          </div>
+          <div class="row oss-row">
+            <span class="row-text">
+              <span class="row-label">AccessKey ID</span>
+            </span>
+            <span class="row-control">
+              <input type="text" id="oss-access-key-id" class="settings-number settings-text" maxlength="128">
+            </span>
+          </div>
+          <div class="row oss-row">
+            <span class="row-text">
+              <span class="row-label">AccessKey Secret</span>
+            </span>
+            <span class="row-control">
+              <input type="password" id="oss-access-key-secret" class="settings-number settings-text" maxlength="128">
+            </span>
+          </div>
+        </div>
+
+        <div class="section-caption">定时对账</div>
+        <div class="card group-card" data-slot="card">
+          <div class="row">
+            <span class="row-text">
+              <span class="row-label">对账周期（Cron）</span>
+            </span>
+            <span class="row-control">
+              <input type="text" id="storage-reconcile-cron" class="settings-number settings-text"
+                     placeholder="0 */10 * * * *" maxlength="64">
+            </span>
+          </div>
+        </div>
+        <div class="settings-actions">
+          <button id="storage-save" class="wide-btn primary">保存设置</button>
+          <span id="storage-tip" class="settings-tip"></span>
+        </div>
+      </section>
+
+      <!-- 社群设置（仅站长） -->
+      <section class="admin-page" data-page="community">
+        <h1 class="page-title">社群设置</h1>
 
         <div class="section-caption">官方社群</div>
         <div class="card group-card" data-slot="card">
@@ -492,6 +587,15 @@
             </span>
           </div>
         </div>
+        <div class="settings-actions">
+          <button id="community-save" class="wide-btn primary">保存设置</button>
+          <span id="community-tip" class="settings-tip"></span>
+        </div>
+      </section>
+
+      <!-- 计费设置（仅站长） -->
+      <section class="admin-page" data-page="billing">
+        <h1 class="page-title">计费设置</h1>
 
         <div class="section-caption">单次请求冻结预估</div>
         <div class="card group-card" data-slot="card">
@@ -518,8 +622,8 @@
           </div>
         </div>
         <div class="settings-actions">
-          <button id="settings-save" class="wide-btn primary">保存设置</button>
-          <span id="settings-tip" class="settings-tip"></span>
+          <button id="billing-save" class="wide-btn primary">保存设置</button>
+          <span id="billing-tip" class="settings-tip"></span>
         </div>
       </section>
     </main>

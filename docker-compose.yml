@@ -51,6 +51,19 @@ services:
     volumes:
       - rabbitmq-data:/var/lib/rabbitmq
 
+  # 统一入口：反代网关 + X-Accel-Redirect 本地文件分发（文件上传功能需要）
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: springharness-nginx
+    ports:
+      # 宿主 8090 → 容器 80（避开 Windows 本地 IIS 等占用的 80）
+      - "8090:80"
+    volumes:
+      - ./nginx/conf.d/default.conf:/etc/nginx/conf.d/default.conf:ro
+      # 网关 app.data-root 只读挂载：Nginx 经 X-Accel-Redirect 直接发本地文件
+      - ${USERPROFILE:-$HOME}/.springharness/cloud:/data:ro
+    restart: unless-stopped
+
 volumes:
   mysql-data:
   redis-data:

@@ -68,6 +68,8 @@ class UserRow(Base):
     quota_bytes: Mapped[int] = mapped_column(
         _BigInt, nullable=False, default=DEFAULT_QUOTA_BYTES,
     )
+    # 上传文件字节数的实时计数：上传/删除原子增减，定时对账按 files 表重算兜底
+    used_bytes: Mapped[int] = mapped_column(_BigInt, nullable=False, default=0)
     # 角色：owner（站长）/ admin（管理员）/ user（用户）
     role: Mapped[str] = mapped_column(String(16), nullable=False, default="user")
     # 账号状态：active / disabled
@@ -270,6 +272,25 @@ class SystemSettingRow(Base):
     setting_key: Mapped[str] = mapped_column(String(64), primary_key=True)
     setting_value: Mapped[str] = mapped_column(String(1024), nullable=False)
     updated_at: Mapped[datetime.datetime] = mapped_column(
+        MicrosecondDateTime, nullable=False, default=utc_now,
+    )
+
+
+class FileRow(Base):
+    """用户上传的文件：扁平 URL（/{uuid}.{ext}）对外，path 为存储内地址（本地相对 data-root / OSS object key）。"""
+
+    __tablename__ = "files"
+    __table_args__ = (Index("ix_files_user_id", "user_id"),)
+
+    id: Mapped[int] = mapped_column(_BigInt, primary_key=True, autoincrement=False)  # 雪花，网关侧生成
+    uuid: Mapped[str] = mapped_column(String(32), unique=True, nullable=False)  # uuid4 hex，无连字符
+    user_id: Mapped[int] = mapped_column(_BigInt, ForeignKey("users.id"), nullable=False)
+    session_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    storage_type: Mapped[str] = mapped_column(String(32), nullable=False)
+    path: Mapped[str] = mapped_column(String(512), nullable=False)
+    size: Mapped[int] = mapped_column(_BigInt, nullable=False)
+    mime_type: Mapped[str] = mapped_column(String(128), nullable=False)
+    created_at: Mapped[datetime.datetime] = mapped_column(
         MicrosecondDateTime, nullable=False, default=utc_now,
     )
 

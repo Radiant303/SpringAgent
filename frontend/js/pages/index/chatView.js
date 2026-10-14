@@ -10,8 +10,92 @@ import { state, closeWork, maybeScroll } from "./state.js";
 
 /* ================= 基础消息节点 ================= */
 
+const ATTACH_IMAGE_RE = /!\[([^\]]*)\]\((https?:\/\/[^\s)]+)\)/g;
+
+export function attachChipNode(att) {
+  const chip = el("span", "attach-chip");
+  chip.title = att.name;
+  const preview = el("span", "attach-preview");
+  const img = document.createElement("img");
+  img.src = att.url;
+  img.alt = att.name;
+  preview.appendChild(img);
+  chip.appendChild(preview);
+  const iconSpan = el("span", "attach-icon");
+  iconSpan.appendChild(icon("image"));
+  chip.append(iconSpan, el("span", "attach-name", att.name));
+  return chip;
+}
+
 export function userNode(text) {
-  return el("div", "msg user", text);
+  const wrap = el("div", "msg user");
+  const body = el("div", "msg-text");
+  let offset = 0;
+  for (const match of (text || "").matchAll(ATTACH_IMAGE_RE)) {
+    body.appendChild(document.createTextNode(text.slice(offset, match.index)));
+    body.appendChild(attachChipNode({ name: match[1], url: match[2] }));
+    offset = match.index + match[0].length;
+  }
+  body.appendChild(document.createTextNode((text || "").slice(offset)));
+  wrap.appendChild(body);
+  return wrap;
+}
+
+/* 输入框内 chip 的浮动预览（挂在 #input-card 上定位，避免被编辑器滚动区裁剪） */
+let floatPreview = null;
+
+export function hideFloatPreview() {
+  floatPreview?.remove();
+  floatPreview = null;
+}
+
+function showFloatPreview(chip, att) {
+  hideFloatPreview();
+  const card = $("input-card");
+  if (!card) return;
+  const box = el("div", "attach-preview float");
+  const img = document.createElement("img");
+  img.src = att.url;
+  img.alt = att.name;
+  box.appendChild(img);
+  card.appendChild(box);
+  const chipRect = chip.getBoundingClientRect();
+  const cardRect = card.getBoundingClientRect();
+  box.style.left = Math.max(0, chipRect.left - cardRect.left) + "px";
+  box.style.bottom = (cardRect.bottom - chipRect.top + 8) + "px";
+  floatPreview = box;
+}
+
+/**
+ * 创建可移除的内联附件。
+ *
+ * @param {{uuid: string, name: string, url: string}} att 附件
+ * @param {{onRemove?: Function}} [opts] 操作回调
+ * @returns {HTMLSpanElement} 附件节点
+ */
+export function editorChipNode(att, opts = {}) {
+  const { onRemove = null } = opts;
+  const chip = el("span", "attach-chip editor-chip");
+  chip.contentEditable = "false";
+  chip.dataset.attachUuid = att.uuid;
+  chip.dataset.attachName = att.name;
+  chip.dataset.attachUrl = att.url;
+  chip.title = att.name;
+  const remove = el("button", "attach-remove");
+  remove.type = "button";
+  remove.title = "移除附件";
+  remove.appendChild(icon("close"));
+  remove.onclick = (e) => {
+    e.stopPropagation();
+    onRemove?.();
+  };
+  chip.appendChild(remove);
+  const iconSpan = el("span", "attach-icon");
+  iconSpan.appendChild(icon("image"));
+  chip.append(iconSpan, el("span", "attach-name", att.name));
+  chip.addEventListener("mouseenter", () => showFloatPreview(chip, att));
+  chip.addEventListener("mouseleave", hideFloatPreview);
+  return chip;
 }
 
 export function noticeNode(text) {

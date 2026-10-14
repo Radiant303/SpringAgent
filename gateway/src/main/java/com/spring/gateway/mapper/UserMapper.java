@@ -38,11 +38,11 @@ public interface UserMapper extends BaseMapper<User> {
     int updateBalance(@Param("id") Long id, @Param("balance") BigDecimal balance);
 
     /**
-     * 存储配额原子增量（兑换码发奖用）；SQL 内自加，并发兑换可叠加不丢失更新。
+     * 增加用户存储配额。
      *
-     * @param id    用户 ID
-     * @param delta 增量（字节，非负）
-     * @param max 配额上限（字节）
+     * @param id 用户 ID
+     * @param delta 增量字节数，非负
+     * @param max 配额上限，单位字节
      * @return 受影响行数
      */
     @Update("UPDATE users SET quota_bytes = quota_bytes + #{delta} WHERE id = #{id}"
@@ -50,13 +50,12 @@ public interface UserMapper extends BaseMapper<User> {
     int addQuotaBytes(@Param("id") Long id, @Param("delta") long delta, @Param("max") long max);
 
     /**
-     * 单工作区上限原子增量（兑换码发奖用）。列为 NULL（跟随全局）时以 base
-     * （兑换时的全局 work_max_bytes）为基线落显式覆盖值，保证增量语义确定。
+     * 增加单工作区存储配额。
      *
-     * @param id    用户 ID
-     * @param base  全局基线（字节），仅在列为 NULL 时生效
-     * @param delta 增量（字节，非负）
-     * @param max 配额上限（字节）
+     * @param id 用户 ID
+     * @param base 未设置覆盖值时的基线，单位字节
+     * @param delta 增量字节数，非负
+     * @param max 配额上限，单位字节
      * @return 受影响行数
      */
     @Update("UPDATE users SET work_quota_bytes = COALESCE(work_quota_bytes, #{base}) + #{delta}"
@@ -64,4 +63,45 @@ public interface UserMapper extends BaseMapper<User> {
             + " AND COALESCE(work_quota_bytes, #{base}) <= #{max} - #{delta}")
     int addWorkQuotaBytes(@Param("id") Long id, @Param("base") long base,
                           @Param("delta") long delta, @Param("max") long max);
+
+    /**
+     * 锁定用户行并查询。
+     *
+     * @param id 用户 ID
+     * @return 用户行，不存在时为 null
+     */
+    @Select("SELECT * FROM users WHERE id = #{id} FOR UPDATE")
+    User selectForUpdate(@Param("id") Long id);
+
+    /**
+     * 增加上传占用，超额时不更新。
+     *
+     * @param id 用户 ID
+     * @param delta 增量字节数，非负
+     * @return 受影响行数；0 表示用户不存在或超额
+     */
+    @Update("UPDATE users SET used_bytes = used_bytes + #{delta} WHERE id = #{id}"
+            + " AND #{delta} >= 0 AND used_bytes <= quota_bytes - #{delta}")
+    int addUsedBytesIfUnderQuota(@Param("id") Long id, @Param("delta") long delta);
+
+    /**
+     * 扣减上传占用，最低为零。
+     *
+     * @param id 用户 ID
+     * @param delta 扣减字节数，非负
+     * @return 受影响行数
+     */
+    @Update("UPDATE users SET used_bytes = GREATEST(used_bytes - #{delta}, 0)"
+            + " WHERE id = #{id} AND #{delta} >= 0")
+    int subtractUsedBytes(@Param("id") Long id, @Param("delta") long delta);
+
+    /**
+     * 写入用户上传占用。
+     *
+     * @param id 用户 ID
+     * @param bytes 占用字节数
+     * @return 受影响行数
+     */
+    @Update("UPDATE users SET used_bytes = #{bytes} WHERE id = #{id}")
+    int updateUsedBytes(@Param("id") Long id, @Param("bytes") long bytes);
 }

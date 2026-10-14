@@ -15,10 +15,18 @@ export const PAGE_TITLES = {
   models: "模型资费",
   "model-config": "模型配置",
   redeem: "兑换码",
-  settings: "系统设置",
+  registration: "注册设置",
+  storage: "存储设置",
+  billing: "计费设置",
+  community: "社群设置",
 };
 
 export const pageLoaders = {};
+
+/** 仅站长的页面 */
+const OWNER_PAGES = new Set(["model-config", "registration", "storage", "billing", "community"]);
+/** 站长/管理员的页面 */
+const STAFF_PAGES = new Set(["users", "usage", "ledger", "models", "redeem"]);
 
 export function registerPageLoader(name, loaderFn) {
   pageLoaders[name] = loaderFn;
@@ -28,8 +36,8 @@ export function pageAllowed(page) {
   const role = getRole();
   const staff = isStaff();
   if (!Object.hasOwn(pageLoaders, page)) return false;
-  if (page === "settings" || page === "model-config") return role === "owner";
-  if (page === "users" || page === "usage" || page === "ledger" || page === "models" || page === "redeem") return staff;
+  if (OWNER_PAGES.has(page)) return role === "owner";
+  if (STAFF_PAGES.has(page)) return staff;
   return true;
 }
 

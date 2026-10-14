@@ -34,6 +34,8 @@ import {
   syncEmpty,
   syncChrome,
 } from "./input.js";
+import { initUpload } from "./upload.js";
+import { syncPlaceholder } from "./editor.js";
 
 // Markdown 配置
 if (typeof marked !== "undefined" && marked.setOptions) {
@@ -350,14 +352,13 @@ export function bind() {
   const input = $("input");
   if (input) {
     input.addEventListener("keydown", (e) => {
-      if (e.key === "Enter" && !e.shiftKey) {
+      if (e.key === "Enter" && !e.shiftKey && !e.isComposing) {
         e.preventDefault();
         send();
       }
     });
     input.addEventListener("input", () => {
-      input.style.height = "auto";
-      input.style.height = Math.min(input.scrollHeight, 180) + "px";
+      syncPlaceholder();
       updateInputState();
     });
   }
@@ -406,6 +407,7 @@ export function bind() {
 
 export async function init() {
   bind();
+  initUpload();
   updateInputState();
   bindAccountMenu();
   if (!getToken()) {

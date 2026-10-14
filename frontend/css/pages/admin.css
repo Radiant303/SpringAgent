@@ -660,6 +660,9 @@ button.row-link:hover { text-decoration: none; }
 
 .settings-hint { font-size: 12px; color: var(--text-faint, rgba(0, 0, 0, 0.45)); }
 .settings-actions { position: relative; }
+
+/* 存储页：存储类型为本地时隐藏 OSS 配置行 */
+.admin-page.oss-hidden .oss-row { display: none; }
 .settings-tip {
   position: absolute;
   left: 0;

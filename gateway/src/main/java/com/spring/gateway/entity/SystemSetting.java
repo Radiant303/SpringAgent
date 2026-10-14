@@ -53,6 +53,24 @@ public class SystemSetting {
     /** 设置键：官方社群链接（空串 = 未配置）。 */
     public static final String KEY_COMMUNITY_LINK = "community_link";
 
+    /** 设置键：文件存储类型（{@code local}/{@code aliyun_oss}，对应存储实现的 Bean 名）。 */
+    public static final String KEY_STORAGE_TYPE = "storage.type";
+
+    /** 设置键：阿里云 OSS endpoint。 */
+    public static final String KEY_OSS_ENDPOINT = "storage.oss.endpoint";
+
+    /** 设置键：阿里云 OSS bucket。 */
+    public static final String KEY_OSS_BUCKET = "storage.oss.bucket";
+
+    /** 设置键：阿里云 OSS AccessKey ID。 */
+    public static final String KEY_OSS_ACCESS_KEY_ID = "storage.oss.access_key_id";
+
+    /** 设置键：阿里云 OSS AccessKey Secret（敏感：接口只写不读，GET 只回"是否已配置"）。 */
+    public static final String KEY_OSS_ACCESS_KEY_SECRET = "storage.oss.access_key_secret";
+
+    /** 设置键：存储对账任务的 Spring cron 表达式。 */
+    public static final String KEY_STORAGE_RECONCILE_CRON = "storage.reconcile_cron";
+
     /** 设置键，主键（值由代码固定，手动赋值）。 */
     @TableId(type = IdType.INPUT)
     private String settingKey;

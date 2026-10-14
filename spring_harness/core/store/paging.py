@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import base64
 import json
+import re
 
 from pydantic_ai import ModelMessage, ModelRequest, UserPromptPart
 
@@ -57,15 +58,21 @@ def decode_cursor(cursor: str, session_id: str) -> tuple[int, int, int]:
     return data[2], data[3], data[4]
 
 
+# 用户上传图片随消息发出的 markdown 附件语法
+ATTACH_IMAGE_RE = re.compile(r"!\[[^\]]*\]\(https?://[^\s)]+\)")
+
+
 def first_user_text(messages: list[ModelMessage], limit: int = 30) -> str | None:
-    """第一条用户消息的截断文本（跳过系统自动注入的消息）。"""
+    """第一条用户消息的截断文本（跳过系统自动注入的消息与图片附件）。"""
     for msg in messages:
         if is_auto_injected_message(msg):
             continue
         if isinstance(msg, ModelRequest):
             for part in msg.parts:
                 if isinstance(part, UserPromptPart) and isinstance(part.content, str):
-                    text = part.content.replace("\n", " ")
+                    text = ATTACH_IMAGE_RE.sub("", part.content).replace("\n", " ").strip()
+                    if not text:
+                        text = "[图片]"
                     return text[:limit] + ("…" if len(text) > limit else "")
     return None
 

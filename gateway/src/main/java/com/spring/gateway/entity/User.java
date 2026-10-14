@@ -48,6 +48,9 @@ public class User {
     /** 存储配额（字节）：用户全部 work 目录占用合计的上限。 */
     private Long quotaBytes;
 
+    /** 上传文件占用（字节）：files 表的实时计数，上传/删除原子增减，定时对账兜底。 */
+    private Long usedBytes;
+
     /** 角色：owner / admin / user。 */
     private String role;
 

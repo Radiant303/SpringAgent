@@ -150,6 +150,63 @@ public class SystemSettingService {
     }
 
     /**
+     * 文件存储类型；默认本地
+     *
+     * @return 存储类型（local / aliyun_oss）
+     */
+    public String getStorageType() {
+        return getString(SystemSetting.KEY_STORAGE_TYPE, "local");
+    }
+
+    /**
+     * 阿里云 OSS endpoint；默认空串（未配置）
+     *
+     * @return endpoint
+     */
+    public String getOssEndpoint() {
+        return getString(SystemSetting.KEY_OSS_ENDPOINT, "");
+    }
+
+    /**
+     * 阿里云 OSS bucket；默认空串（未配置）
+     *
+     * @return bucket
+     */
+    public String getOssBucket() {
+        return getString(SystemSetting.KEY_OSS_BUCKET, "");
+    }
+
+    /**
+     * 阿里云 OSS AccessKey ID；默认空串（未配置）
+     *
+     * @return AccessKey ID
+     */
+    public String getOssAccessKeyId() {
+        return getString(SystemSetting.KEY_OSS_ACCESS_KEY_ID, "");
+    }
+
+    /**
+     * 阿里云 OSS AccessKey Secret；默认空串（未配置）
+     *
+     * @return AccessKey Secret
+     */
+    public String getOssAccessKeySecret() {
+        return getString(SystemSetting.KEY_OSS_ACCESS_KEY_SECRET, "");
+    }
+
+    /**
+     * 存储对账 cron（Spring 六段式）；默认每 10 分钟
+     *
+     * @return cron 表达式
+     */
+    public String getStorageReconcileCron() {
+        return getString(SystemSetting.KEY_STORAGE_RECONCILE_CRON, DEFAULT_RECONCILE_CRON);
+    }
+
+    /** 存储对账 cron 默认值：每 10 分钟。 */
+    public static final String DEFAULT_RECONCILE_CRON = "0 */10 * * * *";
+
+    /**
      * 写设置（upsert：存在更新值与 updated_at，不存在插入）
      *
      * @param key   设置键

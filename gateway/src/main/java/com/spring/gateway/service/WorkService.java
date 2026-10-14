@@ -14,6 +14,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -43,6 +45,7 @@ public class WorkService {
     private final UserMapper userMapper;
     private final EngineClient engineClient;
     private final SystemSettingService systemSettingService;
+    private final FileStorageService fileStorageService;
 
     @Value("${app.data-root}")
     private String dataRoot;
@@ -149,7 +152,11 @@ public class WorkService {
      */
     @Transactional
     public void hardDelete(Long userId, String workId) {
-        getOwned(userId, workId);
+        userMapper.selectForUpdate(userId);
+        Work work = workMapper.selectForUpdate(workId);
+        if (work == null || !userId.equals(work.getUserId())) {
+            throw new BizException(404, "项目不存在");
+        }
         int active;
         try {
             active = engineClient.activeSessionsInWork(workId);
@@ -162,12 +169,19 @@ public class WorkService {
         }
         List<Session> sessions = sessionMapper.selectList(
                 new LambdaQueryWrapper<Session>().eq(Session::getWorkId, workId));
+        fileStorageService.deleteByWork(workId);
         for (Session session : sessions) {
             messageMapper.delete(new LambdaQueryWrapper<Message>().eq(Message::getSessionId, session.getId()));
         }
         sessionMapper.delete(new LambdaQueryWrapper<Session>().eq(Session::getWorkId, workId));
         workMapper.deleteById(workId);
-        deleteDirectoryRecursively(workspacePath(workId));
+        TransactionSynchronizationManager.registerSynchronization(
+                new TransactionSynchronization() {
+                    @Override
+                    public void afterCommit() {
+                        deleteDirectoryRecursively(workspacePath(workId));
+                    }
+                });
     }
 
     /**

@@ -11,6 +11,11 @@ spring:
       cache:
         cachecontrol:
           max-age: 0
+  servlet:
+    multipart:
+      # 单文件 20MB（业务层 FileStorageService.MAX_FILE_BYTES 再卡一道）
+      max-file-size: 20MB
+      max-request-size: 25MB
   datasource:
     # 宿主 3307 → Docker 容器内 MySQL；serverTimezone=UTC 与库中 naive UTC 时间戳对齐
     # characterEncoding 要填 Java 字符集名 UTF-8，不是 MySQL 的 utf8mb4
@@ -48,5 +53,8 @@ app:
   work-max-works: ${WORK_MAX_WORKS:5}
   # Python 引擎地址，WS 中继（turn/start 回退透传、token 流）仍然需要
   engine-base-url: ${ENGINE_BASE_URL:http://127.0.0.1:8001}
+  storage:
+    # 孤儿判定宽限期（毫秒）：早于此刻的文件才敢删，排除在途上传
+    orphan-grace-ms: ${STORAGE_ORPHAN_GRACE_MS:3600000}
   # 注：邮箱验证码注册（QQ SMTP 账号/授权码/重发间隔/有效期/开关）存 system_settings 表，
   # 由站长在管理后台"系统设置"页配置，即改即生效，不在此配置
