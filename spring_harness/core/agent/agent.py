@@ -90,7 +90,6 @@ def create_agent(
             request_hooks(model_id),
             skills(),
             planning(session_id, on_change=plan_on_change),
-            repo_context(root),
             code_mode(root),
             subagents(str(root), model_id, effort),
             background(extra_tools=("run_command", "edit_knowledge")),
