@@ -18,12 +18,9 @@ import java.time.LocalDateTime;
 @TableName("files")
 public class FileRecord {
 
-    /** 记录 ID，雪花 ID。 */
+    /** 记录 ID，雪花 ID，同时是文件名（扁平 URL 与存储 key 共用）。 */
     @TableId(type = IdType.INPUT)
     private Long id;
-
-    /** 文件 UUID（32 位 hex，无连字符），扁平 URL 的不可猜测标识。 */
-    private String uuid;
 
     /** 上传者用户 ID。 */
     private Long userId;

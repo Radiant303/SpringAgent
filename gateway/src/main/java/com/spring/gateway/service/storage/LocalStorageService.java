@@ -70,7 +70,7 @@ public class LocalStorageService implements ObjectStorageService {
             return List.of();
         }
         List<StoredObject> objects = new ArrayList<>();
-        // 只扫受管上传文件（works/{workId}/{sessionId}/images/{uuid}.{ext}，深度 5），
+        // 只扫受管上传文件（works/{workId}/{sessionId}/images/{fileId}.{ext}，深度 5），
         // 工作区里的代理产物不属于上传文件，绝不能进对账的孤儿名单
         try (Stream<Path> walk = Files.walk(root, 5)) {
             walk.filter(Files::isRegularFile).forEach(path -> {

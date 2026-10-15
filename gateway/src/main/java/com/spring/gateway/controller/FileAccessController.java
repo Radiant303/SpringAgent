@@ -22,7 +22,7 @@ import java.nio.file.Path;
 import java.util.Optional;
 
 /**
- * 扁平文件访问：GET /{uuid}.{ext}，无需登录。
+ * 扁平文件访问：GET /{id}.{ext}，无需登录。
  *
  * @author hanbing
  * @since 2026-10-14
@@ -37,13 +37,13 @@ public class FileAccessController {
     /**
      * 访问文件
      *
-     * @param uuid    文件 UUID
+     * @param fileId  文件 ID
      * @param request 请求
      * @return 302 / X-Accel-Redirect / 文件流
      */
-    @GetMapping("/{uuid:[0-9a-f]{32}}.{ext:[A-Za-z0-9]{1,10}}")
-    public ResponseEntity<?> access(@PathVariable String uuid, HttpServletRequest request) {
-        FileRecord row = fileStorageService.requireByUuid(uuid);
+    @GetMapping("/{fileId:\\d{1,19}}.{ext:[A-Za-z0-9]{1,10}}")
+    public ResponseEntity<?> access(@PathVariable long fileId, HttpServletRequest request) {
+        FileRecord row = fileStorageService.requireById(fileId);
         ObjectStorageService storage = storageSelector.get(row.getStorageType());
         Optional<String> direct = storage.directUrl(row.getPath());
         if (direct.isPresent()) {

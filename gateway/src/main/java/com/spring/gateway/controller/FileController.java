@@ -54,7 +54,7 @@ public class FileController {
                                          HttpServletRequest request) throws IOException {
         FileRecord row = fileStorageService.upload(userId, sessionId, file.getOriginalFilename(),
                 file.getContentType(), file.getSize(), file.getInputStream());
-        return Result.ok(new FileUploadView(row.getUuid(), fileUrl(request, row),
+        return Result.ok(new FileUploadView(String.valueOf(row.getId()), fileUrl(request, row),
                 row.getSizeBytes(), row.getMimeType()));
     }
 
@@ -86,7 +86,7 @@ public class FileController {
             try {
                 FileRecord row = fileStorageService.upload(userId, sessionId, file.getOriginalFilename(),
                         file.getContentType(), file.getSize(), file.getInputStream());
-                uploaded.add(new FileBatchUploadView.Item(i, row.getUuid(), fileUrl(request, row),
+                uploaded.add(new FileBatchUploadView.Item(i, String.valueOf(row.getId()), fileUrl(request, row),
                         row.getSizeBytes(), row.getMimeType()));
             } catch (BizException | IOException e) {
                 failed.add(new FileBatchUploadView.Failure(i, e.getMessage()));
@@ -99,13 +99,13 @@ public class FileController {
      * 删除自己上传的文件
      *
      * @param userId 当前用户 ID
-     * @param uuid   文件 UUID
+     * @param fileId 文件 ID
      * @return 空数据返回体
      */
-    @DeleteMapping("/{uuid:[0-9a-f]{32}}")
+    @DeleteMapping("/{fileId:\\d{1,19}}")
     public Result<Void> delete(@RequestAttribute(AuthInterceptor.ATTR_USER_ID) Long userId,
-                               @PathVariable String uuid) {
-        fileStorageService.delete(userId, uuid);
+                               @PathVariable long fileId) {
+        fileStorageService.delete(userId, fileId);
         return Result.ok(null);
     }
 
@@ -116,6 +116,6 @@ public class FileController {
             scheme = request.getScheme();
         }
         String ext = row.getPath().substring(row.getPath().lastIndexOf('.') + 1);
-        return scheme + "://" + request.getHeader("Host") + "/" + row.getUuid() + "." + ext;
+        return scheme + "://" + request.getHeader("Host") + "/" + row.getId() + "." + ext;
     }
 }

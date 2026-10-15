@@ -17,7 +17,7 @@ import { editorEl, insertNodeAtCaret, insertPlainText, markKeepOnRemove,
 import { subscribeStream, refreshSessionList } from "./sessions.js";
 import { updateInputState, applyModelSelection } from "./input.js";
 
-/* 待发送附件登记：uuid → {name, url}（chip DOM 之外的备份，供删除失败重建） */
+/* 待发送附件登记：fileId → {name, url}（chip DOM 之外的备份，供删除失败重建） */
 const pendingAtts = new Map();
 
 /** 单文件大小上限（字节） */
@@ -44,21 +44,21 @@ async function ensureSession() {
  * 删除附件：先删服务端文件，成功后摘掉 chip；失败则恢复 chip 供重试。
  * node 为空表示 chip 已被键盘删除（退格等），失败时需要重新插回编辑器。
  */
-export async function deleteAttachment(uuid, node = null) {
+export async function deleteAttachment(fileId, node = null) {
   try {
-    await api(`/api/files/${uuid}`, { method: "DELETE" });
+    await api(`/api/files/${fileId}`, { method: "DELETE" });
   } catch (e) {
     UI.toast(e.message || "移除失败", { type: "error" });
-    const att = pendingAtts.get(uuid);
+    const att = pendingAtts.get(fileId);
     if (!node && att && editorEl()) {
-      const chip = editorChipNode(att, { onRemove: () => deleteAttachment(att.uuid, chip) });
+      const chip = editorChipNode(att, { onRemove: () => deleteAttachment(att.id, chip) });
       insertNodeAtCaret(chip);
     }
     return;
   }
-  pendingAtts.delete(uuid);
+  pendingAtts.delete(fileId);
   if (node) {
-    markKeepOnRemove(uuid);
+    markKeepOnRemove(fileId);
     node.remove();
   }
   syncPlaceholder();
@@ -118,14 +118,14 @@ export async function uploadFiles(files) {
     const failed = (payload.data && payload.data.failed) || [];
     if (state.workId !== workId || state.sessionId !== sessionId) {
       for (const item of uploaded) {
-        await api(`/api/files/${item.uuid}`, { method: "DELETE" }).catch(() => {});
+        await api(`/api/files/${item.id}`, { method: "DELETE" }).catch(() => {});
       }
       throw new Error("会话已切换，请重新上传");
     }
     for (const item of uploaded) {
-      const att = { uuid: item.uuid, url: item.url, name: files[item.index].name, mimeType: item.mimeType };
-      pendingAtts.set(att.uuid, att);
-      const chip = editorChipNode(att, { onRemove: () => deleteAttachment(att.uuid, chip) });
+      const att = { id: item.id, url: item.url, name: files[item.index].name, mimeType: item.mimeType };
+      pendingAtts.set(att.id, att);
+      const chip = editorChipNode(att, { onRemove: () => deleteAttachment(att.id, chip) });
       insertNodeAtCaret(chip);
     }
     if (failed.length) {
@@ -177,17 +177,17 @@ function observeChipRemoval(editor) {
     for (const m of mutations) {
       for (const removed of m.removedNodes) {
         if (removed.nodeType !== 1) continue;
-        const chips = removed.matches("[data-attach-uuid]")
-          ? [removed] : removed.querySelectorAll("[data-attach-uuid]");
+        const chips = removed.matches("[data-attach-id]")
+          ? [removed] : removed.querySelectorAll("[data-attach-id]");
         for (const chip of chips) {
-          if (!editor.contains(chip)) removedChips.set(chip.dataset.attachUuid, chip);
+          if (!editor.contains(chip)) removedChips.set(chip.dataset.attachId, chip);
         }
       }
     }
-    for (const uuid of removedChips.keys()) {
+    for (const fileId of removedChips.keys()) {
       hideFloatPreview();
-      if (skipServerDelete(uuid)) pendingAtts.delete(uuid);
-      else deleteAttachment(uuid);
+      if (skipServerDelete(fileId)) pendingAtts.delete(fileId);
+      else deleteAttachment(fileId);
     }
     if (removedChips.size) {
       syncPlaceholder();

@@ -121,7 +121,7 @@ function showFloatPreview(chip, att) {
 /**
  * 创建可移除的内联附件。
  *
- * @param {{uuid: string, name: string, url: string}} att 附件
+ * @param {{id: string, name: string, url: string}} att 附件
  * @param {{onRemove?: Function}} [opts] 操作回调
  * @returns {HTMLSpanElement} 附件节点
  */
@@ -129,7 +129,7 @@ export function editorChipNode(att, opts = {}) {
   const { onRemove = null } = opts;
   const chip = el("span", "attach-chip editor-chip");
   chip.contentEditable = "false";
-  chip.dataset.attachUuid = att.uuid;
+  chip.dataset.attachId = att.id;
   chip.dataset.attachName = att.name;
   chip.dataset.attachUrl = att.url;
   chip.title = att.name;

@@ -20,7 +20,7 @@ export function editorText() {
     for (const child of node.childNodes) {
       if (child.nodeType === Node.TEXT_NODE) {
         out += child.nodeValue;
-      } else if (child.dataset?.attachUuid) {
+      } else if (child.dataset?.attachId) {
         const name = (child.dataset.attachName || "image").replace(/[[\]()\n]/g, "_");
         out += `![${name}](${child.dataset.attachUrl})`;
       } else if (child.tagName === "BR") {
@@ -40,7 +40,7 @@ export function editorText() {
 export function editorHasContent() {
   const editor = editorEl();
   if (!editor) return false;
-  if (editor.querySelector("[data-attach-uuid]")) return true;
+  if (editor.querySelector("[data-attach-id]")) return true;
   return editor.textContent.trim().length > 0;
 }
 
@@ -111,16 +111,16 @@ const keepOnRemove = new Set();
 
 /** 清空前登记现存 chip：随后的 DOM 移除不再触发服务端删除 */
 export function keepAttachmentsOnClear() {
-  editorEl()?.querySelectorAll("[data-attach-uuid]")
-    .forEach((n) => keepOnRemove.add(n.dataset.attachUuid));
+  editorEl()?.querySelectorAll("[data-attach-id]")
+    .forEach((n) => keepOnRemove.add(n.dataset.attachId));
 }
 
 /** chip 移除时是否跳过服务端删除（一次性消费） */
-export function skipServerDelete(uuid) {
-  return keepOnRemove.delete(uuid);
+export function skipServerDelete(fileId) {
+  return keepOnRemove.delete(fileId);
 }
 
-/** 程序化摘除 chip 且不删服务端文件前，先登记 uuid */
-export function markKeepOnRemove(uuid) {
-  keepOnRemove.add(uuid);
+/** 程序化摘除 chip 且不删服务端文件前，先登记 fileId */
+export function markKeepOnRemove(fileId) {
+  keepOnRemove.add(fileId);
 }

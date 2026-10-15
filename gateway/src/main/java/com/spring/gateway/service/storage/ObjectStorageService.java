@@ -10,7 +10,7 @@ import java.util.Optional;
  * 对象存储接口：上传/删除/访问指路。每个存储后端一个实现类，
  * Bean 名 = {@link StorageTypes} 常量 = files.storage_type 列值 = 配置里的 storage.type。
  *
- * <p>key 约定：本地实现为相对 data-root 的路径（works/{workId}/{sessionId}/images/{uuid}.{ext}），
+ * <p>key 约定：本地实现为相对 data-root 的路径（works/{workId}/{sessionId}/images/{fileId}.{ext}），
  * OSS 实现为 object key；files.path 只存 key，对外 URL 由网关现拼。
  *
  * @author hanbing

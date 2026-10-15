@@ -31,7 +31,6 @@ import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
-import java.util.UUID;
 import java.util.stream.Stream;
 
 /**
@@ -97,8 +96,8 @@ public class FileStorageService {
         }
         precheckQuota(user, work.getId(), size);
         String ext = sanitizeExt(originalFilename);
-        String uuid = UUID.randomUUID().toString().replace("-", "");
-        String key = StorageKeys.imageKey(work.getId(), sessionId, uuid, ext);
+        long fileId = idGenerator.nextId();
+        String key = StorageKeys.imageKey(work.getId(), sessionId, String.valueOf(fileId), ext);
         String storageType = systemSettingService.getStorageType();
         ObjectStorageService storage = storageSelector.get(storageType);
         String storedKey;
@@ -118,8 +117,7 @@ public class FileStorageService {
         });
 
         FileRecord row = new FileRecord();
-        row.setId(idGenerator.nextId());
-        row.setUuid(uuid);
+        row.setId(fileId);
         row.setUserId(userId);
         row.setSessionId(sessionId);
         row.setStorageType(storageType);
@@ -135,15 +133,14 @@ public class FileStorageService {
     }
 
     /**
-     * 按 UUID 查询文件记录。
+     * 按 ID 查询文件记录。
      *
-     * @param uuid 文件 UUID
+     * @param fileId 文件 ID
      * @return 文件记录
      * @throws BizException 不存在（404）
      */
-    public FileRecord requireByUuid(String uuid) {
-        FileRecord row = fileRecordMapper.selectOne(
-                new LambdaQueryWrapper<FileRecord>().eq(FileRecord::getUuid, uuid));
+    public FileRecord requireById(long fileId) {
+        FileRecord row = fileRecordMapper.selectById(fileId);
         if (row == null) {
             throw new BizException(404, "文件不存在");
         }
@@ -154,15 +151,16 @@ public class FileStorageService {
      * 删除当前用户的文件。
      *
      * @param userId 当前用户 ID
-     * @param uuid 文件 UUID
+     * @param fileId 文件 ID
      * @throws BizException 不存在或不属于当前用户（404）
      */
     @Transactional
-    public void delete(Long userId, String uuid) {
+    public void delete(Long userId, long fileId) {
         userMapper.selectForUpdate(userId);
         FileRecord row = fileRecordMapper.selectOne(new LambdaQueryWrapper<FileRecord>()
-                .eq(FileRecord::getUuid, uuid).eq(FileRecord::getUserId, userId).last("FOR UPDATE"));
-        if (row == null || fileRecordMapper.deleteById(row.getId()) == 0) {
+                .eq(FileRecord::getId, fileId).last("FOR UPDATE"));
+        if (row == null || !userId.equals(row.getUserId())
+                || fileRecordMapper.deleteById(row.getId()) == 0) {
             throw new BizException(404, "文件不存在");
         }
         userMapper.subtractUsedBytes(userId, row.getSizeBytes());

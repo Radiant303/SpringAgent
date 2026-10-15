@@ -3,7 +3,7 @@ package com.spring.gateway.service.storage;
 import java.util.regex.Pattern;
 
 /**
- * 存储 key 的统一约定：上传文件的 key 永远形如 works/{workId}/{sessionId}/images/{uuid}.{ext}。
+ * 存储 key 的统一约定：上传文件的 key 永远形如 works/{workId}/{sessionId}/images/{fileId}.{ext}。
  * 对账扫孤儿只认这个前缀形态，绝不触碰工作区里的其他文件（代理产物不属于上传文件）。
  *
  * @author hanbing
@@ -22,12 +22,12 @@ public final class StorageKeys {
      *
      * @param workId    work ID
      * @param sessionId 会话 ID
-     * @param uuid      文件 UUID（32 位 hex）
+     * @param fileId    文件 ID（雪花 ID，即文件名）
      * @param ext       扩展名（不含点）
      * @return 存储 key
      */
-    public static String imageKey(String workId, String sessionId, String uuid, String ext) {
-        return "works/" + workId + "/" + sessionId + "/images/" + uuid + "." + ext;
+    public static String imageKey(String workId, String sessionId, String fileId, String ext) {
+        return "works/" + workId + "/" + sessionId + "/images/" + fileId + "." + ext;
     }
 
     /**

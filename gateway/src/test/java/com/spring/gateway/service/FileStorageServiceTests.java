@@ -116,7 +116,7 @@ class FileStorageServiceTests {
         assertTrue(Files.isRegularFile(disk));
         assertEquals(10, Files.size(disk));
 
-        fileStorageService.delete(userId, row.getUuid());
+        fileStorageService.delete(userId, row.getId());
         assertEquals(0, fileCount(session));
         assertEquals(0, userMapper.selectById(userId).getUsedBytes());
         assertTrue(Files.isRegularFile(disk));
@@ -151,7 +151,7 @@ class FileStorageServiceTests {
         TestTransaction.flagForCommit();
         TestTransaction.end();
         new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
-            fileStorageService.delete(userId, row.getUuid());
+            fileStorageService.delete(userId, row.getId());
             assertTrue(Files.isRegularFile(diskPath(row)));
             status.setRollbackOnly();
         });
@@ -232,7 +232,7 @@ class FileStorageServiceTests {
         Session session = insertSession(ownerId);
         FileRecord row = upload(ownerId, session, 4);
         BizException e = assertThrows(BizException.class,
-                () -> fileStorageService.delete(otherId, row.getUuid()));
+                () -> fileStorageService.delete(otherId, row.getId()));
         assertEquals(404, e.getStatus());
         assertEquals(1, fileCount(session));
     }
@@ -436,7 +436,7 @@ class FileStorageServiceTests {
     private int deleteStatus(Long userId, FileRecord row, CountDownLatch start) throws InterruptedException {
         start.await();
         try {
-            fileStorageService.delete(userId, row.getUuid());
+            fileStorageService.delete(userId, row.getId());
             return 200;
         } catch (BizException e) {
             return e.getStatus();

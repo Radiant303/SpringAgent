@@ -277,13 +277,13 @@ class SystemSettingRow(Base):
 
 
 class FileRow(Base):
-    """用户上传的文件：扁平 URL（/{uuid}.{ext}）对外，path 为存储内地址（本地相对 data-root / OSS object key）。"""
+    """用户上传的文件：扁平 URL（/{id}.{ext}）对外，path 为存储内地址（本地相对 data-root / OSS object key）。"""
 
     __tablename__ = "files"
     __table_args__ = (Index("ix_files_user_id", "user_id"),)
 
-    id: Mapped[int] = mapped_column(_BigInt, primary_key=True, autoincrement=False)  # 雪花 ID
-    uuid: Mapped[str] = mapped_column(String(32), unique=True, nullable=False)  # uuid4 hex，无连字符
+    # 雪花 ID，同时是文件名
+    id: Mapped[int] = mapped_column(_BigInt, primary_key=True, autoincrement=False)
     user_id: Mapped[int] = mapped_column(_BigInt, ForeignKey("users.id"), nullable=False)
     session_id: Mapped[str] = mapped_column(String(36), nullable=False)
     storage_type: Mapped[str] = mapped_column(String(32), nullable=False)

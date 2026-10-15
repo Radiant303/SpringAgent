@@ -119,16 +119,19 @@ public class StorageReconcileTask {
         }
         String workId = key.split("/", 3)[1];
         String filename = key.substring(key.lastIndexOf('/') + 1);
-        String uuid = filename.contains(".") ? filename.substring(0, filename.indexOf('.')) : filename;
+        String stem = filename.contains(".") ? filename.substring(0, filename.indexOf('.')) : filename;
+        // 文件名不是纯数字就不是本代命名的文件（旧 uuid 命名等），直接按孤儿处理
+        Long fileId = stem.matches("\\d{1,19}") ? Long.valueOf(stem) : null;
         return Boolean.TRUE.equals(new TransactionTemplate(transactionManager).execute(status -> {
             Work work = workMapper.selectById(workId);
             if (work != null) {
                 userMapper.selectForUpdate(work.getUserId());
                 workMapper.selectForUpdate(workId);
             }
-            FileRecord row = fileRecordMapper.selectOne(new LambdaQueryWrapper<FileRecord>()
-                    .eq(FileRecord::getUuid, uuid).eq(FileRecord::getStorageType, type)
-                    .eq(FileRecord::getPath, key).last("FOR UPDATE"));
+            FileRecord row = fileId == null ? null
+                    : fileRecordMapper.selectOne(new LambdaQueryWrapper<FileRecord>()
+                            .eq(FileRecord::getId, fileId).eq(FileRecord::getStorageType, type)
+                            .eq(FileRecord::getPath, key).last("FOR UPDATE"));
             if (row != null) {
                 return false;
             }
