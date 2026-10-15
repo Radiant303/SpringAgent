@@ -10,7 +10,6 @@ import java.time.LocalDateTime;
 
 /**
  * files 表的实体：用户上传的文件。
- * 对外是扁平 URL（/{uuid}.{ext}），库内只存 uuid 与存储内地址 path，url 访问时现拼。
  *
  * @author hanbing
  * @since 2026-10-14
@@ -32,7 +31,7 @@ public class FileRecord {
     /** 上传时所属会话 ID。 */
     private String sessionId;
 
-    /** 存储类型（local / aliyun_oss），与存储实现 Bean 名对应。 */
+    /** 存储类型（local / aliyun_oss）。 */
     private String storageType;
 
     /** 存储内地址：本地 = 相对 data-root 的 key；OSS = object key。 */

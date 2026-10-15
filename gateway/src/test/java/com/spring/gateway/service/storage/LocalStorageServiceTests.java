@@ -15,7 +15,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * 本地磁盘存储的单元测试（临时目录，不经 Spring 容器）。
+ * 本地磁盘存储的单元测试。
  *
  * @author hanbing
  * @since 2026-10-14

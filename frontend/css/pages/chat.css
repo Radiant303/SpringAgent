@@ -1631,7 +1631,7 @@ pre.tool-result.error { background: var(--diff-del-bg, rgba(192, 57, 43, 0.07));
 .attach-preview img { max-width: 320px; max-height: 220px; border-radius: 8px; display: block; }
 .attach-chip:hover .attach-preview { display: block; }
 
-/* 输入框内嵌 chip：随文混排，行内对齐 */
+/* 输入框内嵌 chip */
 .editor-chip {
   vertical-align: -5px;
   margin: 0 2px;

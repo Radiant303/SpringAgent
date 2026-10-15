@@ -151,8 +151,7 @@ public class AdminSettingsController {
     }
 
     /**
-     * 配置文件存储。endpoint/bucket/accessKeyId/accessKeySecret 留空表示保持不变；
-     * 切换到 OSS 前要求生效配置四项齐全。
+     * 配置文件存储。endpoint/bucket/accessKeyId/accessKeySecret 留空表示保持不变。
      *
      * @param req 存储设置
      * @return 空数据返回体

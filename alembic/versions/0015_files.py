@@ -18,15 +18,14 @@ _TIMESTAMP_DEFAULT = sa.text("CURRENT_TIMESTAMP(6)")  # DATETIME(6) 的默认值
 
 
 def upgrade() -> None:
-    # 用户上传的文件：对外是扁平 URL（/{uuid}.{ext}），库内只存 uuid 与存储内地址 path，
-    # url 访问时现拼。storage_type 与网关 ObjectStorageService 的 Bean 名一一对应。
+    # 用户上传的文件。
     op.create_table(
         "files",
-        sa.Column("id", sa.BigInteger(), primary_key=True, autoincrement=False),  # 雪花，网关侧生成
-        # uuid4 hex（无连字符）：扁平 URL 的不可猜测标识
+        sa.Column("id", sa.BigInteger(), primary_key=True, autoincrement=False),  # 雪花 ID
+        # uuid4 hex，无连字符
         sa.Column("uuid", sa.String(32), nullable=False, unique=True),
         sa.Column("user_id", sa.BigInteger(), sa.ForeignKey("users.id"), nullable=False),
-        # 上传时所属会话；会话软删除后行保留（文件仍落在 work 目录里）
+        # 上传时所属会话；会话软删除后行保留
         sa.Column("session_id", sa.String(36), nullable=False),
         sa.Column("storage_type", sa.String(32), nullable=False),
         # 存储内地址：本地 = 相对 data-root 的 key；OSS = object key
@@ -36,7 +35,7 @@ def upgrade() -> None:
         sa.Column("created_at", MicrosecondDateTime(), nullable=False, server_default=_TIMESTAMP_DEFAULT),
     )
     op.create_index("ix_files_user_id", "files", ["user_id"])
-    # 上传字节的实时计数：上传/删除用条件 UPDATE 原子增减，定时对账按 files 表重算兜底
+    # 上传字节的实时计数
     op.add_column("users", sa.Column("used_bytes", sa.BigInteger(), nullable=False, server_default="0"))
 
 

@@ -1,6 +1,5 @@
 /**
- * 站长设置各页（注册/存储/计费/社群）业务逻辑：每页独立加载与保存，
- * 后端对应各自的分项接口（/api/admin/settings/{registration,mail,work-max-bytes,storage,billing-est,community-link}）。
+ * 站长设置各页业务逻辑。
  */
 
 import { $ } from "../../utils/dom.js";
@@ -10,7 +9,7 @@ import { getRole } from "../../api/auth.js";
 import { api } from "../../api/client.js";
 import { UI } from "../../components/ui.js";
 
-/** 页面骨架：加载期间整页脉动且保存按钮禁用，避免先看到空值或默认值 */
+/** 页面骨架：加载期间禁用保存按钮，避免先看到空值 */
 async function withSkeleton(page, saveId, fn) {
   if (getRole() !== "owner") return null;
   const section = document.querySelector(`.admin-page[data-page="${page}"]`);
@@ -24,7 +23,7 @@ async function withSkeleton(page, saveId, fn) {
   }
 }
 
-/** 保存：禁用按钮防重入，成功 toast，失败 toast 原因 */
+/** 保存设置 */
 async function saveWith(saveId, fn) {
   if ($(saveId)?.disabled) return;
   if ($(saveId)) $(saveId).disabled = true;
@@ -86,7 +85,7 @@ function syncOssRows() {
   section?.classList.toggle("oss-hidden", $("storage-type")?.value !== "aliyun_oss");
 }
 
-/** 一次性绑定（admin.js init 调用） */
+/** 一次性绑定 */
 export function bindStorageSettings() {
   $("storage-type")?.addEventListener("change", syncOssRows);
 }

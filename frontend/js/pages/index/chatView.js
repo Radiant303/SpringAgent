@@ -41,7 +41,7 @@ export function userNode(text) {
   return wrap;
 }
 
-/* 输入框内 chip 的浮动预览（挂在 #input-card 上定位，避免被编辑器滚动区裁剪） */
+/* 输入框内 chip 的浮动预览（避免被编辑器滚动区裁剪） */
 let floatPreview = null;
 
 export function hideFloatPreview() {

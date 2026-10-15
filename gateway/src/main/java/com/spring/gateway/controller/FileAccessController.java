@@ -22,11 +22,7 @@ import java.nio.file.Path;
 import java.util.Optional;
 
 /**
- * 扁平文件访问：GET /{uuid}.{ext}。
- * 无需登录——uuid 是不可猜测的持有者凭证，图片要能被 <img> 与模型厂商直接拉取。
- *
- * <p>指路不碰内容：OSS → 302 签名 URL；本地 → X-Accel-Redirect 让 Nginx 发文件。
- * 例外是开发期绕过 Nginx 直连网关（请求没有 X-Accel-Capable 头）时由网关吐流兜底。
+ * 扁平文件访问：GET /{uuid}.{ext}，无需登录。
  *
  * @author hanbing
  * @since 2026-10-14
@@ -42,7 +38,7 @@ public class FileAccessController {
      * 访问文件
      *
      * @param uuid    文件 UUID
-     * @param request 请求（判定是否经 Nginx 用）
+     * @param request 请求
      * @return 302 / X-Accel-Redirect / 文件流
      */
     @GetMapping("/{uuid:[0-9a-f]{32}}.{ext:[A-Za-z0-9]{1,10}}")

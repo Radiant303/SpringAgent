@@ -68,7 +68,7 @@ class UserRow(Base):
     quota_bytes: Mapped[int] = mapped_column(
         _BigInt, nullable=False, default=DEFAULT_QUOTA_BYTES,
     )
-    # 上传文件字节数的实时计数：上传/删除原子增减，定时对账按 files 表重算兜底
+    # 上传文件字节数的实时计数
     used_bytes: Mapped[int] = mapped_column(_BigInt, nullable=False, default=0)
     # 角色：owner（站长）/ admin（管理员）/ user（用户）
     role: Mapped[str] = mapped_column(String(16), nullable=False, default="user")
@@ -223,7 +223,7 @@ class PointsLedgerRow(Base):
         UniqueConstraint("type", "ref_id"),
     )
 
-    id: Mapped[int] = mapped_column(_BigInt, primary_key=True, autoincrement=False)  # 雪花，网关侧生成
+    id: Mapped[int] = mapped_column(_BigInt, primary_key=True, autoincrement=False)  # 雪花 ID
     user_id: Mapped[int] = mapped_column(_BigInt, ForeignKey("users.id"), nullable=False)
     change_amount: Mapped[Decimal] = mapped_column(DECIMAL(20, 6), nullable=False)
     balance_after: Mapped[Decimal] = mapped_column(DECIMAL(20, 6), nullable=False)
@@ -282,7 +282,7 @@ class FileRow(Base):
     __tablename__ = "files"
     __table_args__ = (Index("ix_files_user_id", "user_id"),)
 
-    id: Mapped[int] = mapped_column(_BigInt, primary_key=True, autoincrement=False)  # 雪花，网关侧生成
+    id: Mapped[int] = mapped_column(_BigInt, primary_key=True, autoincrement=False)  # 雪花 ID
     uuid: Mapped[str] = mapped_column(String(32), unique=True, nullable=False)  # uuid4 hex，无连字符
     user_id: Mapped[int] = mapped_column(_BigInt, ForeignKey("users.id"), nullable=False)
     session_id: Mapped[str] = mapped_column(String(36), nullable=False)

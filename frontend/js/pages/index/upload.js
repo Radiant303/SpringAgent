@@ -20,6 +20,11 @@ import { updateInputState, applyModelSelection } from "./input.js";
 /* 待发送附件登记：uuid → {name, url}（chip DOM 之外的备份，供删除失败重建） */
 const pendingAtts = new Map();
 
+/** 单文件大小上限（字节） */
+const MAX_FILE_BYTES = 100 * 1024 * 1024;
+/** 输入框内待发送附件数量上限 */
+const MAX_ATTACHMENTS = 50;
+
 async function ensureSession() {
   if (state.sessionId) return;
   const workId = state.workId;
@@ -60,13 +65,31 @@ export async function deleteAttachment(uuid, node = null) {
   updateInputState();
 }
 
-export async function upload(file) {
+/** 批量上传附件，逐文件独立成败。 */
+export async function uploadFiles(files) {
   const btn = $("upload-btn");
   if (!state.connected || state.busy || state.modelChanging || state.connectionReplaced
       || btn.dataset.uploading || (state.sessionId && !state.sessionReady)) {
     addSystem("当前状态不能上传文件", true);
     return;
   }
+  const free = MAX_ATTACHMENTS - pendingAtts.size;
+  if (free <= 0) {
+    UI.toast(`附件最多 ${MAX_ATTACHMENTS} 个，请先移除部分附件`, { type: "error" });
+    return;
+  }
+  if (files.length > free) {
+    UI.toast(`附件最多 ${MAX_ATTACHMENTS} 个，已忽略超出的 ${files.length - free} 个文件`, { type: "error" });
+    files = files.slice(0, free);
+  }
+  const oversized = files.filter((file) => file.size > MAX_FILE_BYTES);
+  if (oversized.length) {
+    files = files.filter((file) => file.size <= MAX_FILE_BYTES);
+    const names = oversized.slice(0, 3).map((file) => file.name).join("、");
+    const suffix = oversized.length > 3 ? ` 等 ${oversized.length} 个文件` : "";
+    UI.toast(`${names}${suffix} 超过 100 MB，已跳过`, { type: "error" });
+  }
+  if (!files.length) return;
   const workId = state.workId;
   btn.dataset.uploading = "1";
   btn.disabled = true;
@@ -78,11 +101,11 @@ export async function upload(file) {
     if (state.workId !== workId) throw new Error("项目已切换，请重新上传");
     const form = new FormData();
     form.append("sessionId", sessionId);
-    form.append("file", file);
+    for (const file of files) form.append("files", file);
     const headers = {};
     const token = getToken();
     if (token) headers.Authorization = "Bearer " + token;
-    const r = await fetch("/api/files", { method: "POST", headers, body: form });
+    const r = await fetch("/api/files/batch", { method: "POST", headers, body: form });
     if (r.status === 401) {
       goLogin("expired");
       throw new Error("登录已过期，请重新登录");
@@ -91,19 +114,23 @@ export async function upload(file) {
     if (!r.ok) {
       throw new Error((payload && payload.message) || `上传失败（${r.status}）`);
     }
-    const att = {
-      uuid: payload.data.uuid,
-      url: payload.data.url,
-      name: file.name,
-      mimeType: payload.data.mimeType,
-    };
+    const uploaded = (payload.data && payload.data.uploaded) || [];
+    const failed = (payload.data && payload.data.failed) || [];
     if (state.workId !== workId || state.sessionId !== sessionId) {
-      await api(`/api/files/${att.uuid}`, { method: "DELETE" });
+      for (const item of uploaded) {
+        await api(`/api/files/${item.uuid}`, { method: "DELETE" }).catch(() => {});
+      }
       throw new Error("会话已切换，请重新上传");
     }
-    pendingAtts.set(att.uuid, att);
-    const chip = editorChipNode(att, { onRemove: () => deleteAttachment(att.uuid, chip) });
-    insertNodeAtCaret(chip);
+    for (const item of uploaded) {
+      const att = { uuid: item.uuid, url: item.url, name: files[item.index].name, mimeType: item.mimeType };
+      pendingAtts.set(att.uuid, att);
+      const chip = editorChipNode(att, { onRemove: () => deleteAttachment(att.uuid, chip) });
+      insertNodeAtCaret(chip);
+    }
+    if (failed.length) {
+      UI.toast(`${failed.length} 个文件上传失败：${failed[0].message}`, { type: "error" });
+    }
     updateInputState();
   } catch (e) {
     UI.toast(e.message || "上传失败", { type: "error" });
@@ -114,7 +141,7 @@ export async function upload(file) {
   }
 }
 
-/** 粘贴：剪贴板里有文件就上传（并阻止默认插入），否则按纯文本插入 */
+/** 粘贴：剪贴板里有文件就批量上传（并阻止默认插入），否则按纯文本插入 */
 async function onPaste(e) {
   const data = e.clipboardData;
   if (!data) return;
@@ -124,9 +151,8 @@ async function onPaste(e) {
     .filter(Boolean);
   if (files.length) {
     e.preventDefault();
-    for (const file of files) {
-      await upload(file.name && file.name !== "image.png" ? file : renameClipboardFile(file));
-    }
+    await uploadFiles(files.map((file) =>
+      file.name && file.name !== "image.png" ? file : renameClipboardFile(file)));
     return;
   }
   e.preventDefault();
@@ -179,9 +205,9 @@ export function initUpload() {
     if (!btn.disabled) picker.click();
   });
   picker.addEventListener("change", () => {
-    const file = picker.files && picker.files[0];
+    const files = [...(picker.files || [])];
     picker.value = "";
-    if (file) upload(file);
+    if (files.length) uploadFiles(files);
   });
   editor.addEventListener("paste", onPaste);
   observeChipRemoval(editor);

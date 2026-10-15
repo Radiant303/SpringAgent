@@ -174,6 +174,18 @@ class FileStorageServiceTests {
     }
 
     @Test
+    void uploadOverSizeLimitDoesNotReadContent() {
+        Long userId = insertUser(1024);
+        Session session = insertSession(userId);
+        ByteArrayInputStream content = new ByteArrayInputStream(new byte[8]);
+        BizException e = assertThrows(BizException.class, () -> fileStorageService.upload(userId,
+                session.getId(), "a.png", "image/png", FileStorageService.MAX_FILE_BYTES + 1, content));
+        assertEquals(400, e.getStatus());
+        assertEquals(8, content.available());
+        assertEquals(0, fileCount(session));
+    }
+
+    @Test
     void userQuotaIncludesOtherWorkspaceFiles() throws Exception {
         Long userId = insertUser(10);
         Session target = insertSession(userId);

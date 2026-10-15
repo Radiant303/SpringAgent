@@ -52,7 +52,7 @@ export function clearEditor() {
   syncPlaceholder();
 }
 
-/** 在光标处插入节点（编辑器未聚焦时追加到末尾），并把光标移到节点后 */
+/** 在光标处插入节点；编辑器未聚焦时追加到末尾 */
 export function insertNodeAtCaret(node) {
   const editor = editorEl();
   if (!editor) return;
@@ -97,7 +97,7 @@ export function insertPlainText(text) {
   syncPlaceholder();
 }
 
-/** 占位符：无文本且无 chip 时加 is-empty，CSS ::before 显示 data-placeholder */
+/** 占位符：无文本且无 chip 时加 is-empty */
 export function syncPlaceholder() {
   const editor = editorEl();
   if (!editor) return;

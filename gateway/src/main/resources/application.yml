@@ -1,5 +1,8 @@
 server:
   port: 8080
+  tomcat:
+    # part 数上限：批量 50 个文件 + sessionId 字段
+    max-part-count: 60
 
 spring:
   application:
@@ -13,9 +16,10 @@ spring:
           max-age: 0
   servlet:
     multipart:
-      # 单文件 20MB（业务层 FileStorageService.MAX_FILE_BYTES 再卡一道）
-      max-file-size: 20MB
-      max-request-size: 25MB
+      # 单文件 100MB
+      max-file-size: 100MB
+      # 请求体上限：批量 50 个文件 + 表单开销
+      max-request-size: 5120MB
   datasource:
     # 宿主 3307 → Docker 容器内 MySQL；serverTimezone=UTC 与库中 naive UTC 时间戳对齐
     # characterEncoding 要填 Java 字符集名 UTF-8，不是 MySQL 的 utf8mb4

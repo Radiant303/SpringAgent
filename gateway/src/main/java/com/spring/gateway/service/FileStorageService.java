@@ -47,7 +47,7 @@ public class FileStorageService {
     private static final Logger log = LoggerFactory.getLogger(FileStorageService.class);
 
     /** 单文件大小上限，单位字节。 */
-    public static final long MAX_FILE_BYTES = 20L * 1024 * 1024;
+    public static final long MAX_FILE_BYTES = 100L * 1024 * 1024;
 
     private final FileRecordMapper fileRecordMapper;
     private final SessionMapper sessionMapper;

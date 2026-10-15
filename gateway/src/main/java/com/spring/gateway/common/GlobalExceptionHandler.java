@@ -7,9 +7,11 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.multipart.support.MissingServletRequestPartException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 /**
@@ -49,6 +51,17 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<Result<Void>> unreadable(HttpMessageNotReadableException e) {
         return ResponseEntity.badRequest().body(Result.error(HttpStatus.BAD_REQUEST.value(), "请求体格式错误"));
+    }
+
+    /**
+     * 处理请求参数或分片缺失异常，返回 400
+     */
+    @ExceptionHandler({MissingServletRequestParameterException.class, MissingServletRequestPartException.class})
+    public ResponseEntity<Result<Void>> missingParam(Exception e) {
+        String name = e instanceof MissingServletRequestParameterException param ? param.getParameterName()
+                : e instanceof MissingServletRequestPartException part ? part.getRequestPartName() : "";
+        return ResponseEntity.badRequest()
+                .body(Result.error(HttpStatus.BAD_REQUEST.value(), "缺少必要参数: " + name));
     }
 
     /**
@@ -94,8 +107,11 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(org.springframework.web.multipart.MaxUploadSizeExceededException.class)
     public ResponseEntity<Result<Void>> tooLarge(
             org.springframework.web.multipart.MaxUploadSizeExceededException e) {
+        long maxMb = com.spring.gateway.service.FileStorageService.MAX_FILE_BYTES / 1024 / 1024;
+        String message = "文件数量或大小超限：单文件不能超过 " + maxMb + " MB，一次最多上传 "
+                + com.spring.gateway.controller.FileController.MAX_BATCH_FILES + " 个";
         return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE)
-                .body(Result.error(HttpStatus.PAYLOAD_TOO_LARGE.value(), "文件过大，单文件不能超过 20 MB"));
+                .body(Result.error(HttpStatus.PAYLOAD_TOO_LARGE.value(), message));
     }
 
     /**
