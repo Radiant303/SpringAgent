@@ -23,17 +23,13 @@ export function attachChipNode(att) {
   const chip = el("span", "attach-chip");
   chip.title = att.name;
   const isImg = isImageAttachment(att);
-  if (isImg && att.url) {
-    const preview = el("span", "attach-preview");
-    const img = document.createElement("img");
-    img.src = att.url;
-    img.alt = att.name;
-    preview.appendChild(img);
-    chip.appendChild(preview);
-  }
   const iconSpan = el("span", "attach-icon");
   iconSpan.appendChild(icon(isImg ? "image" : "file"));
   chip.append(iconSpan, el("span", "attach-name", att.name));
+  if (isImg && att.url) {
+    chip.addEventListener("mouseenter", () => showFloatPreview(chip, att));
+    chip.addEventListener("mouseleave", () => hideFloatPreview());
+  }
   return chip;
 }
 
@@ -51,28 +47,74 @@ export function userNode(text) {
   return wrap;
 }
 
-/* 输入框内 chip 的浮动预览（避免被编辑器滚动区裁剪） */
+/* 附件 chip 浮动预览 */
 let floatPreview = null;
+let floatPreviewTimer = null;
+let floatPreviewListenersAttached = false;
 
-export function hideFloatPreview() {
-  floatPreview?.remove();
-  floatPreview = null;
+function onFloatPreviewScroll() {
+  hideFloatPreview(true);
+}
+
+export function hideFloatPreview(immediate = false) {
+  clearTimeout(floatPreviewTimer);
+  if (immediate) {
+    if (floatPreviewListenersAttached) {
+      document.removeEventListener("scroll", onFloatPreviewScroll, true);
+      window.removeEventListener("resize", onFloatPreviewScroll);
+      floatPreviewListenersAttached = false;
+    }
+    floatPreview?.remove();
+    floatPreview = null;
+    return;
+  }
+  floatPreviewTimer = setTimeout(() => {
+    hideFloatPreview(true);
+  }, 100);
 }
 
 function showFloatPreview(chip, att) {
-  hideFloatPreview();
-  const card = $("input-card");
-  if (!card) return;
-  const box = el("div", "attach-preview float");
+  clearTimeout(floatPreviewTimer);
+  hideFloatPreview(true);
+  const box = el("div", "attach-preview");
   const img = document.createElement("img");
   img.src = att.url;
   img.alt = att.name;
   box.appendChild(img);
-  card.appendChild(box);
+  document.body.appendChild(box);
+
   const chipRect = chip.getBoundingClientRect();
-  const cardRect = card.getBoundingClientRect();
-  box.style.left = Math.max(0, chipRect.left - cardRect.left) + "px";
-  box.style.bottom = (cardRect.bottom - chipRect.top + 8) + "px";
+  const margin = 12;
+  const gap = 8;
+  const spaceAbove = chipRect.top - margin;
+  const spaceBelow = window.innerHeight - chipRect.bottom - margin;
+  const placeAbove = spaceAbove >= 240 || spaceAbove >= spaceBelow;
+  const maxH = Math.min(220, Math.max(100, Math.floor((placeAbove ? spaceAbove : spaceBelow) - 24)));
+  img.style.maxHeight = maxH + "px";
+
+  if (placeAbove) {
+    box.style.bottom = (window.innerHeight - chipRect.top + gap) + "px";
+    box.style.top = "auto";
+  } else {
+    box.style.top = (chipRect.bottom + gap) + "px";
+    box.style.bottom = "auto";
+  }
+
+  if (chipRect.left + chipRect.width / 2 > window.innerWidth / 2) {
+    box.style.right = Math.max(margin, window.innerWidth - chipRect.right) + "px";
+    box.style.left = "auto";
+  } else {
+    box.style.left = Math.max(margin, chipRect.left) + "px";
+    box.style.right = "auto";
+  }
+
+  box.addEventListener("mouseenter", () => clearTimeout(floatPreviewTimer));
+  box.addEventListener("mouseleave", () => hideFloatPreview());
+  if (!floatPreviewListenersAttached) {
+    document.addEventListener("scroll", onFloatPreviewScroll, true);
+    window.addEventListener("resize", onFloatPreviewScroll);
+    floatPreviewListenersAttached = true;
+  }
   floatPreview = box;
 }
 
@@ -106,7 +148,7 @@ export function editorChipNode(att, opts = {}) {
   chip.append(iconSpan, el("span", "attach-name", att.name));
   if (isImg && att.url) {
     chip.addEventListener("mouseenter", () => showFloatPreview(chip, att));
-    chip.addEventListener("mouseleave", hideFloatPreview);
+    chip.addEventListener("mouseleave", () => hideFloatPreview());
   }
   return chip;
 }

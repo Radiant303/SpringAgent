@@ -1652,11 +1652,8 @@ pre.tool-result.error { background: var(--diff-del-bg, rgba(192, 57, 43, 0.07));
 .attach-chip:hover .attach-remove { display: inline-flex; }
 .attach-chip:hover .attach-remove ~ .attach-icon { display: none; }
 .attach-preview {
-  display: none;
-  position: absolute;
-  left: 0;
-  bottom: calc(100% + 8px);
-  z-index: 40;
+  position: fixed;
+  z-index: 60;
   padding: 8px;
   border-radius: 12px;
   background: #fff;
@@ -1670,7 +1667,6 @@ pre.tool-result.error { background: var(--diff-del-bg, rgba(192, 57, 43, 0.07));
   display: block;
   object-fit: contain;
 }
-.attach-chip:hover .attach-preview { display: block; }
 
 /* 输入框内嵌 chip */
 .editor-chip {
@@ -1679,11 +1675,9 @@ pre.tool-result.error { background: var(--diff-del-bg, rgba(192, 57, 43, 0.07));
   font-size: 13px;
   white-space: nowrap;
 }
-.attach-preview.float { display: block; }
 
 .msg.user .attach-row { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 4px; }
 .msg.user .attach-chip { background: rgba(0, 0, 0, 0.06); }
-.msg.user .attach-preview { left: auto; right: 0; }
 .msg-text { white-space: pre-wrap; }
 
 #scroll-bottom {
