@@ -12,17 +12,27 @@ import { state, closeWork, maybeScroll } from "./state.js";
 
 const ATTACH_IMAGE_RE = /!\[([^\]]*)\]\((https?:\/\/[^\s)]+)\)/g;
 
+function isImageAttachment(att) {
+  return Boolean(
+    (att?.mimeType && att.mimeType.startsWith("image/")) ||
+    /\.(png|jpe?g|gif|webp|svg|bmp|ico)$/i.test(att?.name || "")
+  );
+}
+
 export function attachChipNode(att) {
   const chip = el("span", "attach-chip");
   chip.title = att.name;
-  const preview = el("span", "attach-preview");
-  const img = document.createElement("img");
-  img.src = att.url;
-  img.alt = att.name;
-  preview.appendChild(img);
-  chip.appendChild(preview);
+  const isImg = isImageAttachment(att);
+  if (isImg && att.url) {
+    const preview = el("span", "attach-preview");
+    const img = document.createElement("img");
+    img.src = att.url;
+    img.alt = att.name;
+    preview.appendChild(img);
+    chip.appendChild(preview);
+  }
   const iconSpan = el("span", "attach-icon");
-  iconSpan.appendChild(icon("image"));
+  iconSpan.appendChild(icon(isImg ? "image" : "file"));
   chip.append(iconSpan, el("span", "attach-name", att.name));
   return chip;
 }
@@ -90,11 +100,14 @@ export function editorChipNode(att, opts = {}) {
     onRemove?.();
   };
   chip.appendChild(remove);
+  const isImg = isImageAttachment(att);
   const iconSpan = el("span", "attach-icon");
-  iconSpan.appendChild(icon("image"));
+  iconSpan.appendChild(icon(isImg ? "image" : "file"));
   chip.append(iconSpan, el("span", "attach-name", att.name));
-  chip.addEventListener("mouseenter", () => showFloatPreview(chip, att));
-  chip.addEventListener("mouseleave", hideFloatPreview);
+  if (isImg && att.url) {
+    chip.addEventListener("mouseenter", () => showFloatPreview(chip, att));
+    chip.addEventListener("mouseleave", hideFloatPreview);
+  }
   return chip;
 }
 

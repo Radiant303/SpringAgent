@@ -64,8 +64,10 @@ export function insertNodeAtCaret(node) {
     range.deleteContents();
     range.insertNode(node);
   }
+  const space = document.createTextNode(" ");
+  node.after(space);
   const after = document.createRange();
-  after.setStartAfter(node);
+  after.setStart(space, 1);
   after.collapse(true);
   sel.removeAllRanges();
   sel.addRange(after);

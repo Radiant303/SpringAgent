@@ -126,6 +126,7 @@ font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-s
 
 | 高度 | 控件 |
 |---|---|
+| 24px | 附件内联胶囊（`.attach-chip`） |
 | 28px | 表格内蓝色文字按钮（`.admin-btn`） |
 | 32px | 图标按钮（`.sb-icon-btn`）、圆形发送按钮 |
 | 34–36px | 普通按钮、筛选栏控件、对话框按钮（36） |
@@ -147,7 +148,7 @@ font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-s
 | 20px | 计划面板 |
 | 24px | 聊天输入卡片 |
 | 50% | 图标按钮（`.icon-btn`） |
-| 999px | 胶囊：多选标签（能力、思考挡位）、聊天模型与强度入口、"最新消息"按钮、骨架条 |
+| 999px | 胶囊：多选标签（能力、思考挡位）、聊天模型与强度入口、"最新消息"按钮、骨架条、附件胶囊 |
 
 ### 内容宽度
 
