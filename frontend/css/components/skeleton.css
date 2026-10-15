@@ -32,6 +32,9 @@
   flex-direction: column;
   gap: 8px;
 }
+.sk-list {
+  gap: 2px;
+}
 
 .sk-row {
   display: flex;
