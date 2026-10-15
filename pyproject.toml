@@ -12,7 +12,6 @@ dependencies = [
     "cjkwrap>=2.2",
     "fastapi>=0.121",
     "loguru>=0.7.3",
-    "pathspec>=1.1.1",
     "prompt-toolkit>=3.0.53",
     "pydantic-ai>=2.30.0",
     "pydantic-ai-harness[codemode,skills,temporal]>=0.24.0",
@@ -27,7 +26,6 @@ dependencies = [
     "textual>=8.2.8",
     "tqdm>=4.70.0",
     "uvicorn[standard]>=0.52.3",
-    "watchdog>=6.0.0",
 ]
 
 [dependency-groups]

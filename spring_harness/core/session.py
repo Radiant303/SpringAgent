@@ -281,7 +281,6 @@ class HarnessSession:
             await asyncio.gather(task, return_exceptions=True)
         # 关闭/退出时后台任务一并取消收尸：工具内清理代码（如杀子进程）有机会执行
         await self._deps.background.shutdown()
-        await self._in_thread(self._deps.monitor.close)
 
     @classmethod
     def resume_last(cls, workspace: str | Path, **kwargs: Any) -> HarnessSession | None:

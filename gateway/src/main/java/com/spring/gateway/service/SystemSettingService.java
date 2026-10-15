@@ -5,10 +5,13 @@ import com.spring.gateway.common.ResourceLimits;
 import com.spring.gateway.entity.SystemSetting;
 import com.spring.gateway.mapper.SystemSettingMapper;
 import lombok.RequiredArgsConstructor;
+import org.springframework.scheduling.support.CronExpression;
 import org.springframework.stereotype.Service;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 
 /**
  * 运行时系统设置。
@@ -195,7 +198,7 @@ public class SystemSettingService {
     }
 
     /**
-     * 存储对账 cron（Spring 六段式）；默认每 10 分钟
+     * 存储对账 cron（Spring 六段式）
      *
      * @return cron 表达式
      */
@@ -203,8 +206,36 @@ public class SystemSettingService {
         return getString(SystemSetting.KEY_STORAGE_RECONCILE_CRON, DEFAULT_RECONCILE_CRON);
     }
 
-    /** 存储对账 cron 默认值：每 10 分钟。 */
-    public static final String DEFAULT_RECONCILE_CRON = "0 */10 * * * *";
+    /** 存储对账 cron 默认值。 */
+    public static final String DEFAULT_RECONCILE_CRON = "0 */30 * * * *";
+
+    /** 相邻两次对账触发的最小间隔（秒）。 */
+    public static final long MIN_RECONCILE_INTERVAL_SECONDS = 1800;
+
+    /**
+     * 校验 cron 是否存在低于下限的相邻触发间隔
+     *
+     * @param cron Spring 六段式 cron 表达式
+     * @return true = 存在低于下限的相邻间隔
+     */
+    public static boolean reconcileCronTooFrequent(String cron) {
+        CronExpression expression = CronExpression.parse(cron);
+        ZonedDateTime previous = expression.next(ZonedDateTime.now());
+        if (previous == null) {
+            return false;
+        }
+        for (int i = 0; i < 4; i++) {
+            ZonedDateTime next = expression.next(previous);
+            if (next == null) {
+                return false;
+            }
+            if (Duration.between(previous, next).getSeconds() < MIN_RECONCILE_INTERVAL_SECONDS) {
+                return true;
+            }
+            previous = next;
+        }
+        return false;
+    }
 
     /**
      * 写设置（upsert：存在更新值与 updated_at，不存在插入）

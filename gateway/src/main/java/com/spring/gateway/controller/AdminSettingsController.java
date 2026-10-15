@@ -186,6 +186,10 @@ public class AdminSettingsController {
         if (!cron.isEmpty() && !CronExpression.isValidExpression(cron)) {
             throw new BizException(400, "对账 cron 表达式非法（Spring 六段式：秒 分 时 日 月 周）");
         }
+        if (!cron.isEmpty() && SystemSettingService.reconcileCronTooFrequent(cron)) {
+            throw new BizException(400, "对账频率过高：相邻触发间隔不得低于 "
+                    + SystemSettingService.MIN_RECONCILE_INTERVAL_SECONDS / 60 + " 分钟");
+        }
         systemSettingService.set(SystemSetting.KEY_STORAGE_TYPE, type);
         if (!endpoint.isEmpty()) {
             systemSettingService.set(SystemSetting.KEY_OSS_ENDPOINT, endpoint);

@@ -48,6 +48,10 @@ public class ReconcileScheduler {
         if (!CronExpression.isValidExpression(effective)) {
             log.warn("对账 cron 非法（{}），回退默认值 {}", effective, SystemSettingService.DEFAULT_RECONCILE_CRON);
             effective = SystemSettingService.DEFAULT_RECONCILE_CRON;
+        } else if (SystemSettingService.reconcileCronTooFrequent(effective)) {
+            log.warn("对账 cron 相邻间隔低于下限（{}），回退默认值 {}",
+                    effective, SystemSettingService.DEFAULT_RECONCILE_CRON);
+            effective = SystemSettingService.DEFAULT_RECONCILE_CRON;
         }
         if (future != null) {
             future.cancel(false);
