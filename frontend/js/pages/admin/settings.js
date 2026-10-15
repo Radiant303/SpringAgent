@@ -185,6 +185,27 @@ export async function saveBilling() {
   });
 }
 
+/* ================= 平台设置 ================= */
+
+export async function loadPlatform() {
+  const data = await withSkeleton("platform", "platform-save", () => api("/api/admin/settings"));
+  if ($("platform-domain")) $("platform-domain").value = data?.platformDomain ?? "";
+  if ($("platform-https")) $("platform-https").checked = !!data && data.platformHttps === true;
+}
+
+export async function savePlatform() {
+  await saveWith("platform-save", async () => {
+    const domain = $("platform-domain").value.trim();
+    if (domain && !/^[A-Za-z0-9.-]+(:[0-9]{1,5})?$/.test(domain)) {
+      throw new Error("域名格式不正确：只填主机名（可带端口），不要带 http:// 或路径");
+    }
+    await api("/api/admin/settings/platform", {
+      method: "POST",
+      body: { domain, https: $("platform-https").checked },
+    });
+  });
+}
+
 /* ================= 社群设置 ================= */
 
 export async function loadCommunity() {

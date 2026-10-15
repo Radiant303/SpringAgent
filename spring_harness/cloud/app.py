@@ -42,6 +42,11 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     # catalog 用同步客户端（模型解析在同步代码路径上），与下方异步事件流客户端互不干扰
     catalog_cache = redis.from_url(config.cloud.redis_url, decode_responses=True)
     set_catalog(DbCatalog(catalog_cache))
+    # system_settings 同样走 Redis 快照（平台域名等热点配置）
+    from spring_harness.cloud.settings_store import DbSettings
+    from spring_harness.core.config.platform import set_platform_settings
+
+    set_platform_settings(DbSettings(catalog_cache))
 
     # 进程级会话注册表 + Redis Stream 事件流（断线续传的前提）
     redis_client = aioredis.from_url(config.cloud.redis_url, decode_responses=True)

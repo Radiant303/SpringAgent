@@ -71,6 +71,12 @@ public class SystemSetting {
     /** 设置键：存储对账任务的 Spring cron 表达式。 */
     public static final String KEY_STORAGE_RECONCILE_CRON = "storage.reconcile_cron";
 
+    /** 设置键：平台对外域名（主机名，可带端口，不含 scheme 与路径；空串 = 未配置）。 */
+    public static final String KEY_PLATFORM_DOMAIN = "platform.domain";
+
+    /** 设置键：平台对外访问是否使用 https（"true"/"false"）。 */
+    public static final String KEY_PLATFORM_HTTPS = "platform.https";
+
     /** 设置键，主键（值由代码固定，手动赋值）。 */
     @TableId(type = IdType.INPUT)
     private String settingKey;

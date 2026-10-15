@@ -2314,6 +2314,7 @@ dependencies = [
     { name = "bcrypt" },
     { name = "cjkwrap" },
     { name = "fastapi" },
+    { name = "httpx" },
     { name = "loguru" },
     { name = "prompt-toolkit" },
     { name = "pydantic-ai" },
@@ -2334,7 +2335,6 @@ dependencies = [
 [package.dev-dependencies]
 dev = [
     { name = "basedpyright" },
-    { name = "httpx" },
 ]
 
 [package.metadata]
@@ -2345,6 +2345,7 @@ requires-dist = [
     { name = "bcrypt", specifier = ">=4.3" },
     { name = "cjkwrap", specifier = ">=2.2" },
     { name = "fastapi", specifier = ">=0.121" },
+    { name = "httpx", specifier = ">=0.28" },
     { name = "loguru", specifier = ">=0.7.3" },
     { name = "prompt-toolkit", specifier = ">=3.0.53" },
     { name = "pydantic-ai", specifier = ">=2.30.0" },
@@ -2363,10 +2364,7 @@ requires-dist = [
 ]
 
 [package.metadata.requires-dev]
-dev = [
-    { name = "basedpyright", specifier = ">=1.39.10" },
-    { name = "httpx", specifier = ">=0.28" },
-]
+dev = [{ name = "basedpyright", specifier = ">=1.39.10" }]
 
 [[package]]
 name = "sqlalchemy"

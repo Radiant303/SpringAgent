@@ -1,20 +1,30 @@
 package com.spring.gateway.service;
 
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.ObjectMapper;
 import com.spring.gateway.common.BizException;
 import com.spring.gateway.common.ResourceLimits;
 import com.spring.gateway.entity.SystemSetting;
 import com.spring.gateway.mapper.SystemSettingMapper;
 import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.scheduling.support.CronExpression;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 /**
- * 运行时系统设置。
+ * 运行时系统设置。MySQL 为权威数据，Redis 全表快照缓存（读多写少的热点数据），
+ * 写入后延迟双删保持最终一致；事务内读取直走 MySQL，保证读到本事务的写入。
  *
  * @author hanbing
  * @since 2026-10-05
@@ -23,7 +33,12 @@ import java.time.ZonedDateTime;
 @RequiredArgsConstructor
 public class SystemSettingService {
 
+    private static final Logger log = LoggerFactory.getLogger(SystemSettingService.class);
+
     private final SystemSettingMapper systemSettingMapper;
+    private final SystemSettingCache systemSettingCache;
+    private final StringRedisTemplate redis;
+    private final ObjectMapper objectMapper;
 
     /**
      * 读布尔设置；键不存在时返回默认值
@@ -33,11 +48,8 @@ public class SystemSettingService {
      * @return 设置值
      */
     public boolean getBool(String key, boolean defaultValue) {
-        SystemSetting row = systemSettingMapper.selectById(key);
-        if (row == null) {
-            return defaultValue;
-        }
-        return Boolean.parseBoolean(row.getSettingValue());
+        String value = snapshot().get(key);
+        return value == null ? defaultValue : Boolean.parseBoolean(value);
     }
 
     /**
@@ -57,12 +69,12 @@ public class SystemSettingService {
      * @return 设置值
      */
     public long getLong(String key, long defaultValue) {
-        SystemSetting row = systemSettingMapper.selectById(key);
-        if (row == null) {
+        String value = snapshot().get(key);
+        if (value == null) {
             return defaultValue;
         }
         try {
-            return Long.parseLong(row.getSettingValue().trim());
+            return Long.parseLong(value.trim());
         } catch (NumberFormatException e) {
             return defaultValue;
         }
@@ -85,8 +97,8 @@ public class SystemSettingService {
      * @return 设置值
      */
     public String getString(String key, String defaultValue) {
-        SystemSetting row = systemSettingMapper.selectById(key);
-        return row == null || row.getSettingValue() == null ? defaultValue : row.getSettingValue().trim();
+        String value = snapshot().get(key);
+        return value == null ? defaultValue : value.trim();
     }
 
     /**
@@ -206,6 +218,24 @@ public class SystemSettingService {
         return getString(SystemSetting.KEY_STORAGE_RECONCILE_CRON, DEFAULT_RECONCILE_CRON);
     }
 
+    /**
+     * 平台对外域名（主机名，可带端口）；默认空串（未配置）
+     *
+     * @return 域名
+     */
+    public String getPlatformDomain() {
+        return getString(SystemSetting.KEY_PLATFORM_DOMAIN, "");
+    }
+
+    /**
+     * 平台对外访问是否使用 https；默认否
+     *
+     * @return true = https
+     */
+    public boolean isPlatformHttps() {
+        return getBool(SystemSetting.KEY_PLATFORM_HTTPS, false);
+    }
+
     /** 存储对账 cron 默认值。 */
     public static final String DEFAULT_RECONCILE_CRON = "0 */30 * * * *";
 
@@ -264,5 +294,38 @@ public class SystemSettingService {
         row.setSettingValue(value);
         row.setUpdatedAt(LocalDateTime.now(ZoneOffset.UTC));
         systemSettingMapper.insertOrUpdate(row);
+        systemSettingCache.invalidate();
+    }
+
+    /** 设置全表快照：Redis 优先，未命中回源 MySQL 并回填；事务内直读 MySQL，保证读到本事务未提交的写入。 */
+    private Map<String, String> snapshot() {
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            return loadFromDb();
+        }
+        try {
+            String raw = redis.opsForValue().get(SystemSettingCache.CACHE_KEY);
+            if (raw != null) {
+                return objectMapper.readValue(raw, new TypeReference<>() {
+                });
+            }
+        } catch (Exception e) {
+            log.warn("设置快照缓存读取失败，回源 MySQL: {}", e.getMessage());
+        }
+        Map<String, String> snapshot = loadFromDb();
+        try {
+            redis.opsForValue().set(SystemSettingCache.CACHE_KEY, objectMapper.writeValueAsString(snapshot),
+                    SystemSettingCache.CACHE_TTL_SECONDS, TimeUnit.SECONDS);
+        } catch (Exception e) {
+            log.warn("设置快照缓存回填失败（不影响本次读取）: {}", e.getMessage());
+        }
+        return snapshot;
+    }
+
+    private Map<String, String> loadFromDb() {
+        Map<String, String> snapshot = new HashMap<>();
+        for (SystemSetting row : systemSettingMapper.selectList(null)) {
+            snapshot.put(row.getSettingKey(), row.getSettingValue());
+        }
+        return snapshot;
     }
 }

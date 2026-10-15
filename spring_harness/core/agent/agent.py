@@ -30,6 +30,7 @@ from spring_harness.instructions.default import register_default_instructions
 from spring_harness.toolsets.ask_user import ask_user_toolset
 from spring_harness.toolsets.filesystem import filesystem
 from spring_harness.toolsets.repo_knowledge import knowledge_toolsets
+from spring_harness.toolsets.view_image import view_image_toolset
 
 
 class SpringAgent(Agent[CodingAgentDeps, DeferredToolRequests | str]):
@@ -64,14 +65,17 @@ def create_agent(
     model = get_model(model_id)
     model_config = get_model_config(model_id)
     effort = resolve_effort(model_config, effort)
+    toolsets: list[Any] = [
+        filesystem(str(root)),
+        knowledge_toolsets,
+        ask_user_toolset,
+        teaching_toolset(teaching_store_for(root, on_change=teach_on_change)),
+    ]
+    if "image_in" in model_config.capabilities:
+        toolsets.append(view_image_toolset)
     agent = SpringAgent(
         model=model,
-        toolsets=[
-            filesystem(str(root)),
-            knowledge_toolsets,
-            ask_user_toolset,
-            teaching_toolset(teaching_store_for(root, on_change=teach_on_change)),
-        ],
+        toolsets=toolsets,
         output_type=[
             str,
             DeferredToolRequests,

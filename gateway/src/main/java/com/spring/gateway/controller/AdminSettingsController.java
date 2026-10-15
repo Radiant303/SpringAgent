@@ -5,6 +5,7 @@ import com.spring.gateway.common.Result;
 import com.spring.gateway.dto.AdminBillingEstRequest;
 import com.spring.gateway.dto.AdminCommunityLinkRequest;
 import com.spring.gateway.dto.AdminMailSettingsRequest;
+import com.spring.gateway.dto.AdminPlatformSettingsRequest;
 import com.spring.gateway.dto.AdminRegistrationRequest;
 import com.spring.gateway.dto.AdminStorageSettingsRequest;
 import com.spring.gateway.dto.AdminWorkMaxBytesRequest;
@@ -63,6 +64,8 @@ public class AdminSettingsController {
                 "mailResendIntervalSeconds", systemSettingService.getMailResendIntervalSeconds(),
                 "mailCodeTtlSeconds", systemSettingService.getMailCodeTtlSeconds()));
         data.put("communityLink", systemSettingService.getCommunityLink());
+        data.put("platformDomain", systemSettingService.getPlatformDomain());
+        data.put("platformHttps", systemSettingService.isPlatformHttps());
         data.put("storageType", systemSettingService.getStorageType());
         data.put("storageReconcileCron", systemSettingService.getStorageReconcileCron());
         data.put("ossEndpoint", systemSettingService.getOssEndpoint());
@@ -147,6 +150,28 @@ public class AdminSettingsController {
             throw new BizException(400, "链接必须以 http:// 或 https:// 开头");
         }
         systemSettingService.set(SystemSetting.KEY_COMMUNITY_LINK, link);
+        return Result.ok(null);
+    }
+
+    /** 平台域名形态：主机名（可带端口），不含 scheme 与路径。 */
+    private static final java.util.regex.Pattern PLATFORM_DOMAIN_PATTERN =
+            java.util.regex.Pattern.compile("^[A-Za-z0-9.-]+(:[0-9]{1,5})?$");
+
+    /**
+     * 设置平台对外地址。domain 留空表示清除配置（本地图片读取工具将不可用）。
+     *
+     * @param req 平台设置
+     * @return 空数据返回体
+     */
+    @RequiresOwner(message = "仅站长可修改系统设置")
+    @PostMapping("/platform")
+    public Result<Void> setPlatform(@Valid @RequestBody AdminPlatformSettingsRequest req) {
+        String domain = req.domain() == null ? "" : req.domain().trim().toLowerCase();
+        if (!domain.isEmpty() && !PLATFORM_DOMAIN_PATTERN.matcher(domain).matches()) {
+            throw new BizException(400, "域名格式不正确：只填主机名（可带端口），不要带 http:// 或路径");
+        }
+        systemSettingService.set(SystemSetting.KEY_PLATFORM_DOMAIN, domain);
+        systemSettingService.set(SystemSetting.KEY_PLATFORM_HTTPS, String.valueOf(req.https()));
         return Result.ok(null);
     }
 

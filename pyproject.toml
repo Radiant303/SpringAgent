@@ -11,6 +11,7 @@ dependencies = [
     "bcrypt>=4.3",
     "cjkwrap>=2.2",
     "fastapi>=0.121",
+    "httpx>=0.28",
     "loguru>=0.7.3",
     "prompt-toolkit>=3.0.53",
     "pydantic-ai>=2.30.0",
@@ -31,7 +32,6 @@ dependencies = [
 [dependency-groups]
 dev = [
     "basedpyright>=1.39.10",
-    "httpx>=0.28",
 ]
 
 [tool.pytest.ini_options]

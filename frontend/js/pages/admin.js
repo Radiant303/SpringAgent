@@ -17,6 +17,7 @@ import { loadRedeemCodes, openRedeemGen, onRedeemAction } from "./admin/redeem.j
 import {
   loadRegistration, saveRegistration,
   loadStorage, saveStorage, bindStorageSettings,
+  loadPlatform, savePlatform,
   loadBilling, saveBilling,
   loadCommunity, saveCommunity,
 } from "./admin/settings.js";
@@ -32,6 +33,7 @@ registerPageLoader("model-config", () => loadModelConfig());
 registerPageLoader("redeem", () => ensureUsers().then(() => loadRedeemCodes()));
 registerPageLoader("registration", () => loadRegistration());
 registerPageLoader("storage", () => loadStorage());
+registerPageLoader("platform", () => loadPlatform());
 registerPageLoader("billing", () => loadBilling());
 registerPageLoader("community", () => loadCommunity());
 
@@ -100,6 +102,7 @@ export function init() {
       if ($("model-cancel")) $("model-cancel").onclick = () => fillModelForm(null);
       if ($("registration-save")) $("registration-save").onclick = saveRegistration;
       if ($("storage-save")) $("storage-save").onclick = saveStorage;
+      if ($("platform-save")) $("platform-save").onclick = savePlatform;
       if ($("billing-save")) $("billing-save").onclick = saveBilling;
       if ($("community-save")) $("community-save").onclick = saveCommunity;
       bindStorageSettings();

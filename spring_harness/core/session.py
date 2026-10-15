@@ -192,6 +192,7 @@ class HarnessSession:
                 messages = _settle_interrupted_tool_calls(cancelled_run.all_messages())
                 allow_rewrite = True
         except Exception as e:  # noqa: BLE001
+            logger.exception("轮次运行失败")
             finished.error = f"{type(e).__name__}: {e}"
         finally:
             try:

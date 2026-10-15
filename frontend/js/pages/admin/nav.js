@@ -17,6 +17,7 @@ export const PAGE_TITLES = {
   redeem: "兑换码",
   registration: "注册设置",
   storage: "存储设置",
+  platform: "平台设置",
   billing: "计费设置",
   community: "社群设置",
 };
@@ -24,7 +25,7 @@ export const PAGE_TITLES = {
 export const pageLoaders = {};
 
 /** 仅站长的页面 */
-const OWNER_PAGES = new Set(["model-config", "registration", "storage", "billing", "community"]);
+const OWNER_PAGES = new Set(["model-config", "registration", "storage", "platform", "billing", "community"]);
 /** 站长/管理员的页面 */
 const STAFF_PAGES = new Set(["users", "usage", "ledger", "models", "redeem"]);
 

@@ -1,5 +1,6 @@
 from pydantic_ai import (
     ModelRequestContext,
+    ModelResponse,
     RunContext,
 )
 from pydantic_ai.capabilities import Hooks
@@ -28,6 +29,17 @@ async def snapshot_messages(
 ) -> ModelRequestContext:
     ctx.deps.last_messages = list(request_context.messages)
     return request_context
+
+
+@hooks.on.after_model_request
+async def snapshot_response(
+    ctx: RunContext[CodingAgentDeps],
+    *,
+    request_context: ModelRequestContext,
+    response: ModelResponse,
+) -> ModelResponse:
+    ctx.deps.last_messages = [*request_context.messages, response]
+    return response
 
 
 def request_hooks(model_id: str | None = None, *, agent_name: str = "main") -> Hooks:
