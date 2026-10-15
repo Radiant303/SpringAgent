@@ -144,5 +144,6 @@ def register_default_instructions(
         return (f"<environment>"
         f"<runtime>The current model is {ctx.model.model_name}, running in the SpringHarness environment.</runtime>"
         f"<workspace>Your working directory is {ctx.deps.workspace}; you must only read, write, and operate on files within this directory and cannot access anything outside it.</workspace>"
+        f"<sessions>The workspace may hold multiple session directories, each named by its session ID; per-session uploads live under <session_id>/images/. When several session directories are present, call the current_session tool first to confirm which one is yours before reading or writing session-scoped files — never guess from directory names.</sessions>"
         f"<run_code_sandbox>Inside the `run_code` sandbox, the workspace is mounted at `/work` (overlay mode: readable and writable, but writes are discarded when the call ends) and `/scratch` is a writable scratch area persisted to the workspace's `.springharness/.agent-scratch/`. Always use absolute virtual paths such as `Path('/work/a.txt')`; relative paths and any path outside these mounts are rejected with `PermissionError`.</run_code_sandbox>"
         f"</environment>")

@@ -30,6 +30,7 @@ from spring_harness.instructions.default import register_default_instructions
 from spring_harness.toolsets.ask_user import ask_user_toolset
 from spring_harness.toolsets.filesystem import filesystem
 from spring_harness.toolsets.repo_knowledge import knowledge_toolsets
+from spring_harness.toolsets.session_info import session_info_toolset
 from spring_harness.toolsets.view_image import view_image_toolset
 
 
@@ -70,6 +71,8 @@ def create_agent(
         knowledge_toolsets,
         ask_user_toolset,
         teaching_toolset(teaching_store_for(root, on_change=teach_on_change)),
+        session_info_toolset(session_id=session_id, workspace=root,
+                             model_id=model_id, effort=effort),
     ]
     if "image_in" in model_config.capabilities:
         toolsets.append(view_image_toolset)
