@@ -19,12 +19,12 @@ from spring_harness.cloud.registry import (
     get_registry,
     set_registry,
 )
+from spring_harness.cloud.web_schema import DEFAULT_FRONTEND_DIR
 from spring_harness.cloud.ws import CloudAppServer, ws_endpoint
 from spring_harness.core.config.model import build_model, set_catalog
 from spring_harness.core.config.settings import config
 from spring_harness.core.config.thinking import thinking_capability
 from spring_harness.core.log import logger
-from spring_harness.core.services.web_server import DEFAULT_FRONTEND_DIR
 
 
 class TestModelRequest(BaseModel):

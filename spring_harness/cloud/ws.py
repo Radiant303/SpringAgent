@@ -13,6 +13,7 @@ from spring_harness.cloud.auth import decode_user_id
 from spring_harness.cloud.db import UserRow, get_sessionmaker
 from spring_harness.cloud.gateway_store import GatewaySessionStore, find_active_session, list_sessions_for_user
 from spring_harness.cloud.registry import CloudSessionHandle, get_registry
+from spring_harness.cloud.web_schema import ModelsListResult, WebInitializeResult, _model_infos
 from spring_harness.core.config.model import setting as model_setting
 from spring_harness.core.config.settings import config
 from spring_harness.core.log import logger
@@ -22,7 +23,6 @@ from spring_harness.core.rpc.schema import (
     SetModelParams, TurnStartParams, WorkspaceParams,
 )
 from spring_harness.core.rpc.server import BUSY, PROTOCOL_VERSION, SESSION_NOT_FOUND, AppServer
-from spring_harness.core.services.web_server import ModelsListResult, WebInitializeResult, _model_infos
 
 SESSION_OCCUPIED = -32003
 SESSION_REPLACED = -32004
@@ -55,7 +55,18 @@ class CloudAppServer(AppServer):
         self._connection_id = connection_id or uuid.uuid4().hex
         self._owned_sessions: set[str] = set()
         self._control_tokens: dict[str, str] = {}
-        self._routes["models/list"] = (None, self._models_list)
+        self._routes.update({
+            "initialize": (None, self._initialize),
+            "session/status": (SessionParams, self._session_status),
+            "session/set_model": (SetModelParams, self._session_set_model),
+            "turn/start": (TurnStartParams, self._turn_start),
+            "turn/cancel": (SessionParams, self._turn_cancel),
+            "models/list": (None, self._models_list),
+            "session/new": (WorkspaceParams, self._session_new),
+            "session/resume_last": (WorkspaceParams, self._session_resume_last),
+            "session/list": (WorkspaceParams, self._session_list),
+            "session/attach": (AttachParams, self._session_attach),
+        })
 
     @classmethod
     def control_token(cls, session_id: str, user_id: int, connection_id: str) -> str | None:

@@ -35,13 +35,7 @@ from spring_harness.toolsets.view_image import view_image_toolset
 
 
 class SpringAgent(Agent[CodingAgentDeps, DeferredToolRequests | str]):
-    """三个入口（CLI / ACP / Web）共用的 Agent：注入配置里的默认请求数上限。
-
-    pydantic-ai 的 usage_limits 只能逐次 run 传入，没有 Agent 级默认值；而
-    run / run_stream / run_sync 以及 to_web、ACP 适配器最终都汇入 iter()，
-    在这里注入默认值即可一处生效、处处覆盖；调用方显式传入的优先。
-    subagents 能力内部自建 Agent，不走这里，子代理仍是库默认 50。
-    """
+    """云端编程代理。"""
 
     def iter(self, user_prompt: Any = None, **kwargs: Any):  # type: ignore[override]
         if kwargs.get("usage_limits") is None:

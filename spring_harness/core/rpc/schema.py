@@ -98,11 +98,6 @@ class PlanResult(_WireModel):
     items: list[dict]
 
 
-class SessionEventParams(_WireModel):
-    session_id: str = Field(validation_alias="sessionId", serialization_alias="sessionId")
-    event: dict
-
-
 class ApprovalRequestParams(_WireModel):
     session_id: str = Field(validation_alias="sessionId", serialization_alias="sessionId")
     tool_call_id: str = Field(validation_alias="toolCallId", serialization_alias="toolCallId")

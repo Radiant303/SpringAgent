@@ -6,11 +6,7 @@ from spring_harness.core.history import HistoryDirection, HistoryPage
 
 
 class SessionStore(Protocol):
-    """会话消息存储：一个会话一个 store 对象。
-
-    追加原则：只增不改；历史被压缩/合并改写时追加新段，旧段保留备查。
-    实现有本地 JSONL 文件版与云端 HTTP 客户端版。
-    """
+    """会话消息存储。"""
 
     @property
     def session_id(self) -> str: ...

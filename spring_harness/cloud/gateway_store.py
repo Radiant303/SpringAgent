@@ -33,7 +33,7 @@ from spring_harness.core.store.paging import first_user_text, page_history
 
 
 def _dump_message(message: ModelMessage) -> dict:
-    """单条消息 dump 成 JSON 对象（与 jsonl 的 _dump_line 同一 wire 格式）。"""
+    """将单条消息转为 JSON 对象。"""
     return ModelMessagesTypeAdapter.dump_python([message], mode="json")[0]
 
 

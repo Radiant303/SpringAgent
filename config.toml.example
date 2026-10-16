@@ -1,60 +1,21 @@
-# ---- 本地入口（springcli / springacp / springweb）专用 ----
-# 模型目录（[providers]/[models]/default_model）对本地入口仍需在此配置，示例如下；
-# 云端入口（springcloud）忽略这三段——模型与默认模型由站长在管理后台「模型配置」页维护，
-# 存 MySQL（model_providers / model_definitions / system_settings.default_model），即改即生效。
-
-default_model = "deepseek/deepseek-v4-flash"
-
 [loop_control]
 max_retries_per_step = 3
 reserved_context_size = 50000
 request_limit = 50
 
-[thinking]
-enabled = true
-effort = "high"
-
-[providers.deepseek]
-type = "openai"
-api_key = "sk-xxxxxxxxxxxxxxxx"
-base_url = "https://api.deepseek.com"
-
-[models."deepseek/deepseek-v4-flash"]
-provider = "deepseek"
-model = "deepseek-v4-flash"
-max_context_size = 1000000
-max_output_size = 384000
-capabilities = [ "thinking", "tool_use" ]
-display_name = "DeepSeek V4 Flash"
-
-# 子代理/次级模型引用的模型 ID 必须存在于当前模型目录（云端 = 数据库）
-[secondary_model]
-default_effort = "on"
-model = "deepseek/deepseek-v4-flash"
-
 [log]
 log_level = "INFO"
 
-# ---- 云端部署（springcloud 入口）----
-# 留空整段则使用下列默认值；MySQL 库表由 alembic upgrade head 创建
 [cloud]
-# MySQL 连接串（PyMySQL 驱动）
 database_url = "mysql+pymysql://root:root@127.0.0.1:3307/springharness?charset=utf8mb4"
-# 云端数据根目录：工作区落在 {data_root}/workspaces/{user_id}/{session_id}
-# 支持 ~ 开头（自动展开到家目录）
+# 支持 ~ 开头。
 data_root = "~/.springharness/cloud"
-# JWT 签名密钥与过期时间（分钟，10080 = 7 天）；生产必须改密钥
-# 注意 HS256 密钥需 ≥32 字节（RFC 7518，Java jjwt 会强制校验）
+# HS256 密钥需 ≥32 字节；生产环境必须更换。
 jwt_secret = "springharness-dev-secret-0123456789abcd"
 jwt_expire_minutes = 10080
-# 监听地址与端口
 host = "0.0.0.0"
 port = 8001
-# MQ 控制面（阶段④）：turn 派发/取消消费、生命周期事件回传
 rabbitmq_url = "amqp://guest:guest@127.0.0.1:5672/"
-# 事件流数据面（阶段⑤）：会话事件写 Redis Stream，网关按 offset 续读
 redis_url = "redis://127.0.0.1:6380/0"
-# 网关内部 API 基址（阶段⑥：sessions/messages 的 MySQL 操作收敛到网关，经此调用）
-# gateway_base_url = "http://127.0.0.1:8080"
-# 内部 API 鉴权头 X-Internal-Token 的值，需与网关 app.internal-token 同值
-# internal_token = "springharness-internal-dev-token-0123456789"
+gateway_base_url = "http://127.0.0.1:8080"
+internal_token = "springharness-internal-dev-token-0123456789"

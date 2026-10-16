@@ -80,16 +80,8 @@ class JsonRpcConnection:
         self._write_line = write_line
         self._send_lock = asyncio.Lock()
         self._pending: dict[str | int, asyncio.Future] = {}
-        self._next_id = 0
 
     # ---- 发送 ----
-
-    async def send_request(self, method: str, params: dict | BaseModel, *, rid: str | int | None = None) -> Any:
-        if rid is None:
-            self._next_id += 1
-            rid = self._next_id
-        await self.post_request(method, params, rid=rid)
-        return await self.wait_response(rid)
 
     async def post_request(self, method: str, params: dict | BaseModel, *, rid: str | int) -> None:
         future = asyncio.get_running_loop().create_future()

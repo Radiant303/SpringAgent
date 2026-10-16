@@ -23,7 +23,6 @@ from spring_harness.core.config.model import setting
 from spring_harness.core.history import HistoryDirection, HistoryPage
 from spring_harness.core.log import logger
 from spring_harness.core.store.base import SessionStore
-from spring_harness.core.store.jsonl import JsonlSessionStore
 from spring_harness.core.stream.adapter import AgentEventAdapter
 from spring_harness.core.stream.emit import EventEmitter, PendingRequests
 from spring_harness.core.stream.events import (
@@ -93,15 +92,15 @@ class HarnessSession:
         self,
         workspace: str | Path,
         *,
+        store: SessionStore,
         agent: Agent[Any, Any] | None = None,
-        store: SessionStore | None = None,
         deps: CodingAgentDeps | None = None,
         model_name: str | None = None,
         billing_service: BillingGateway | None = None,
         page_id: int | None = None,
     ) -> None:
         self.workspace = Path(workspace).resolve()
-        self._store = store or JsonlSessionStore.create(self.workspace)
+        self._store = store
         self.session_id = self._store.session_id
         self._model_name = model_name
         self.page_id = page_id
@@ -112,7 +111,7 @@ class HarnessSession:
         self._deps.model_id = model_name or "__default__"
         self._billing_service = billing_service
         self._history: list[ModelMessage] = []
-        self._history_loaded = store is None
+        self._history_loaded = False
         self._history_lock = asyncio.Lock()
         self._queue: asyncio.Queue[ServerEvent] = asyncio.Queue()
         self._requests = PendingRequests(self._emit)
@@ -223,13 +222,6 @@ class HarnessSession:
         if task is not None and task is not asyncio.current_task():
             task.cancel()
             await asyncio.gather(task, return_exceptions=True)
-
-    @classmethod
-    def resume_last(cls, workspace: str | Path, **kwargs: Any) -> HarnessSession | None:
-        sessions = JsonlSessionStore.list_sessions(Path(workspace).resolve())
-        if not sessions:
-            return None
-        return cls(workspace, store=sessions[-1][0], **kwargs)
 
     async def load_history(self) -> list[list[ModelMessage]]:
         return (await self.query_history()).segments

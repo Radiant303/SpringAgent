@@ -77,7 +77,3 @@
 
 写之前问一句：**不看这段代码，这个注释提供的信息能独立成立吗？**
 看代码三秒就能明白的，一个字都不写。
-
-# 维护状态
-
-- 本地模式已停止维护：CLI（`spring_harness/console/`、`spring_harness/entrypoints/cli.py`）、本地 Web（`spring_harness/entrypoints/web.py`、`spring_harness/core/services/web_server.py`）、stdio server（`spring_harness/entrypoints/server.py`）。新功能不再适配，改动无需兼容；云端（`spring_harness/entrypoints/cloud.py` + `gateway/`）是唯一维护面。
