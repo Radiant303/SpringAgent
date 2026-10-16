@@ -15,13 +15,17 @@ import com.spring.gateway.service.storage.StorageTypes;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import java.io.IOException;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Instant;
 import java.util.List;
+import java.util.stream.Stream;
 
 /**
  * 上传文件及占用计数的对账任务。
@@ -45,6 +49,9 @@ public class StorageReconcileTask {
     @org.springframework.beans.factory.annotation.Value("${app.storage.orphan-grace-ms:3600000}")
     private long orphanGraceMs;
 
+    @Value("${app.data-root}")
+    private String dataRoot;
+
     public void reconcile() {
         try {
             int missing = 0;
@@ -53,8 +60,10 @@ public class StorageReconcileTask {
                 missing += reconcileUser(user.getId());
             }
             int orphans = sweepOrphans();
-            if (missing > 0 || orphans > 0) {
-                log.info("存储对账完成：清理丢失记录 {} 条、孤儿文件 {} 个", missing, orphans);
+            int orphanDirs = sweepOrphanWorkDirs();
+            if (missing > 0 || orphans > 0 || orphanDirs > 0) {
+                log.info("存储对账完成：清理丢失记录 {} 条、孤儿文件 {} 个、孤儿 work 目录 {} 个",
+                        missing, orphans, orphanDirs);
             }
         } catch (Exception e) {
             log.warn("存储对账失败，下轮重试", e);
@@ -111,6 +120,46 @@ public class StorageReconcileTask {
             }
         }
         return deleted;
+    }
+
+    /** 库行已删而磁盘仍在的 work 目录：宽限期外整个清掉 */
+    private int sweepOrphanWorkDirs() {
+        Path worksRoot = Path.of(dataRoot, "works");
+        if (!Files.isDirectory(worksRoot)) {
+            return 0;
+        }
+        Instant cutoff = Instant.now().minusMillis(Math.max(0L, orphanGraceMs));
+        int deleted = 0;
+        try (Stream<Path> dirs = Files.list(worksRoot)) {
+            List<Path> candidates = dirs.filter(Files::isDirectory).toList();
+            for (Path dir : candidates) {
+                if (workMapper.selectById(dir.getFileName().toString()) != null) {
+                    continue;
+                }
+                if (Files.getLastModifiedTime(dir).toInstant().isAfter(cutoff)) {
+                    continue;
+                }
+                deleteRecursively(dir);
+                deleted++;
+            }
+        } catch (IOException e) {
+            log.warn("孤儿 work 目录扫描失败", e);
+        }
+        return deleted;
+    }
+
+    private static void deleteRecursively(Path root) {
+        try (Stream<Path> walk = Files.walk(root)) {
+            walk.sorted((a, b) -> -a.compareTo(b)).forEach(path -> {
+                try {
+                    Files.delete(path);
+                } catch (IOException ignored) {
+                    // 尽力删，残留下轮再扫
+                }
+            });
+        } catch (IOException ignored) {
+            // 目录不可读视为已删除
+        }
     }
 
     boolean deleteOrphan(String type, ObjectStorageService storage, String key) {

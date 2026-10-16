@@ -46,6 +46,7 @@ public class WorkService {
     private final EngineClient engineClient;
     private final SystemSettingService systemSettingService;
     private final FileStorageService fileStorageService;
+    private final PageMappingService pageMappingService;
 
     @Value("${app.data-root}")
     private String dataRoot;
@@ -78,6 +79,7 @@ public class WorkService {
      * @return 新建的 work
      * @throws BizException 超出数量上限或存储配额（409）
      */
+    @Transactional
     public Work create(Long userId, String name) {
         User user = requireUser(userId);
         Long count = workMapper.selectCount(new LambdaQueryWrapper<Work>().eq(Work::getUserId, userId));
@@ -101,12 +103,14 @@ public class WorkService {
      * @param userId 用户 ID
      * @return 默认 work
      */
+    @Transactional
     public Work ensureDefault(Long userId) {
         requireUser(userId);
         Work existing = workMapper.selectOne(new LambdaQueryWrapper<Work>()
                 .eq(Work::getUserId, userId)
                 .eq(Work::getIsDefault, true));
         if (existing != null) {
+            pageMappingService.ensureForWork(existing.getId());
             return existing;
         }
         return insert(userId, DEFAULT_WORK_NAME, true);
@@ -174,6 +178,7 @@ public class WorkService {
             messageMapper.delete(new LambdaQueryWrapper<Message>().eq(Message::getSessionId, session.getId()));
         }
         sessionMapper.delete(new LambdaQueryWrapper<Session>().eq(Session::getWorkId, workId));
+        pageMappingService.deleteByWorkId(workId);
         workMapper.deleteById(workId);
         TransactionSynchronizationManager.registerSynchronization(
                 new TransactionSynchronization() {
@@ -300,6 +305,7 @@ public class WorkService {
         row.setCreatedAt(now);
         row.setUpdatedAt(now);
         workMapper.insert(row);
+        pageMappingService.ensureForWork(row.getId());
         return row;
     }
 

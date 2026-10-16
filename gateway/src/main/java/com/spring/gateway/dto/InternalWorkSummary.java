@@ -15,6 +15,7 @@ import com.spring.gateway.entity.Work;
  * @param defaultWork   是否默认项目
  * @param workspacePath 派生的工作区目录路径
  * @param workMaxBytes  生效的单工作区上限字节数
+ * @param pageId        页面访问 ID（雪花 ID 的字符串形），无映射为 null
  * @param createdAt     创建时间
  * @param updatedAt     更新时间
  */
@@ -26,6 +27,7 @@ public record InternalWorkSummary(
         boolean defaultWork,
         String workspacePath,
         long workMaxBytes,
+        String pageId,
         String createdAt,
         String updatedAt
 ) {
@@ -36,9 +38,10 @@ public record InternalWorkSummary(
      * @param row           works 行
      * @param workspacePath 网关派生的工作区目录路径
      * @param workMaxBytes  生效的单工作区上限字节数
+     * @param pageId        页面访问 ID，无映射为 null
      * @return work 摘要
      */
-    public static InternalWorkSummary from(Work row, String workspacePath, long workMaxBytes) {
+    public static InternalWorkSummary from(Work row, String workspacePath, long workMaxBytes, Long pageId) {
         return new InternalWorkSummary(
                 row.getId(),
                 row.getUserId(),
@@ -47,6 +50,7 @@ public record InternalWorkSummary(
                 Boolean.TRUE.equals(row.getIsDefault()),
                 workspacePath,
                 workMaxBytes,
+                pageId == null ? null : String.valueOf(pageId),
                 TimeFormat.isoUtc(row.getCreatedAt()),
                 TimeFormat.isoUtc(row.getUpdatedAt()));
     }

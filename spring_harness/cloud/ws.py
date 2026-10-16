@@ -198,6 +198,7 @@ class CloudAppServer(AppServer):
         assert registry is not None
         handle = await registry.get_or_create(
             session_id, workspace=Path(work.workspace_path), store=store, work_id=work.work_id,
+            page_id=work.page_id,
         )
         self._adopt(handle, p.model, p.effort)
         return self._cloud_result(handle)
@@ -233,8 +234,10 @@ class CloudAppServer(AppServer):
             store = await asyncio.to_thread(GatewaySessionStore.open, p.session_id)
             if store is None:
                 raise JsonRpcError(SESSION_NOT_FOUND, f"未知会话: {p.session_id}")
+            work = await asyncio.to_thread(gateway_store.get_work, row.work_id)
             handle = await registry.get_or_create(
                 p.session_id, workspace=Path(row.workspace_path), store=store, work_id=row.work_id,
+                page_id=work.page_id if work is not None else None,
             )
         self._adopt(handle, p.model, p.effort, takeover=p.takeover)
         return self._cloud_result(handle)

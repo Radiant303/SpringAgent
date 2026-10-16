@@ -29,6 +29,7 @@ from spring_harness.core.hooks.model import hooks, request_hooks
 from spring_harness.instructions.default import register_default_instructions
 from spring_harness.toolsets.ask_user import ask_user_toolset
 from spring_harness.toolsets.filesystem import filesystem
+from spring_harness.toolsets.page_site import page_site_toolset
 from spring_harness.toolsets.repo_knowledge import knowledge_toolsets
 from spring_harness.toolsets.session_info import session_info_toolset
 from spring_harness.toolsets.view_image import view_image_toolset
@@ -57,6 +58,7 @@ def create_agent(
     teach_on_change: OnTeachingChange | None = None,
     compact_on_change: OnCompaction | None = None,
     effort: str | None = None,
+    page_id: int | None = None,
 ) -> SpringAgent:
     """
     创建 Spring Harness Agent
@@ -76,6 +78,8 @@ def create_agent(
     ]
     if "image_in" in model_config.capabilities:
         toolsets.append(view_image_toolset)
+    if page_id is not None:
+        toolsets.append(page_site_toolset(page_id=page_id))
     agent = SpringAgent(
         model=model,
         toolsets=toolsets,
@@ -103,6 +107,6 @@ def create_agent(
         retries=20
     )
 
-    register_default_instructions(agent)
+    register_default_instructions(agent, page_id=page_id)
 
     return agent

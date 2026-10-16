@@ -229,6 +229,7 @@ class CloudSessionRegistry:
 
     async def get_or_create(
         self, session_id: str, *, workspace: Path, store: SessionStore, work_id: str = "",
+        page_id: int | None = None,
     ) -> CloudSessionHandle:
         async with self._create_lock:
             handle = self._handles.get(session_id)
@@ -241,7 +242,7 @@ class CloudSessionRegistry:
             if billing is None:
                 raise RuntimeError("云端计费服务未初始化")
             session = await asyncio.to_thread(HarnessSession, workspace, store=store,
-                                             billing_service=billing)
+                                             billing_service=billing, page_id=page_id)
             handle = CloudSessionHandle(session, self._redis, work_id=work_id)
             self._handles[session_id] = handle
             logger.info("云端会话已注册: {}", session_id)

@@ -108,11 +108,13 @@ class HarnessSession:
         deps: CodingAgentDeps | None = None,
         model_name: str | None = None,
         billing_service: BillingGateway | None = None,
+        page_id: int | None = None,
     ) -> None:
         self.workspace = Path(workspace).resolve()
         self._store = store or JsonlSessionStore.create(self.workspace)
         self.session_id = self._store.session_id
         self._model_name = model_name
+        self.page_id = page_id
         self._effort: str | None = None
         self._injected_agent = agent is not None
         self._agent = agent
@@ -381,6 +383,7 @@ class HarnessSession:
             model_name=selection["model"],
             effort=selection["effort"],
             session_id=self.session_id,
+            page_id=self.page_id,
             plan_on_change=lambda items: self._emit(
                 PlanUpdated(items=[i.model_dump() for i in items])),
             teach_on_change=lambda unit: self._emit(

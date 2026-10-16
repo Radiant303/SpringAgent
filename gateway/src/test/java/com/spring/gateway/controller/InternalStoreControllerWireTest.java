@@ -7,8 +7,10 @@ import com.spring.gateway.dto.InternalAppendResult;
 import com.spring.gateway.dto.InternalMessage;
 import com.spring.gateway.dto.InternalMessagePage;
 import com.spring.gateway.entity.Session;
+import com.spring.gateway.entity.Work;
 import com.spring.gateway.mapper.UserMapper;
 import com.spring.gateway.service.InternalStoreService;
+import com.spring.gateway.service.PageMappingService;
 import com.spring.gateway.service.WorkService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -57,6 +59,8 @@ class InternalStoreControllerWireTest {
     private InternalStoreService internalStoreService;
     @MockitoBean
     private WorkService workService;
+    @MockitoBean
+    private PageMappingService pageMappingService;
 
     @TestConfiguration
     static class WireTestConfig {
@@ -167,5 +171,29 @@ class InternalStoreControllerWireTest {
         row.setCreatedAt(LocalDateTime.of(2026, 10, 3, 8, 0, 0));
         row.setUpdatedAt(LocalDateTime.of(2026, 10, 3, 8, 0, 0, 123456000));
         return row;
+    }
+
+    @Test
+    @DisplayName("work 详情端点带 pageId（雪花 ID 的字符串形）")
+    void workDetailHasPageId() throws Exception {
+        Work work = new Work();
+        work.setId("w1");
+        work.setUserId(7L);
+        work.setName("默认项目");
+        work.setSizeBytes(0L);
+        work.setIsDefault(true);
+        work.setCreatedAt(LocalDateTime.of(2026, 10, 3, 8, 0, 0));
+        work.setUpdatedAt(LocalDateTime.of(2026, 10, 3, 8, 0, 0));
+        when(workService.getForInternal("w1")).thenReturn(work);
+        when(workService.workspacePath("w1")).thenReturn("/works/w1");
+        when(workService.effectiveWorkMaxBytes(work)).thenReturn(0L);
+        when(pageMappingService.pageIdOf("w1")).thenReturn(369158185545555999L);
+
+        mockMvc.perform(get("/internal/works/w1")
+                        .header(InternalAuthInterceptor.HEADER_TOKEN, TOKEN))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.workId").value("w1"))
+                .andExpect(jsonPath("$.pageId").value("369158185545555999"))
+                .andExpect(jsonPath("$.code").doesNotExist());
     }
 }

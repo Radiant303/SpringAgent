@@ -80,6 +80,7 @@ class GatewayWorkRow:
     is_default: bool
     workspace_path: str
     work_max_bytes: int
+    page_id: int | None = None
 
     @classmethod
     def from_payload(cls, payload: dict) -> GatewayWorkRow:
@@ -91,6 +92,7 @@ class GatewayWorkRow:
             is_default=payload.get("defaultWork", False),
             workspace_path=payload.get("workspacePath", ""),
             work_max_bytes=int(payload.get("workMaxBytes") or 0),
+            page_id=int(payload["pageId"]) if payload.get("pageId") else None,
         )
 
 

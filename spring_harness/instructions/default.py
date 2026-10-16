@@ -5,7 +5,8 @@ from spring_harness.core.agent.deps import CodingAgentDeps
 
 
 def register_default_instructions(
-    agent: Agent[CodingAgentDeps, DeferredToolRequests | str]
+    agent: Agent[CodingAgentDeps, DeferredToolRequests | str],
+    page_id: int | None = None,
 ):
     @agent.instructions
     async def persona() -> str:
@@ -147,3 +148,19 @@ def register_default_instructions(
         f"<sessions>The workspace may hold multiple session directories, each named by its session ID; per-session uploads live under <session_id>/images/. When several session directories are present, call the current_session tool first to confirm which one is yours before reading or writing session-scoped files — never guess from directory names.</sessions>"
         f"<run_code_sandbox>Inside the `run_code` sandbox, the workspace is mounted at `/work` (overlay mode: readable and writable, but writes are discarded when the call ends) and `/scratch` is a writable scratch area persisted to the workspace's `.springharness/.agent-scratch/`. Always use absolute virtual paths such as `Path('/work/a.txt')`; relative paths and any path outside these mounts are rejected with `PermissionError`.</run_code_sandbox>"
         f"</environment>")
+
+    if page_id is not None:
+        @agent.instructions
+        async def page_site() -> str:
+            return ("<page_site>"
+            "The workspace has a page/ directory that is published to the public web as-is. "
+            "Anything you write under page/ becomes reachable at this project's site URL — always obtain that URL with the page_url tool and share it exactly as returned (it ends with a trailing slash); never construct or guess the URL yourself. "
+
+            "Rules for files under page/: "
+            "1. The site entry point must be page/index.html. "
+            "2. Reference CSS/JS/images with relative paths only — <link rel=\"stylesheet\" href=\"css/style.css\">, <script src=\"js/app.js\"></script>, <img src=\"images/logo.png\">. Never use absolute paths starting with / (they bypass the site route and 404), never hard-code domains or IPs, never use <base>. "
+            "3. File and directory names may contain only ASCII letters, digits, dots, underscores and hyphens — no spaces, no CJK characters. "
+            "4. Only static assets are served: html, css, js, mjs, map, json, images, fonts, plain text/markdown, pdf and common audio/video. Never write server-side or executable file types (.php, .jsp, .sh, .py …) — they will not be served. "
+            "5. For multi-page sites create subdirectories, e.g. page/about/index.html or page/blog/post-1.html. A directory URL ending with / serves that directory's index.html, so every directory's default page is named index.html. From a page inside a subdirectory, reference parent-directory resources with ../, e.g. <link rel=\"stylesheet\" href=\"../css/style.css\">. "
+            "6. Keep everything the page needs inside page/ — uploaded images, generated assets, downloads — so the site stays self-contained."
+            "</page_site>")

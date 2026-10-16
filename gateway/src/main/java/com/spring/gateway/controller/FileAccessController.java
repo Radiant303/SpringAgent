@@ -41,9 +41,16 @@ public class FileAccessController {
      * @param request 请求
      * @return 302 / X-Accel-Redirect / 文件流
      */
-    @GetMapping("/{fileId:\\d{1,19}}.{ext:[A-Za-z0-9]{1,10}}")
-    public ResponseEntity<?> access(@PathVariable long fileId, HttpServletRequest request) {
-        FileRecord row = fileStorageService.requireById(fileId);
+    @GetMapping("/{fileId:\\d+}.{ext:[A-Za-z0-9]{1,10}}")
+    public ResponseEntity<?> access(@PathVariable String fileId, HttpServletRequest request) {
+        long id;
+        try {
+            id = Long.parseLong(fileId);
+        } catch (NumberFormatException e) {
+            // 19 位以上数字超出 long 上限：按不存在处理
+            throw new BizException(404, "文件不存在");
+        }
+        FileRecord row = fileStorageService.requireById(id);
         ObjectStorageService storage = storageSelector.get(row.getStorageType());
         Optional<String> direct = storage.directUrl(row.getPath());
         if (direct.isPresent()) {

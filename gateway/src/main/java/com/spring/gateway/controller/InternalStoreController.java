@@ -13,6 +13,7 @@ import com.spring.gateway.dto.InternalWorkSummary;
 import com.spring.gateway.entity.Session;
 import com.spring.gateway.entity.Work;
 import com.spring.gateway.service.InternalStoreService;
+import com.spring.gateway.service.PageMappingService;
 import com.spring.gateway.service.WorkService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -38,6 +39,7 @@ public class InternalStoreController {
 
     private final InternalStoreService internalStoreService;
     private final WorkService workService;
+    private final PageMappingService pageMappingService;
 
     /**
      * 新建会话
@@ -120,7 +122,7 @@ public class InternalStoreController {
     }
 
     /**
-     * 查询 work 详情（含派生工作区路径），不存在即 404
+     * 查询 work 详情（含派生工作区路径与页面映射 ID），不存在即 404
      *
      * @param workId work ID
      * @return work 摘要
@@ -129,7 +131,7 @@ public class InternalStoreController {
     public InternalWorkSummary getWork(@PathVariable String workId) {
         Work row = workService.getForInternal(workId);
         return InternalWorkSummary.from(row, workService.workspacePath(workId),
-                workService.effectiveWorkMaxBytes(row));
+                workService.effectiveWorkMaxBytes(row), pageMappingService.pageIdOf(workId));
     }
 
     /**
@@ -142,7 +144,7 @@ public class InternalStoreController {
     public InternalWorkSummary ensureDefaultWork(@Valid @RequestBody InternalEnsureDefaultWorkRequest request) {
         Work row = workService.ensureDefault(request.userId());
         return InternalWorkSummary.from(row, workService.workspacePath(row.getId()),
-                workService.effectiveWorkMaxBytes(row));
+                workService.effectiveWorkMaxBytes(row), pageMappingService.pageIdOf(row.getId()));
     }
 
     /**
