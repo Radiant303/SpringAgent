@@ -148,7 +148,7 @@ function availListSkeleton(list, n = 5) {
 }
 
 function formatK(n) {
-  return n >= 1024 ? Math.round(n / 1024) + "K" : String(n);
+  return n >= 1000 ? Math.round(n / 1000) + "k" : String(n ?? 0);
 }
 
 function matches(...texts) {
