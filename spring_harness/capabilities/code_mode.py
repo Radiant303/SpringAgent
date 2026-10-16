@@ -5,6 +5,18 @@ from pydantic_monty import MountDir
 
 from spring_harness.core.config.settings import STATE_DIR
 
+# 折叠进 run_code 的只读工具：写工具留在沙箱外，写操作才真实落盘
+READ_ONLY_TOOLS = [
+    "read_file",
+    "list_directory",
+    "search_files",
+    "find_files",
+    "file_info",
+    "read_knowledge",
+    "read_index_knowledge",
+    "current_session",
+]
+
 
 def code_mode(root: Path) -> CodeMode:
     """Code Mode：只读工具折叠进 run_code 沙箱。
@@ -19,5 +31,5 @@ def code_mode(root: Path) -> CodeMode:
             MountDir(virtual_path="/work", host_path=root, mode="overlay"),
             MountDir(virtual_path="/scratch", host_path=scratch, mode="read-write"),
         ],
-        tools=[],
+        tools=READ_ONLY_TOOLS,
     )
