@@ -37,7 +37,6 @@ public class PointsHold {
     private String sessionId;
     private String modelId;
     private String agentName;
-    private Boolean isWake;
     private BigDecimal inputPoints;
     private BigDecimal cacheReadPoints;
     private BigDecimal cacheWritePoints;

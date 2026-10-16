@@ -10,7 +10,6 @@ import { SproutManager } from "../../components/sprout.js";
 import { state, AUTO_SOURCES, resetFlow, createAssistantTurnNode, updateLatestPet, setStickToBottom } from "./state.js";
 import {
   userNode,
-  noticeNode,
   systemNode,
   answerNode,
   thinkingNode,
@@ -117,8 +116,7 @@ export function renderHistory(segments, prepend = false) {
       if (msg.kind === "request") {
         for (const part of msg.parts || []) {
           if (part.part_kind === "user-prompt" && typeof part.content === "string") {
-            if (source === "background_task") appendRoot(noticeNode(part.content));
-            else if (!AUTO_SOURCES.has(source)) appendRoot(userNode(part.content));
+            if (!AUTO_SOURCES.has(source)) appendRoot(userNode(part.content));
           } else if (part.part_kind === "tool-return" || part.part_kind === "retry-prompt") {
             renderTool(part);
           }
@@ -168,15 +166,21 @@ export function renderHistory(segments, prepend = false) {
   updateLatestPet();
 }
 
-export async function loadHistory(cursor) {
-  const params = { sessionId: state.sessionId, limit: 30, direction: "backward" };
+export async function loadHistory(cursor, generation) {
+  const sid = state.sessionId;
+  const workId = state.workId;
+  const socket = rpc.ws;
+  const isCurrent = () => state.sessionId === sid && state.workId === workId && rpc.ws === socket && state.connected
+    && (generation === undefined || generation === state.viewGeneration);
+  const params = { sessionId: sid, limit: 30, direction: "backward" };
   if (cursor) params.cursor = cursor;
   let page;
   try {
     page = await rpc.request("session/history", params);
   } finally {
-    if (!cursor) UI.clearSkeleton("messages");
+    if (!cursor && isCurrent()) UI.clearSkeleton("messages");
   }
+  if (!isCurrent()) return;
   state.historyCursor = page.previousCursor || null;
   state.historyHasMore = !!page.hasMore;
   renderHistory(page.segments || [], !!cursor);

@@ -73,6 +73,7 @@ class AppServer:
             "session/resume_last": (WorkspaceParams, self._session_resume_last),
             "session/list": (WorkspaceParams, self._session_list),
             "session/attach": (AttachParams, self._session_attach),
+            "session/status": (SessionParams, self._session_status),
             "session/history": (HistoryQueryParams, self._session_history),
             "session/set_model": (SetModelParams, self._session_set_model),
             "session/plan": (SessionParams, self._session_plan),
@@ -153,7 +154,11 @@ class AppServer:
             raise
 
     def _session_result(self, session: HarnessSession) -> SessionResult:
-        return SessionResult(session_id=session.session_id, **session.model_selection)
+        return SessionResult(session_id=session.session_id, busy=session.busy,
+                             pending_input=session.pending_input, **session.model_selection)
+
+    async def _session_status(self, p: SessionParams) -> SessionResult:
+        return self._session_result(self._require(p.session_id))
 
     async def _session_new(self, p: WorkspaceParams) -> SessionResult:
         session = await self._create_session(Path(p.workspace), model=p.model, effort=p.effort)
@@ -165,7 +170,8 @@ class AppServer:
             (s for s in self._sessions.values() if s.workspace == workspace), None,
         )
         if existing is not None:
-            self._apply_model(existing, p.model, p.effort)
+            if not existing.busy:
+                self._apply_model(existing, p.model, p.effort)
             return self._session_result(existing)
         sessions = await asyncio.to_thread(JsonlSessionStore.list_sessions, workspace)
         if not sessions:
@@ -179,11 +185,13 @@ class AppServer:
         for store, meta in await asyncio.to_thread(JsonlSessionStore.list_sessions, workspace):
             created_at = meta.get("created_at")
             assert isinstance(created_at, str)
+            session = self._sessions.get(store.session_id)
             sessions.append(SessionSummary(
                 session_id=store.session_id,
                 title=meta.get("title"),
                 created_at=created_at,
                 updated_at=meta.get("updated_at"),
+                busy=session.busy if session is not None else False,
             ))
         return SessionListResult(sessions=sessions)
 
@@ -193,7 +201,8 @@ class AppServer:
             (s for s in self._sessions.values() if s.session_id == p.session_id), None,
         )
         if existing is not None:
-            self._apply_model(existing, p.model, p.effort)
+            if not existing.busy:
+                self._apply_model(existing, p.model, p.effort)
             return self._session_result(existing)
         for store, _meta in await asyncio.to_thread(JsonlSessionStore.list_sessions, workspace):
             if store.session_id == p.session_id:
@@ -279,7 +288,7 @@ class AppServer:
             logger.exception("会话 {} 的事件泵异常退出", session.session_id)
 
     async def _post_approval(self, session: HarnessSession, event) -> None:
-        if self._shutting_down:
+        if self._shutting_down or self._sessions.get(session.session_id) is not session:
             session.respond(event.request_id, False)
             return
         await self._connection.post_request(
@@ -293,7 +302,7 @@ class AppServer:
             ),
             rid=event.request_id,
         )
-        if self._shutting_down:
+        if self._shutting_down or self._sessions.get(session.session_id) is not session:
             self._connection.discard_response(event.request_id)
             session.respond(event.request_id, False)
             return
@@ -301,6 +310,8 @@ class AppServer:
         self._track(asyncio.create_task(self._await_approval(session, event.request_id)))
 
     async def _await_approval(self, session: HarnessSession, request_id: str) -> None:
+        if request_id not in self._inflight_requests:
+            return
         try:
             result = await self._connection.wait_response(request_id)
             approved = ApprovalResult.model_validate(result or {}).approved
@@ -312,7 +323,7 @@ class AppServer:
             session.respond(request_id, approved)
 
     async def _post_question(self, session: HarnessSession, event) -> None:
-        if self._shutting_down:
+        if self._shutting_down or self._sessions.get(session.session_id) is not session:
             session.respond(event.request_id, None)
             return
         await self._connection.post_request(
@@ -325,7 +336,7 @@ class AppServer:
             ),
             rid=event.request_id,
         )
-        if self._shutting_down:
+        if self._shutting_down or self._sessions.get(session.session_id) is not session:
             self._connection.discard_response(event.request_id)
             session.respond(event.request_id, None)
             return
@@ -333,6 +344,8 @@ class AppServer:
         self._track(asyncio.create_task(self._await_question(session, event.request_id)))
 
     async def _await_question(self, session: HarnessSession, request_id: str) -> None:
+        if request_id not in self._inflight_requests:
+            return
         try:
             result = await self._connection.wait_response(request_id)
             answer = QuestionResult.model_validate(result or {}).answer

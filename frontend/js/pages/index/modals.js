@@ -1,92 +1,193 @@
 /**
- * 服务器反向请求弹窗：操作审批与用户提问
+ * 按会话排队的操作审批与用户提问。
+ *
+ * @author hanbing
+ * @since 2026-10-17
  */
 
 import { $, el } from "../../utils/dom.js";
+import { UI } from "../../components/ui.js";
 import { colorizeDiff } from "./chatView.js";
+import { state, runs, runOf, setBusy } from "./state.js";
+import { refreshSessionList, sessionLabel } from "./sessions.js";
 
-let approvalResolve = null;
-let questionResolve = null;
-let approvalQueue = Promise.resolve();
-let questionQueue = Promise.resolve();
+const pendingBySession = new Map();
+let activeRequest = null;
 let approvalGeneration = 0;
 let questionGeneration = 0;
 
+function generationOf(type) {
+  return type === "approval" ? approvalGeneration : questionGeneration;
+}
+
+function updateAttention(sid) {
+  const run = runs[sid];
+  if (!run) return;
+  const request = activeRequest?.params.sessionId === sid ? activeRequest : pendingBySession.get(sid)?.[0];
+  run.attention = request?.type || null;
+}
+
+function hideCards() {
+  $("approval-modal")?.classList.add("hidden");
+  $("question-card")?.classList.add("hidden");
+  $("input-card")?.classList.remove("hidden");
+}
+
+function enqueueRequest(type, params) {
+  const sid = params.sessionId || state.sessionId;
+  if (!sid) return Promise.resolve(type === "approval" ? { approved: false } : { answer: null });
+  return new Promise((resolve, reject) => {
+    const request = { type, params: { ...params, sessionId: sid }, resolve, reject, generation: generationOf(type) };
+    const queue = pendingBySession.get(sid) || [];
+    queue.push(request);
+    pendingBySession.set(sid, queue);
+    setBusy(sid, true);
+    updateAttention(sid);
+    refreshSessionList();
+    if (sid === state.sessionId && state.sessionReady) drainPendingFor(sid);
+    else UI.toast(`会话「${sessionLabel(sid)}」${type === "approval" ? "需要审批" : "有问题等你回答"}`);
+  });
+}
+
 export function handleApprovalRequest(params) {
-  const generation = approvalGeneration;
-  const task = approvalQueue.then(() => new Promise((resolve) => {
-    if (generation !== approvalGeneration) { resolve(false); return; }
-    approvalResolve = resolve;
-    if ($("approval-tool")) $("approval-tool").textContent = params.toolName || "";
-    if ($("approval-args")) $("approval-args").textContent = JSON.stringify(params.args ?? {}, null, 2);
-    const diffEl = $("approval-diff");
-    if (diffEl) {
-      if (params.diff) {
-        diffEl.classList.remove("hidden");
-        colorizeDiff(diffEl, params.diff);
-      } else {
-        diffEl.classList.add("hidden");
-        diffEl.textContent = "";
-      }
+  return enqueueRequest("approval", params);
+}
+
+export function handleQuestionRequest(params) {
+  return enqueueRequest("question", params);
+}
+
+export function drainPendingFor(sid) {
+  if (activeRequest && (activeRequest.params.sessionId !== sid || !state.sessionReady)) {
+    const request = activeRequest;
+    if (request.type === "question") request.custom = $("question-custom")?.value || "";
+    const previousSid = request.params.sessionId;
+    const queue = pendingBySession.get(previousSid) || [];
+    queue.unshift(request);
+    pendingBySession.set(previousSid, queue);
+    activeRequest = null;
+    hideCards();
+    updateAttention(previousSid);
+  }
+  if (!sid || sid !== state.sessionId || !state.sessionReady || !state.connected || activeRequest) return;
+  const queue = pendingBySession.get(sid);
+  const request = queue?.shift();
+  if (!queue?.length) pendingBySession.delete(sid);
+  if (!request) {
+    if (runs[sid]) runs[sid].attention = null;
+    return;
+  }
+  if (request.generation !== generationOf(request.type)) {
+    request.resolve(request.type === "approval" ? { approved: false } : { answer: null });
+    drainPendingFor(sid);
+    return;
+  }
+  activeRequest = request;
+  runOf(sid).attention = request.type;
+  try {
+    if (request.type === "approval") showApproval(request.params);
+    else showQuestion(request.params, request.custom);
+  } catch (error) {
+    activeRequest = null;
+    hideCards();
+    request.reject(error);
+    updateAttention(sid);
+    drainPendingFor(sid);
+  }
+  refreshSessionList();
+}
+
+function showApproval(params) {
+  if ($("approval-tool")) $("approval-tool").textContent = params.toolName || "";
+  if ($("approval-args")) $("approval-args").textContent = JSON.stringify(params.args ?? {}, null, 2);
+  const diffEl = $("approval-diff");
+  if (diffEl) {
+    if (params.diff) {
+      diffEl.classList.remove("hidden");
+      colorizeDiff(diffEl, params.diff);
+    } else {
+      diffEl.classList.add("hidden");
+      diffEl.textContent = "";
     }
-    const modal = $("approval-modal");
-    if (modal) modal.classList.remove("hidden");
-  }));
-  approvalQueue = task.catch(() => {});
-  return task.then((approved) => ({ approved }));
+  }
+  $("approval-modal")?.classList.remove("hidden");
+}
+
+function showQuestion(params, custom = "") {
+  if ($("question-text")) $("question-text").textContent = params.question || "";
+  const optionsBox = $("question-options");
+  if (optionsBox) {
+    optionsBox.textContent = "";
+    (params.options || []).forEach((opt, i) => {
+      const btn = el("button", "q-option");
+      btn.appendChild(el("span", "q-opt-label", String(opt)));
+      btn.appendChild(el("span", "q-num", String(i + 1)));
+      btn.onclick = () => settleQuestion(String(opt));
+      optionsBox.appendChild(btn);
+    });
+  }
+  $("question-custom-row")?.classList.toggle("hidden", !params.allowCustom);
+  $("question-actions")?.classList.toggle("hidden", !params.allowCustom);
+  if ($("question-custom-num")) $("question-custom-num").textContent = String((params.options || []).length + 1);
+  if ($("question-custom")) $("question-custom").value = custom;
+  $("input-card")?.classList.add("hidden");
+  $("question-card")?.classList.remove("hidden");
+  if (params.allowCustom) $("question-custom")?.focus();
+}
+
+function settleRequest(type, value) {
+  if (activeRequest?.type !== type) return;
+  const request = activeRequest;
+  const sid = request.params.sessionId;
+  activeRequest = null;
+  hideCards();
+  request.resolve(type === "approval" ? { approved: value } : { answer: value });
+  updateAttention(sid);
+  drainPendingFor(state.sessionId);
+  refreshSessionList();
 }
 
 export function settleApproval(approved) {
-  const modal = $("approval-modal");
-  if (modal) modal.classList.add("hidden");
-  const resolve = approvalResolve;
-  approvalResolve = null;
-  if (resolve) resolve(approved);
+  settleRequest("approval", approved);
+}
+
+export function settleQuestion(answer) {
+  settleRequest("question", answer);
+}
+
+function rejectRequests(predicate) {
+  const affected = new Set();
+  if (activeRequest && predicate(activeRequest)) {
+    const request = activeRequest;
+    activeRequest = null;
+    hideCards();
+    affected.add(request.params.sessionId);
+    request.resolve(request.type === "approval" ? { approved: false } : { answer: null });
+  }
+  for (const [sid, queue] of pendingBySession) {
+    const remaining = [];
+    for (const request of queue) {
+      if (predicate(request)) {
+        affected.add(sid);
+        request.resolve(request.type === "approval" ? { approved: false } : { answer: null });
+      } else remaining.push(request);
+    }
+    if (remaining.length) pendingBySession.set(sid, remaining);
+    else pendingBySession.delete(sid);
+  }
+  for (const sid of affected) updateAttention(sid);
+}
+
+export function clearPendingFor(sid) {
+  rejectRequests((request) => request.params.sessionId === sid);
 }
 
 export function hideApproval() {
   approvalGeneration++;
-  settleApproval(false);
-}
-
-export function handleQuestionRequest(params) {
-  const generation = questionGeneration;
-  const task = questionQueue.then(() => new Promise((resolve) => {
-    if (generation !== questionGeneration) { resolve(null); return; }
-    questionResolve = resolve;
-    if ($("question-text")) $("question-text").textContent = params.question || "";
-    const optionsBox = $("question-options");
-    if (optionsBox) {
-      optionsBox.textContent = "";
-      (params.options || []).forEach((opt, i) => {
-        const btn = el("button", "q-option");
-        btn.appendChild(el("span", "q-opt-label", String(opt)));
-        btn.appendChild(el("span", "q-num", String(i + 1)));
-        btn.onclick = () => settleQuestion(String(opt));
-        optionsBox.appendChild(btn);
-      });
-    }
-    if ($("question-custom-row")) $("question-custom-row").classList.toggle("hidden", !params.allowCustom);
-    if ($("question-actions")) $("question-actions").classList.toggle("hidden", !params.allowCustom);
-    if ($("question-custom-num")) $("question-custom-num").textContent = String((params.options || []).length + 1);
-    if ($("question-custom")) $("question-custom").value = "";
-    if ($("input-card")) $("input-card").classList.add("hidden");
-    if ($("question-card")) $("question-card").classList.remove("hidden");
-    if (params.allowCustom && $("question-custom")) $("question-custom").focus();
-  }));
-  questionQueue = task.catch(() => {});
-  return task.then((answer) => ({ answer }));
-}
-
-export function settleQuestion(answer) {
-  if ($("question-card")) $("question-card").classList.add("hidden");
-  if ($("input-card")) $("input-card").classList.remove("hidden");
-  const resolve = questionResolve;
-  questionResolve = null;
-  if (resolve) resolve(answer);
+  rejectRequests((request) => request.type === "approval");
 }
 
 export function hideQuestion() {
   questionGeneration++;
-  settleQuestion(null);
+  rejectRequests((request) => request.type === "question");
 }

@@ -23,7 +23,6 @@ _WRITE_TOOLS = frozenset({
     "run_command",
     "run_code",
     "save_unit",
-    "run_background",
 })
 
 _workspaces: dict[str, str] = {}

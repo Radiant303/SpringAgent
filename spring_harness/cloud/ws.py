@@ -3,7 +3,6 @@ from __future__ import annotations
 import asyncio
 import secrets
 import uuid
-from collections.abc import Awaitable, Callable
 from pathlib import Path
 from typing import ClassVar
 
@@ -29,11 +28,6 @@ SESSION_OCCUPIED = -32003
 SESSION_REPLACED = -32004
 WS_UNAUTHORIZED_CLOSE_CODE = 4401
 WS_DISABLED_CLOSE_CODE = 4403
-WS_REPLACED_CLOSE_CODE = 4409
-
-
-class CloudSessionResult(SessionResult):
-    busy: bool = False
 
 
 def _user_close_code(user_id: int) -> int | None:
@@ -54,18 +48,14 @@ class CloudAppServer(AppServer):
     def __init__(
         self, connection: JsonRpcConnection, *, user_id: int, data_root: Path,
         connection_id: str | None = None,
-        close_connection: Callable[[int], Awaitable[None]] | None = None,
     ) -> None:
         super().__init__(connection)
         self._user_id = user_id
         self._data_root = data_root
         self._connection_id = connection_id or uuid.uuid4().hex
-        self._close_connection = close_connection
         self._owned_sessions: set[str] = set()
-        self._current_session: str | None = None
         self._control_tokens: dict[str, str] = {}
         self._routes["models/list"] = (None, self._models_list)
-        self._routes["session/status"] = (SessionParams, self._session_status)
 
     @classmethod
     def control_token(cls, session_id: str, user_id: int, connection_id: str) -> str | None:
@@ -106,27 +96,27 @@ class CloudAppServer(AppServer):
         self._owned_sessions.discard(session_id)
         self._control_tokens.pop(session_id, None)
 
-    def _reject_requests(self) -> None:
-        for request_id, (session_id, kind) in list(self._inflight_requests.items()):
+    def _reject_session_requests(self, session_id: str) -> None:
+        for request_id, (sid, kind) in list(self._inflight_requests.items()):
+            if sid != session_id:
+                continue
             session = self._sessions.get(session_id)
             if session is not None:
                 session.respond(request_id, False if kind == "approval" else None)
             self._connection.discard_response(request_id)
-        self._inflight_requests.clear()
+            self._inflight_requests.pop(request_id, None)
+
+    def _reject_requests(self) -> None:
+        for session_id in {sid for sid, _ in self._inflight_requests.values()}:
+            self._reject_session_requests(session_id)
         for task in tuple(self._tasks):
             task.cancel()
 
-    async def _close_replaced(self, session_id: str) -> None:
+    async def _notify_replaced(self, session_id: str) -> None:
         try:
             await self._connection.send_notification("session/replaced", {"sessionId": session_id})
         except Exception:
             logger.debug("被接管连接无法接收通知: {}", session_id)
-        finally:
-            if self._close_connection is not None:
-                try:
-                    await self._close_connection(WS_REPLACED_CLOSE_CODE)
-                except (WebSocketDisconnect, RuntimeError):
-                    pass
 
     def _adopt(self, handle: CloudSessionHandle, model: str | None, effort: str | None = None,
                *, takeover: bool = False) -> None:
@@ -141,13 +131,9 @@ class CloudAppServer(AppServer):
         if not handle.busy:
             self._apply_model(handle.session, model, effort)
         if owner is not None and owner is not self:
-            owner._shutting_down = True
-            owner._reject_requests()
-            for previous in tuple(owner._owned_sessions):
-                owner._unmount(previous)
-            asyncio.create_task(owner._close_replaced(session_id))
-        if self._current_session is not None and self._current_session != session_id:
-            self._unmount(self._current_session)
+            owner._reject_session_requests(session_id)
+            owner._unmount(session_id)
+            owner._track(asyncio.create_task(owner._notify_replaced(session_id)))
         if self._active_owners.get(session_id) is not self:
             self._control_tokens[session_id] = uuid.uuid4().hex
         self._active_owners[session_id] = self
@@ -155,7 +141,6 @@ class CloudAppServer(AppServer):
         handle.remember_user(self._user_id)
         handle.set_approval_target(self)
         self._sessions[session_id] = handle.session
-        self._current_session = session_id
 
     def _unmount(self, session_id: str) -> None:
         registry = get_registry()
@@ -164,8 +149,6 @@ class CloudAppServer(AppServer):
             handle.set_approval_target(None)
         self._release(session_id)
         self._sessions.pop(session_id, None)
-        if self._current_session == session_id:
-            self._current_session = None
 
     async def _initialize(self, _: None) -> WebInitializeResult:
         work = await asyncio.to_thread(gateway_store.ensure_default_work, self._user_id)
@@ -174,7 +157,7 @@ class CloudAppServer(AppServer):
             workspace=work.workspace_path, models=_model_infos(), default_model=model_setting.default_model(),
         )
 
-    async def _session_new(self, p: WorkspaceParams) -> CloudSessionResult:
+    async def _session_new(self, p: WorkspaceParams) -> SessionResult:
         from spring_harness.core.config.thinking import resolve_effort
         from spring_harness.core.rpc.connection import INVALID_PARAMS
 
@@ -208,7 +191,7 @@ class CloudAppServer(AppServer):
         if p.work_id:
             rows = [row for row in rows if row.work_id == p.work_id]
         if not rows:
-            return CloudSessionResult(session_id=None)
+            return SessionResult(session_id=None)
         return await self._session_attach(AttachParams(
             workspace=p.workspace, session_id=rows[0].id, model=p.model, effort=p.effort,
         ))
@@ -217,12 +200,14 @@ class CloudAppServer(AppServer):
         rows = await asyncio.to_thread(list_sessions_for_user, self._user_id)
         if p.work_id:
             rows = [row for row in rows if row.work_id == p.work_id]
+        registry = get_registry()
         return SessionListResult(sessions=[SessionSummary(
             session_id=row.id, title=row.title, created_at=row.created_at.isoformat() + "Z",
             updated_at=row.updated_at.isoformat() + "Z",
+            busy=bool(registry is not None and (handle := registry.get(row.id)) is not None and handle.busy),
         ) for row in rows])
 
-    async def _session_attach(self, p: AttachParams) -> CloudSessionResult:
+    async def _session_attach(self, p: AttachParams) -> SessionResult:
         row = await asyncio.to_thread(find_active_session, p.session_id, self._user_id)
         if row is None:
             raise JsonRpcError(SESSION_NOT_FOUND, f"未知会话: {p.session_id}")
@@ -242,11 +227,12 @@ class CloudAppServer(AppServer):
         self._adopt(handle, p.model, p.effort, takeover=p.takeover)
         return self._cloud_result(handle)
 
-    def _cloud_result(self, handle: CloudSessionHandle) -> CloudSessionResult:
-        return CloudSessionResult(session_id=handle.session_id, busy=handle.busy,
-                                  **handle.session.model_selection)
+    def _cloud_result(self, handle: CloudSessionHandle) -> SessionResult:
+        return SessionResult(session_id=handle.session_id, busy=handle.busy,
+                             pending_input=handle.session.pending_input,
+                             **handle.session.model_selection)
 
-    async def _session_set_model(self, p: SetModelParams) -> CloudSessionResult:
+    async def _session_set_model(self, p: SetModelParams) -> SessionResult:
         self._require(p.session_id)
         registry = get_registry()
         assert registry is not None
@@ -265,7 +251,7 @@ class CloudAppServer(AppServer):
         assert handle is not None
         handle.start_turn(p.input, turn_id=f"ws-{uuid.uuid4().hex[:24]}", user_id=self._user_id)
 
-    async def _session_status(self, p: SessionParams) -> CloudSessionResult:
+    async def _session_status(self, p: SessionParams) -> SessionResult:
         self._require(p.session_id)
         registry = get_registry()
         assert registry is not None
@@ -312,15 +298,12 @@ async def ws_endpoint(websocket: WebSocket) -> None:
         except (WebSocketDisconnect, RuntimeError) as e:
             raise ConnectionError("WebSocket 已关闭") from e
 
-    async def close_connection(code: int) -> None:
-        await websocket.close(code=code)
-
     trusted = secrets.compare_digest(websocket.headers.get("x-internal-token", ""), config.cloud.internal_token)
     connection_id = websocket.headers.get("x-connection-id") if trusted else None
     connection = JsonRpcConnection(read_line, write_line)
     server = CloudAppServer(
         connection, user_id=user_id, data_root=Path(config.cloud.data_root).expanduser(),
-        connection_id=connection_id, close_connection=close_connection,
+        connection_id=connection_id,
     )
     logger.info("云端客户端已连接: user_id={} client={}", user_id, websocket.client)
     try:

@@ -1,5 +1,4 @@
 import asyncio
-import uuid
 from collections.abc import AsyncIterator
 from pathlib import Path
 from typing import Any
@@ -14,24 +13,20 @@ from pydantic_ai import (
     RunCancelled,
     ToolCallPart,
     ToolReturnPart,
-    UserPromptPart,
 )
 from pydantic_ai.messages import INTERRUPTED_TOOL_RETURN_CONTENT
 
 from spring_harness.core.agent.deps import CodingAgentDeps, RequestUsageEntry
 from spring_harness.core.approval import run_with_approval
-from spring_harness.core.background import format_notice
 from spring_harness.core.billing import BillingContext, BillingGateway
 from spring_harness.core.config.model import setting
 from spring_harness.core.history import HistoryDirection, HistoryPage
-from spring_harness.core.hooks.model import BACKGROUND_WAKE_SOURCE
 from spring_harness.core.log import logger
 from spring_harness.core.store.base import SessionStore
 from spring_harness.core.store.jsonl import JsonlSessionStore
 from spring_harness.core.stream.adapter import AgentEventAdapter
 from spring_harness.core.stream.emit import EventEmitter, PendingRequests
 from spring_harness.core.stream.events import (
-    BackgroundNotification,
     CompactionNotice,
     ModelUsage,
     PlanUpdated,
@@ -39,11 +34,6 @@ from spring_harness.core.stream.events import (
     TeachingUpdated,
     TurnFinished,
     TurnUsage,
-)
-
-BACKGROUND_WAKE_PROMPT = (
-    "（系统催醒：有后台任务刚刚结束，通知见下方消息。"
-    "请用 job_output 工具获取结果。）\n"
 )
 
 
@@ -126,14 +116,12 @@ class HarnessSession:
         self._history_lock = asyncio.Lock()
         self._queue: asyncio.Queue[ServerEvent] = asyncio.Queue()
         self._requests = PendingRequests(self._emit)
-        self._deps.background.on_event = self._on_background_event
         self._cancel_token: CancellationToken | None = None
         self._busy = False
         self._closed = False
         self._turn_task: asyncio.Task | None = None
-        self._wake_task: asyncio.Task | None = None
-        # 计费归属的用户 ID；wake 轮没有派发消息，以此归属
-        self.cloud_user_id: int | None = None
+        # 进行中用户轮的原始输入；非运行期为 None
+        self._pending_input: str | None = None
 
     async def events(self) -> AsyncIterator[ServerEvent]:
         while True:
@@ -143,8 +131,6 @@ class HarnessSession:
         self,
         text: str,
         *,
-        prompt_source: str | None = None,
-        wake: bool = False,
         turn_id: str | None = None,
         user_id: int | None = None,
     ) -> None:
@@ -154,7 +140,8 @@ class HarnessSession:
             raise RuntimeError("上一轮还没结束")
         self._busy = True
         self._turn_task = asyncio.current_task()
-        finished = TurnFinished(wake=wake, turn_id=turn_id, user_id=user_id)
+        self._pending_input = text
+        finished = TurnFinished(turn_id=turn_id, user_id=user_id)
         # 本轮用量切点：usage_log 为会话级累积，finally 里对增量切片求和
         usage_mark = len(self._deps.usage_log)
         messages: list[ModelMessage] | None = None
@@ -164,7 +151,7 @@ class HarnessSession:
                 if user_id is None or turn_id is None:
                     raise RuntimeError("云端模型请求缺少计费归属")
                 self._deps.billing = BillingContext(self._billing_service, user_id,
-                                                    self.session_id, turn_id, wake)
+                                                    self.session_id, turn_id)
             self._cancel_token = CancellationToken()
             if not self._history_loaded:
                 await self.query_history()
@@ -198,8 +185,6 @@ class HarnessSession:
             finished.error = f"{type(e).__name__}: {e}"
         finally:
             try:
-                if messages is not None and prompt_source is not None:
-                    self._mark_prompt_source(messages, text, prompt_source)
                 if self._history_loaded:
                     async with self._history_lock:
                         await self._in_thread(
@@ -218,54 +203,10 @@ class HarnessSession:
                 self._cancel_token = None
                 self._busy = False
                 self._turn_task = None
+                self._pending_input = None
                 # 取消/出错的轮次也可能已发出模型请求：用量照常汇总，计费不能丢
                 finished.usage = _sum_usage(self._deps.usage_log[usage_mark:])
                 self._queue.put_nowait(finished)
-                # 催醒轮收尾：把自己从 _wake_task 摘掉，否则收尾期间结束的任务通知
-                # 会被 _maybe_wake_background 的"催醒轮还在跑"判断漏掉
-                if wake and self._wake_task is asyncio.current_task():
-                    self._wake_task = None
-                # 任务可能在最后一次模型请求之后才结束（busy 期不催醒），这里补一轮检查
-                self._maybe_wake_background()
-
-    def _on_background_event(self, event: ServerEvent) -> None:
-        """后台任务管理器的同步回调"""
-        self._queue.put_nowait(event)
-        self._maybe_wake_background()
-
-    def _maybe_wake_background(self) -> None:
-        if self._closed or self._busy or not self._deps.background.has_pending:
-            return
-        if self._wake_task is not None and not self._wake_task.done():
-            return
-        self._wake_task = asyncio.create_task(self._wake_for_background())
-
-    async def _wake_for_background(self) -> None:
-        try:
-            # 先把通知正文发给前端渲染（蓝色气泡）；模型侧的正文由 hook 在轮内首次请求前注入
-            pending = self._deps.background.peek_pending()
-            if pending:
-                self._queue.put_nowait(BackgroundNotification(text=format_notice(pending)))
-            await self.run_turn(
-                BACKGROUND_WAKE_PROMPT,
-                prompt_source=BACKGROUND_WAKE_SOURCE,
-                wake=True,
-                turn_id=f"wake-{uuid.uuid4().hex[:16]}",
-                user_id=self.cloud_user_id,
-            )
-        except RuntimeError:
-            pass
-
-    @staticmethod
-    def _mark_prompt_source(messages: list[ModelMessage], text: str, source: str) -> None:
-        """从尾部找到本轮 prompt 对应的 ModelRequest 并打上来源标记"""
-        for message in reversed(messages):
-            if not isinstance(message, ModelRequest):
-                continue
-            for part in message.parts:
-                if isinstance(part, UserPromptPart) and part.content == text:
-                    message.metadata = {**(message.metadata or {}), "source": source}
-                    return
 
     def respond(self, request_id: str, value: Any) -> None:
         self._requests.resolve(request_id, value)
@@ -282,8 +223,6 @@ class HarnessSession:
         if task is not None and task is not asyncio.current_task():
             task.cancel()
             await asyncio.gather(task, return_exceptions=True)
-        # 关闭/退出时后台任务一并取消收尸：工具内清理代码（如杀子进程）有机会执行
-        await self._deps.background.shutdown()
 
     @classmethod
     def resume_last(cls, workspace: str | Path, **kwargs: Any) -> HarnessSession | None:
@@ -342,6 +281,10 @@ class HarnessSession:
     @property
     def busy(self) -> bool:
         return self._busy
+
+    @property
+    def pending_input(self) -> str | None:
+        return self._pending_input
 
     async def _emit(self, event: ServerEvent) -> None:
         await self._queue.put(event)

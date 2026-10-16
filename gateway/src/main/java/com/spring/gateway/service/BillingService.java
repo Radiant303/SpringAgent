@@ -65,8 +65,7 @@ public class BillingService {
                     || !Objects.equals(existing.getSessionId(), request.sessionId())
                     || !Objects.equals(existing.getTurnId(), request.turnId())
                     || !Objects.equals(existing.getModelId(), request.modelId())
-                    || !Objects.equals(existing.getAgentName(), request.agentName())
-                    || !Objects.equals(existing.getIsWake(), request.wake())) {
+                    || !Objects.equals(existing.getAgentName(), request.agentName())) {
                 throw new BizException(409, "请求单号归属冲突");
             }
             if (!PointsHold.STATUS_HELD.equals(existing.getStatus())) {
@@ -95,7 +94,6 @@ public class BillingService {
         hold.setSessionId(request.sessionId());
         hold.setModelId(request.modelId());
         hold.setAgentName(request.agentName());
-        hold.setIsWake(request.wake());
         hold.setInputPoints(rate == null ? BigDecimal.ZERO : rate.getInputPoints());
         hold.setCacheReadPoints(rate == null ? BigDecimal.ZERO : rate.getCacheReadPoints());
         hold.setCacheWritePoints(rate == null ? BigDecimal.ZERO : rate.getCacheWritePoints());
@@ -163,7 +161,6 @@ public class BillingService {
         record.setUserId(hold.getUserId());
         record.setModelId(hold.getModelId());
         record.setAgentName(hold.getAgentName());
-        record.setIsWake(hold.getIsWake());
         record.setRequests(1);
         record.setInputTokens(request.inputTokens());
         record.setCacheReadTokens(request.cacheReadTokens());

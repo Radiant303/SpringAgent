@@ -4,29 +4,35 @@
 
 import { $, el, icon, scrollToBottom, showPending } from "../../utils/dom.js";
 import { rpc } from "../../api/rpc.js";
-import { state, resetFlow, setStickToBottom, maybeScroll, ensureTurn, discardEmptyTurn } from "./state.js";
+import { UI } from "../../components/ui.js";
+import { state, isBusy, setBusy, holdBusy, releaseBusy, resetFlow, setStickToBottom, maybeScroll, ensureTurn, discardEmptyTurn } from "./state.js";
 import { userNode, addSystem } from "./chatView.js";
 import { subscribeStream, refreshSessionList } from "./sessions.js";
+import { drainPendingFor } from "./modals.js";
 import { clearEditor, editorHasContent, editorText, keepAttachmentsOnClear } from "./editor.js";
+
+let draftSending = false;
 
 export function updateInputState() {
   const send = $("send-btn");
   const stop = $("stop-btn");
   if (!send || !stop || !$("input")) return;
-  send.classList.toggle("hidden", state.busy);
-  stop.classList.toggle("hidden", !state.busy);
-  const controlled = !state.connectionReplaced && (!state.sessionId || state.sessionReady);
-  send.disabled = !state.connected || !controlled || state.modelChanging
+  const busy = isBusy(state.sessionId);
+  const creating = !state.sessionId && draftSending;
+  send.classList.toggle("hidden", busy);
+  stop.classList.toggle("hidden", !busy);
+  const controlled = !state.sessionId || state.sessionReady;
+  send.disabled = !state.connected || !controlled || creating || state.modelChanging
     || !!$("upload-btn")?.dataset.uploading || !editorHasContent();
   stop.disabled = !state.connected || !controlled;
   for (const id of ["model-btn", "effort-btn"]) {
-    if ($(id)) $(id).disabled = !state.connected || !controlled || state.busy || state.modelChanging;
+    if ($(id)) $(id).disabled = !state.connected || !controlled || busy || creating || state.modelChanging;
   }
   const uploadBtn = $("upload-btn");
   if (uploadBtn && !uploadBtn.dataset.uploading) {
-    uploadBtn.disabled = !state.connected || !controlled || state.busy || state.modelChanging;
+    uploadBtn.disabled = !state.connected || !controlled || busy || creating || state.modelChanging;
   }
-  if (!state.connected || !controlled || state.busy || state.modelChanging) closeModelMenu();
+  if (!state.connected || !controlled || busy || creating || state.modelChanging) closeModelMenu();
 }
 
 export async function send() {
@@ -38,15 +44,21 @@ export async function send() {
     addSystem("尚未连接，不能发送消息", true);
     return;
   }
-  if (state.connectionReplaced || (state.sessionId && !state.sessionReady)) {
+  if (state.sessionId && !state.sessionReady) {
     addSystem("当前页面未控制此会话，请重新连接或接管会话", true);
     return;
   }
-  if (state.busy || state.modelChanging || $("upload-btn")?.dataset.uploading) {
+  if (isBusy(state.sessionId) || (!state.sessionId && draftSending) || state.modelChanging || $("upload-btn")?.dataset.uploading) {
     addSystem("运行、上传或切换模型中，不能发送消息");
     return;
   }
-  state.busy = true;
+  let sessionId = state.sessionId;
+  const workId = state.workId;
+  const socket = rpc.ws;
+  const isDraft = !sessionId;
+  if (isDraft) draftSending = true;
+  setBusy(sessionId, true);
+  holdBusy(sessionId, 8000);
   updateInputState();
   const welcome = $("welcome");
   if (welcome) welcome.remove();
@@ -57,31 +69,41 @@ export async function send() {
   showPending(turn.content);
   setStickToBottom(true);
   scrollToBottom();
-  // 附件已随消息文本发出：清编辑器时登记 chip，不触发服务端删除
   keepAttachmentsOnClear();
   clearEditor();
   try {
-    // 草稿态下首条消息：先建会话再开回合
-    if (!state.sessionId) {
-      const r = await rpc.request("session/new", { workspace: state.workspace, model: state.model, effort: state.effort, workId: state.workId });
-      applyModelSelection(r);
-      state.sessionId = r.sessionId;
-      state.sessionReady = true;
-      localStorage.setItem("sh.sessionId", r.sessionId);
-      subscribeStream(r.sessionId);
-      refreshSessionList();
+    if (isDraft) {
+      const r = await rpc.request("session/new", { workspace: state.workspace, model: state.model, effort: state.effort, workId });
+      sessionId = r.sessionId;
+      if (rpc.ws !== socket || !state.connected) return;
+      setBusy(sessionId, true);
+      holdBusy(sessionId, 8000);
+      if (!state.sessionId && state.workId === workId) {
+        applyModelSelection(r);
+        state.sessionId = sessionId;
+        state.sessionReady = true;
+        localStorage.setItem("sh.sessionId", sessionId);
+        drainPendingFor(sessionId);
+      }
+      subscribeStream(sessionId);
     }
-    await rpc.request("turn/start", { sessionId: state.sessionId, input: fullText });
+    await rpc.request("turn/start", { sessionId, input: fullText });
+    refreshSessionList();
   } catch (e) {
-    discardEmptyTurn();
-    state.busy = false;
+    if (rpc.ws === socket && state.connected) releaseBusy(sessionId);
+    if (state.sessionId === sessionId || (isDraft && !state.sessionId && state.workId === workId)) {
+      discardEmptyTurn();
+      addSystem("❌ " + e.message, true);
+    } else UI.toast("发送失败：" + e.message, { type: "error" });
+    refreshSessionList();
+  } finally {
+    if (isDraft) draftSending = false;
     updateInputState();
-    addSystem("❌ " + e.message, true);
   }
 }
 
 export async function cancelTurn() {
-  if (!state.busy || !state.sessionId) return;
+  if (!isBusy(state.sessionId) || !state.sessionId) return;
   try {
     await rpc.request("turn/cancel", { sessionId: state.sessionId });
   } catch {
@@ -112,7 +134,7 @@ function selectionItem(name, selected, option, choose) {
   item.dataset.option = option;
   item.setAttribute("role", "menuitemradio");
   item.setAttribute("aria-checked", String(selected));
-  item.disabled = state.busy || state.modelChanging;
+  item.disabled = isBusy(state.sessionId) || state.modelChanging;
   const check = el("span", "model-check");
   if (selected) check.appendChild(icon("tick"));
   item.append(check, el("span", "model-item-name", name));
@@ -153,7 +175,7 @@ export function populateModelSelect() {
   const list = $("model-list");
   const effortMenu = $("effort-menu");
   if (!list || !effortMenu) return;
-  const snapshot = JSON.stringify([state.models, state.model, state.effort, state.busy, state.modelChanging]);
+  const snapshot = JSON.stringify([state.models, state.model, state.effort, isBusy(state.sessionId), state.modelChanging]);
   if (snapshot === modelMenuSnapshot) return;
   const activeMenu = effortMenu.contains(document.activeElement) ? effortMenu : $("model-menu");
   const focused = activeMenu?.contains(document.activeElement) ? document.activeElement : null;
@@ -277,7 +299,7 @@ export function refreshModelList() {
       const current = state.models.find((m) => m.id === state.model);
       const model = current || state.models.find((m) => m.id === res.defaultModel);
       const effort = selectedEffort(model, current ? state.effort : null);
-      if (!state.busy && !state.modelChanging && model && (state.model !== model.id || state.effort !== effort)) {
+      if (!isBusy(state.sessionId) && !state.modelChanging && model && (state.model !== model.id || state.effort !== effort)) {
         await changeSelection(model.id, effort);
       }
       populateModelSelect();
@@ -291,7 +313,7 @@ export function refreshModelList() {
 }
 
 async function changeSelection(model, effort) {
-  if (state.busy || state.modelChanging || !state.connected || state.connectionReplaced
+  if (isBusy(state.sessionId) || state.modelChanging || !state.connected
       || (state.sessionId && !state.sessionReady)) return false;
   state.modelChanging = true;
   updateInputState();
@@ -301,7 +323,7 @@ async function changeSelection(model, effort) {
     const result = sessionId
       ? await rpc.request("session/set_model", { sessionId, model, effort })
       : { model, effort };
-    if (state.sessionId !== sessionId || rpc.ws !== socket || state.connectionReplaced) return false;
+    if (state.sessionId !== sessionId || rpc.ws !== socket) return false;
     applyModelSelection(result);
     return true;
   } catch (e) {

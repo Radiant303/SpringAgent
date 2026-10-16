@@ -24,4 +24,3 @@ class BillingContext:
     user_id: int
     session_id: str
     turn_id: str
-    wake: bool = False

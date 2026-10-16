@@ -153,10 +153,6 @@ export function editorChipNode(att, opts = {}) {
   return chip;
 }
 
-export function noticeNode(text) {
-  return el("div", "msg notice", text);
-}
-
 export function systemNode(text, isError = false) {
   return el("div", "msg system" + (isError ? " error" : ""), text);
 }

@@ -52,7 +52,6 @@ class RequestBillingModel(WrapperModel):
             "requestId": request_id, "userId": self.billing.user_id,
             "sessionId": self.billing.session_id, "turnId": self.billing.turn_id,
             "modelId": self.catalog_model_id, "agentName": self.agent_name,
-            "wake": self.billing.wake,
         }
         _, cancelled = await finish_shielded(self.billing.gateway.reserve(payload))
         if cancelled:

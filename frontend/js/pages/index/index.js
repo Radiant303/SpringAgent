@@ -6,10 +6,10 @@ import { $, icon } from "../../utils/dom.js";
 import { getToken, clearToken, getRole, goLogin, WS_BASE, USER_KEY, ROLE_KEY, ROLE_LABELS } from "../../api/auth.js";
 import { rpc } from "../../api/rpc.js";
 import { UI } from "../../components/ui.js";
-import { state, resetFlow, setStickToBottom, smoothScrollToBottom, updateStick } from "./state.js";
+import { state, runs, resetFlow, setStickToBottom, smoothScrollToBottom, updateStick } from "./state.js";
 import { addSystem } from "./chatView.js";
 import { loadWorks, createWork } from "./works.js";
-import { openSession, newSession } from "./sessions.js";
+import { openSession, newSession, refreshSessionList } from "./sessions.js";
 import { onSessionEvent, refreshPoints } from "./stream.js";
 import {
   handleApprovalRequest,
@@ -18,6 +18,7 @@ import {
   handleQuestionRequest,
   settleQuestion,
   hideQuestion,
+  clearPendingFor,
 } from "./modals.js";
 import {
   updateInputState,
@@ -63,6 +64,11 @@ export function setConnected(ok) {
 
 export async function connectAndSetup() {
   state.sessionReady = false;
+  hideApproval();
+  hideQuestion();
+  for (const sid of Object.keys(runs)) delete runs[sid];
+  state.lastSeq = {};
+  setConnected(false);
   await rpc.connect(`${WS_BASE}/ws?token=${encodeURIComponent(getToken())}`);
   const info = await rpc.request("initialize", {});
   state.workspace = info.workspace;
@@ -85,7 +91,7 @@ export async function connectAndSetup() {
 }
 
 export function scheduleReconnect() {
-  if (state.connectionReplaced || reconnectTimer) return;
+  if (reconnectTimer) return;
   reconnectTimer = setTimeout(async () => {
     reconnectTimer = null;
     try {
@@ -105,33 +111,32 @@ rpc.onServerRequest = (method, params) => {
   throw new Error("未知请求: " + method);
 };
 
-function markReplaced() {
-  if (state.connectionReplaced) return;
-  state.connectionReplaced = true;
-  state.sessionReady = false;
-  clearTimeout(reconnectTimer);
-  reconnectTimer = null;
-  setConnected(false);
-  hideApproval();
-  hideQuestion();
-  $("reconnect-btn")?.classList.remove("hidden");
-  addSystem("会话已被其他页面或设备接管，本页面已断开。可点击重新连接后主动接管。");
-}
-
 rpc.onNotification = (method, params) => {
-  if (method === "session/replaced") markReplaced();
-  if (method === "session/event" && !state.connectionReplaced) onSessionEvent(params.sessionId, params.event, params.seq);
+  if (method === "session/replaced") {
+    const sid = params.sessionId;
+    clearPendingFor(sid);
+    delete runs[sid];
+    if (sid === state.sessionId) {
+      state.sessionReady = false;
+      resetFlow();
+      state.tools.clear();
+      addSystem("该会话已被其他页面或设备接管，点击会话可重新接管");
+      updateInputState();
+    }
+    refreshSessionList();
+  }
+  if (method === "session/event") onSessionEvent(params.sessionId, params.event, params.seq);
 };
 
 rpc.onClose = (code) => {
-  if (code === 4409) markReplaced();
   state.sessionReady = false;
-  setConnected(false);
-  state.busy = false;
-  resetFlow();
-  state.tools.clear();
   hideApproval();
   hideQuestion();
+  for (const sid of Object.keys(runs)) delete runs[sid];
+  state.lastSeq = {};
+  setConnected(false);
+  resetFlow();
+  state.tools.clear();
   if (code === 4401) {
     goLogin("expired");
     return;
@@ -140,7 +145,6 @@ rpc.onClose = (code) => {
     goLogin("disabled");
     return;
   }
-  if (state.connectionReplaced) return;
   if (!reconnectTimer) {
     addSystem("连接已断开，正在重连…");
     scheduleReconnect();
@@ -227,10 +231,9 @@ export function bind() {
     const button = $("reconnect-btn");
     if (button.disabled) return;
     button.disabled = true;
-    state.connectionReplaced = false;
     try {
       await connectAndSetup();
-      if (!state.connectionReplaced) button.classList.add("hidden");
+      button.classList.add("hidden");
     } catch (e) {
       addSystem("重新连接失败：" + e.message, true);
       scheduleReconnect();
@@ -418,7 +421,7 @@ export async function init() {
   try {
     await connectAndSetup();
   } catch (e) {
-    if (!getToken() || state.connectionReplaced) return;
+    if (!getToken()) return;
     UI.clearSkeleton("messages");
     addSystem("❌ 初始化失败：" + (e && e.message || e) + "，将自动重连", true);
     scheduleReconnect();

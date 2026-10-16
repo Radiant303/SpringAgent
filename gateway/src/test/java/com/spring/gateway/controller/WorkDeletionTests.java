@@ -151,7 +151,7 @@ class WorkDeletionTests {
         rateMapper.insert(rate);
         var request = new com.spring.gateway.dto.ReserveModelRequest(
                 UUID.randomUUID().toString().replace("-", ""), f.user().getId(),
-                String.valueOf(idGenerator.nextId()), f.session().getId(), model.getId(), "main", false);
+                String.valueOf(idGenerator.nextId()), f.session().getId(), model.getId(), "main");
         billingService.reserveRequest(request);
         return request;
     }

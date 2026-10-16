@@ -61,7 +61,7 @@ class CloudSessionHandle:
         self._tasks: set[asyncio.Task] = set()
         self._turn_pending = False
         self._cancel_pending = False
-        # 最近见到该会话的用户 ID：wake 轮没有派发消息，以此归属计费用户
+        # 最近见到该会话的用户 ID：lifecycle 事件归属的兜底
         self._last_user_id: int | None = None
         self._fanout_task = self._track(asyncio.create_task(self._fanout_loop()))
         if work_id:
@@ -87,10 +87,9 @@ class CloudSessionHandle:
                 self._track(asyncio.create_task(self._route_request(event)))
 
     def remember_user(self, user_id: int | None) -> None:
-        """记下该会话的用户 ID（挂载/派发时调用），供 wake 轮归属与 lifecycle 兜底。"""
+        """记下该会话的用户 ID（挂载/派发时调用），供 lifecycle 兜底。"""
         if user_id is not None:
             self._last_user_id = user_id
-            self.session.cloud_user_id = user_id
 
     @property
     def busy(self) -> bool:
@@ -197,7 +196,6 @@ class CloudSessionHandle:
                 "userId": event.user_id if event.user_id is not None else self._last_user_id,
                 "status": status,
                 "error": event.error,
-                "wake": event.wake,
                 "usage": _usage_payload(event.usage),
             })
         except Exception:  # noqa: BLE001 生命周期回传失败不影响事件流

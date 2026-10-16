@@ -163,7 +163,6 @@ class UsageRecordRow(Base):
     cache_write_tokens: Mapped[int] = mapped_column(_BigInt, nullable=False, default=0)
     output_tokens: Mapped[int] = mapped_column(_BigInt, nullable=False, default=0)
     status: Mapped[str] = mapped_column(String(16), nullable=False)  # finished/cancelled/error
-    is_wake: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     created_at: Mapped[datetime.datetime] = mapped_column(
         MicrosecondDateTime, nullable=False, default=utc_now,
     )
@@ -199,7 +198,6 @@ class PointsHoldRow(Base):
     session_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
     model_id: Mapped[str | None] = mapped_column(String(256), nullable=True)
     agent_name: Mapped[str] = mapped_column(String(32), nullable=False, default="legacy")
-    is_wake: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     input_points: Mapped[Decimal] = mapped_column(DECIMAL(20, 6), nullable=False, default=0)
     cache_read_points: Mapped[Decimal] = mapped_column(DECIMAL(20, 6), nullable=False, default=0)
     cache_write_points: Mapped[Decimal] = mapped_column(DECIMAL(20, 6), nullable=False, default=0)

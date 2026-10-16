@@ -6,7 +6,6 @@ from pydantic_ai import Agent, UsageLimits
 from pydantic_ai.tools import DeferredToolRequests
 from pydantic_ai_harness import Shell
 
-from spring_harness.capabilities.background import background
 from spring_harness.capabilities.code_mode import code_mode
 from spring_harness.capabilities.compaction import NotifyingCompaction, OnCompaction
 from spring_harness.capabilities.planning import OnPlanChange, planning
@@ -96,7 +95,6 @@ def create_agent(
             planning(session_id, on_change=plan_on_change),
             code_mode(root),
             subagents(str(root), model_id, effort),
-            background(extra_tools=("run_command", "edit_knowledge")),
             NotifyingCompaction(
                 max_fraction=0.8,
                 keep_messages=4,

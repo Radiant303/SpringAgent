@@ -76,27 +76,9 @@ class TurnFinished(BaseModel):
     kind: Literal["turn_finished"] = "turn_finished"
     cancelled: bool = False
     error: str | None = None
-    wake: bool = False  # True = 后台任务催醒轮
-    turn_id: str | None = None  # 轮次 ID（wake 轮为本地生成的 wake-xxx）
+    turn_id: str | None = None  # 轮次 ID
     user_id: int | None = None  # 计费归属的用户 ID
     usage: TurnUsage | None = None  # 本轮 token 用量合计
-
-class BackgroundTaskStarted(BaseModel):
-    kind: Literal["background_task_started"] = "background_task_started"
-    task_id: str
-    tool_name: str
-    args: dict
-
-class BackgroundTaskFinished(BaseModel):
-    kind: Literal["background_task_finished"] = "background_task_finished"
-    task_id: str
-    tool_name: str
-    is_error: bool = False
-    cancelled: bool = False
-
-class BackgroundNotification(BaseModel):
-    kind: Literal["background_notification"] = "background_notification"
-    text: str
 
 class ApprovalRequest(BaseModel):
     kind: Literal["approval_request"] = "approval_request"
@@ -114,4 +96,4 @@ class QuestionRequest(BaseModel):
     allow_custom: bool = True
 
 
-ServerEvent = TextDelta | ThinkingDelta | ToolCallStarted | ToolArgsDelta | ToolDiff | ToolPending | ToolFinished | UsageUpdated | PlanUpdated | TeachingUpdated | CompactionNotice | TurnFinished | ApprovalRequest | QuestionRequest | BackgroundTaskStarted | BackgroundTaskFinished | BackgroundNotification
+ServerEvent = TextDelta | ThinkingDelta | ToolCallStarted | ToolArgsDelta | ToolDiff | ToolPending | ToolFinished | UsageUpdated | PlanUpdated | TeachingUpdated | CompactionNotice | TurnFinished | ApprovalRequest | QuestionRequest

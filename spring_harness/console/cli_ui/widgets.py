@@ -107,26 +107,6 @@ class UserMessage(CJKStatic):
         super().__init__(content, **kwargs)
 
 
-class BackgroundMessage(CJKStatic):
-    """后台任务通知：与用户消息同款气泡，正文用工具蓝（ACCENT）区分，✨ 保持用户消息同色。"""
-
-    DEFAULT_CSS = """
-    BackgroundMessage {
-        width: 1fr;
-        height: auto;
-        margin: 1 1 1 1;
-    }
-    """
-
-    def __init__(self, text: str, **kwargs: Any) -> None:
-        # 通知原文末尾的 \n 是给模型注入侧的分隔，气泡里会多渲染一行空白，显示侧去掉
-        content = Text.assemble(
-            ("✨ ", "bold yellow"),
-            (text.rstrip("\n"), f"bold {ACCENT}"),
-        )
-        super().__init__(content, **kwargs)
-
-
 class AssistantMessage(Vertical):
     """AI 消息：thinking（● 灰点 + 暗色斜体）+ 带 ● 的回答。"""
 

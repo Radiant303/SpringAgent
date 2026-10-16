@@ -59,22 +59,40 @@ public class TurnStreamReader {
     }
 
     /**
-     * 订阅某会话的事件流；同连接同会话重复订阅会替换旧读取任务
+     * 订阅会话事件流。
      *
      * @param browserSession 浏览器 WS 会话
      * @param sessionId      会话 ID
      * @param lastSeq        续读游标（Stream 条目 ID），null 表示只收新事件
      */
     public void subscribe(WebSocketSession browserSession, String sessionId, String lastSeq) {
-        Map<String, Future<?>> bySession =
-                readers.computeIfAbsent(browserSession.getId(), key -> new ConcurrentHashMap<>());
-        Future<?> previous = bySession.remove(sessionId);
-        if (previous != null) {
-            previous.cancel(true);
-        }
-        bySession.put(sessionId, executor.submit(() -> readLoop(browserSession, sessionId, lastSeq)));
+        readers.compute(browserSession.getId(), (key, existing) -> {
+            Map<String, Future<?>> bySession = existing == null ? new ConcurrentHashMap<>() : existing;
+            Future<?> previous = bySession.remove(sessionId);
+            if (previous != null) {
+                previous.cancel(true);
+            }
+            bySession.put(sessionId, executor.submit(() -> readLoop(browserSession, sessionId, lastSeq)));
+            return bySession;
+        });
         log.info("stream 订阅: browser={} session={} from={}",
                 browserSession.getId(), sessionId, lastSeq == null ? "$" : lastSeq);
+    }
+
+    /**
+     * 取消会话事件流订阅。
+     *
+     * @param browserSession 浏览器 WS 会话
+     * @param sessionId      会话 ID
+     */
+    public void unsubscribe(WebSocketSession browserSession, String sessionId) {
+        readers.computeIfPresent(browserSession.getId(), (key, bySession) -> {
+            Future<?> previous = bySession.remove(sessionId);
+            if (previous != null) {
+                previous.cancel(true);
+            }
+            return bySession.isEmpty() ? null : bySession;
+        });
     }
 
     /** 连接关闭时取消它的全部读取任务 */
@@ -101,7 +119,6 @@ public class TurnStreamReader {
                         StreamOffset.create(key,
                                 offset == null ? ReadOffset.latest() : ReadOffset.from(offset)));
             } catch (Exception e) {
-                // 取消（连接关闭/重复订阅）时中断阻塞读会抛异常，属正常退出
                 if (Thread.currentThread().isInterrupted() || !browserSession.isOpen()) {
                     break;
                 }
@@ -113,6 +130,9 @@ public class TurnStreamReader {
                 continue;  // 阻塞读超时，无新事件
             }
             for (MapRecord<String, Object, Object> record : records) {
+                if (Thread.currentThread().isInterrupted()) {
+                    return;
+                }
                 offset = record.getId().getValue();
                 Object eventJson = record.getValue().get("event");
                 if (eventJson != null) {
@@ -166,6 +186,9 @@ public class TurnStreamReader {
     }
 
     private void push(WebSocketSession browserSession, String sessionId, String seq, String eventJson) {
+        if (Thread.currentThread().isInterrupted()) {
+            return;
+        }
         try {
             ObjectNode params = objectMapper.createObjectNode();
             params.put("sessionId", sessionId);
@@ -177,7 +200,7 @@ public class TurnStreamReader {
             frame.set("params", params);
             // 同一浏览器会话存在多个发送方，发送必须串行，避免帧交错
             synchronized (browserSession) {
-                if (browserSession.isOpen()) {
+                if (!Thread.currentThread().isInterrupted() && browserSession.isOpen()) {
                     browserSession.sendMessage(new TextMessage(objectMapper.writeValueAsString(frame)));
                 }
             }

@@ -6,7 +6,40 @@ import { $, el, scrollToBottom, markScrolling, hidePending } from "../../utils/d
 import { SproutManager } from "../../components/sprout.js";
 import { workGroupNode, refreshWorkSummary, answerNode } from "./chatView.js";
 
-export const AUTO_SOURCES = new Set(["file_monitor", "background_wake"]);
+export const AUTO_SOURCES = new Set(["file_monitor"]);
+export const runs = {};
+
+export function runOf(sid) {
+  if (!sid) return null;
+  return runs[sid] ||= { busy: false, attention: null, unread: false };
+}
+
+export function isBusy(sid) {
+  return !!(sid && runs[sid]?.busy);
+}
+
+export function setBusy(sid, value) {
+  if (sid) runOf(sid).busy = !!value;
+}
+
+// 发送后引擎经 MQ 感知回合有延迟：保护窗内服务端 busy=false 不冲掉本地 busy
+export function holdBusy(sid, ms) {
+  const run = runOf(sid);
+  if (run) run.busyHoldUntil = Date.now() + ms;
+}
+
+export function releaseBusy(sid) {
+  const run = runs[sid];
+  if (!run) return;
+  run.busy = false;
+  run.busyHoldUntil = 0;
+}
+
+export function applyServerBusy(sid, busy) {
+  const run = runOf(sid);
+  if (!run) return;
+  run.busy = !!busy || !!(run.busyHoldUntil && Date.now() < run.busyHoldUntil);
+}
 
 export const state = {
   workspace: null,
@@ -19,8 +52,7 @@ export const state = {
   works: [],
   connected: false,
   sessionReady: false,
-  connectionReplaced: false,
-  busy: false,
+  viewGeneration: 0,
   assistant: null,      // 当前流式正文气泡 {el, answer, text}
   work: null,           // 当前「工作过程」分组（连续的思考 + 工具调用）
   turnGroups: [],       // 本轮已创建的分组：进行中平铺，本轮结束统一折叠
@@ -30,7 +62,7 @@ export const state = {
   historyCursor: null,  // 继续向回翻页的 previousCursor
   historyHasMore: false,
   currentTurn: null,    // 当前助手回合容器 {el, content, petBox, canvas, pet}
-  lastSeq: {},          // sessionId -> 最后收到的事件流条目 ID（断线续读游标）
+  lastSeq: {},          // sessionId -> 事件流去重游标（已收到的最大条目 ID）
 };
 
 /* ================= 滚动与钉底状态 ================= */

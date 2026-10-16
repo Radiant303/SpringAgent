@@ -89,10 +89,6 @@ export function renderWorks() {
 
 export async function selectWork(workId) {
   if (workId === state.workId) return;
-  if (state.busy) {
-    addSystem("运行中，不能切换项目");
-    return;
-  }
   state.workId = workId;
   localStorage.setItem("sh.workId", workId);
   renderWorks();

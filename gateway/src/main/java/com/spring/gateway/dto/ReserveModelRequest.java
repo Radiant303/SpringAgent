@@ -18,7 +18,6 @@ public record ReserveModelRequest(
         @NotBlank @Size(max = 64) String turnId,
         @NotBlank @Size(max = 36) String sessionId,
         @NotBlank @Size(max = 256) String modelId,
-        @NotBlank @Size(max = 32) String agentName,
-        @NotNull Boolean wake
+        @NotBlank @Size(max = 32) String agentName
 ) {
 }

@@ -7,7 +7,10 @@ import org.springframework.web.client.RestClient;
 import tools.jackson.databind.JsonNode;
 
 import java.time.Duration;
+import java.util.Collection;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * 引擎 HTTP 客户端。
@@ -64,6 +67,29 @@ public class EngineClient {
         }
         JsonNode token = result.get("controlToken");
         return token == null || !token.isTextual() || token.asText().isBlank() ? null : token.asText();
+    }
+
+    /**
+     * 查询运行中的会话。
+     *
+     * @param sessionIds 会话 ID 集合
+     * @return 运行中的会话 ID 集合
+     */
+    public Set<String> busySessions(Collection<String> sessionIds) {
+        if (sessionIds.isEmpty()) {
+            return Set.of();
+        }
+        JsonNode result = restClient.post()
+                .uri("/internal/sessions/busy")
+                .body(Map.of("session_ids", sessionIds))
+                .retrieve().body(JsonNode.class);
+        Set<String> busy = new HashSet<>();
+        if (result != null) {
+            for (JsonNode sessionId : result.path("busy")) {
+                busy.add(sessionId.asText());
+            }
+        }
+        return busy;
     }
 
     public JsonNode testModel(String modelId) {

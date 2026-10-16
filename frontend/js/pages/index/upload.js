@@ -10,7 +10,7 @@ import { getToken, goLogin } from "../../api/auth.js";
 import { api } from "../../api/client.js";
 import { rpc } from "../../api/rpc.js";
 import { UI } from "../../components/ui.js";
-import { state } from "./state.js";
+import { state, isBusy } from "./state.js";
 import { addSystem, editorChipNode, hideFloatPreview } from "./chatView.js";
 import { editorEl, insertNodeAtCaret, insertPlainText, markKeepOnRemove,
          skipServerDelete, syncPlaceholder } from "./editor.js";
@@ -68,7 +68,7 @@ export async function deleteAttachment(fileId, node = null) {
 /** 批量上传附件，逐文件独立成败。 */
 export async function uploadFiles(files) {
   const btn = $("upload-btn");
-  if (!state.connected || state.busy || state.modelChanging || state.connectionReplaced
+  if (!state.connected || isBusy(state.sessionId) || state.modelChanging
       || btn.dataset.uploading || (state.sessionId && !state.sessionReady)) {
     addSystem("当前状态不能上传文件", true);
     return;

@@ -36,6 +36,10 @@ class ControlRequest(BaseModel):
     connection_id: str
 
 
+class BusySessionsRequest(BaseModel):
+    session_ids: list[str]
+
+
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     # 模型配置来源切到 DB；Redis 快照缓存 + 写后延迟双删。
@@ -110,6 +114,18 @@ def create_app() -> FastAPI:
             raise HTTPException(status_code=401, detail="未认证")
         token = CloudAppServer.control_token(session_id, body.user_id, body.connection_id)
         return {"authorized": token is not None, "controlToken": token}
+
+    @app.post("/internal/sessions/busy")
+    async def busy_sessions(
+        body: BusySessionsRequest, x_internal_token: str | None = Header(default=None),
+    ) -> dict[str, list[str]]:
+        if x_internal_token != config.cloud.internal_token:
+            raise HTTPException(status_code=401, detail="未认证")
+        registry = get_registry()
+        return {"busy": [
+            sid for sid in body.session_ids
+            if registry is not None and (handle := registry.get(sid)) is not None and handle.busy
+        ]}
 
     @app.post("/internal/models/test")
     async def test_model(

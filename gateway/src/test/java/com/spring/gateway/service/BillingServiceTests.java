@@ -117,9 +117,9 @@ class BillingServiceTests {
         settings.set(SystemSetting.KEY_BILLING_EST_OUTPUT_TOKENS, "20000");
     }
 
-    private ReserveModelRequest request(String turn, String agent, boolean wake) {
+    private ReserveModelRequest request(String turn, String agent) {
         return new ReserveModelRequest(UUID.randomUUID().toString().replace("-", ""), userId,
-                turn, sessionId, modelId, agent, wake);
+                turn, sessionId, modelId, agent);
     }
 
     private SettleModelRequest usage(ReserveModelRequest request, long input, long cr, long cw, long output) {
@@ -137,13 +137,13 @@ class BillingServiceTests {
 
     @Test
     void everyRequestReservesAndSettlesImmediately() {
-        ReserveModelRequest first = request("same-turn", "main", false);
+        ReserveModelRequest first = request("same-turn", "main");
         billingService.reserveRequest(first);
         billingService.reserveRequest(first);
         amount("9.21");
         billingService.settleRequest(usage(first, 1000, 0, 0, 100));
         amount("9.987");
-        ReserveModelRequest next = request("same-turn", "main", false);
+        ReserveModelRequest next = request("same-turn", "main");
         billingService.reserveRequest(next);
         billingService.settleRequest(usage(next, 1000, 0, 0, 100));
         amount("9.974");
@@ -154,7 +154,7 @@ class BillingServiceTests {
     @Test
     void insufficientBalanceHasNoSideEffects() {
         userMapper.updateBalance(userId, new BigDecimal("0.5"));
-        ReserveModelRequest request = request("turn", "main", false);
+        ReserveModelRequest request = request("turn", "main");
         BizException error = assertThrows(BizException.class, () -> billingService.reserveRequest(request));
         assertEquals(409, error.getStatus());
         assertNull(holdMapper.selectById(request.requestId()));
@@ -165,7 +165,7 @@ class BillingServiceTests {
 
     @Test
     void cachesAreNotChargedAsUncachedInput() {
-        ReserveModelRequest request = request("turn", "main", false);
+        ReserveModelRequest request = request("turn", "main");
         billingService.reserveRequest(request);
         billingService.settleRequest(usage(request, 1300, 100, 200, 100));
         amount("9.9829");
@@ -173,7 +173,7 @@ class BillingServiceTests {
 
     @Test
     void retriesAreIdempotentAndConflictsRejected() {
-        ReserveModelRequest request = request("turn", "main", false);
+        ReserveModelRequest request = request("turn", "main");
         billingService.reserveRequest(request);
         SettleModelRequest usage = usage(request, 1000, 0, 0, 100);
         billingService.settleRequest(usage);
@@ -187,7 +187,7 @@ class BillingServiceTests {
 
     @Test
     void priceSnapshotSurvivesRateChanges() {
-        ReserveModelRequest request = request("turn", "reviewer", false);
+        ReserveModelRequest request = request("turn", "reviewer");
         billingService.reserveRequest(request);
         RateCard rate = rateCardMapper.selectById(modelId);
         rate.setInputPoints(new BigDecimal("10000"));
@@ -198,7 +198,7 @@ class BillingServiceTests {
 
     @Test
     void unknownUsageKeepsReservationAndCanBeReconciled() {
-        ReserveModelRequest request = request("turn", "main", false);
+        ReserveModelRequest request = request("turn", "main");
         billingService.reserveRequest(request);
         billingService.settleRequest(new SettleModelRequest(request.requestId(), userId, "error",
                 false, 0L, 0L, 0L, 0L));
@@ -211,7 +211,7 @@ class BillingServiceTests {
 
     @Test
     void staleReservationsAreNotAutomaticallyRefunded() {
-        ReserveModelRequest request = request("turn", "main", false);
+        ReserveModelRequest request = request("turn", "main");
         billingService.reserveRequest(request);
         billingService.markStale(request.requestId());
         amount("9.21");
@@ -222,12 +222,12 @@ class BillingServiceTests {
 
     @Test
     void explicitFailureRefundsAndCancellationBillsKnownTokens() {
-        ReserveModelRequest failure = request("turn", "main", false);
+        ReserveModelRequest failure = request("turn", "main");
         billingService.reserveRequest(failure);
         billingService.settleRequest(new SettleModelRequest(failure.requestId(), userId, "error",
                 true, 0L, 0L, 0L, 0L));
         amount("10");
-        ReserveModelRequest cancelled = request("turn", "main", false);
+        ReserveModelRequest cancelled = request("turn", "main");
         billingService.reserveRequest(cancelled);
         billingService.settleRequest(new SettleModelRequest(cancelled.requestId(), userId, "cancelled",
                 true, 1000L, 0L, 0L, 100L));
@@ -236,28 +236,16 @@ class BillingServiceTests {
 
     @Test
     void overspendBlocksNextRequest() {
-        ReserveModelRequest request = request("turn", "main", false);
+        ReserveModelRequest request = request("turn", "main");
         billingService.reserveRequest(request);
         billingService.settleRequest(usage(request, 1000000, 0, 0, 1000000));
         amount("-30");
-        assertThrows(BizException.class, () -> billingService.reserveRequest(request("turn", "searcher", false)));
-    }
-
-    @Test
-    void wakeUsesTheSameRequestBilling() {
-        ReserveModelRequest request = request("wake-test", "main", true);
-        billingService.reserveRequest(request);
-        billingService.settleRequest(usage(request, 1000, 0, 0, 100));
-        UsageRecord record = usageMapper.selectOne(new LambdaQueryWrapper<UsageRecord>()
-                .eq(UsageRecord::getRequestId, request.requestId()));
-        assertTrue(record.getIsWake());
-        assertEquals("main", record.getAgentName());
-        amount("9.987");
+        assertThrows(BizException.class, () -> billingService.reserveRequest(request("turn", "searcher")));
     }
 
     @Test
     void rejectsInvalidCacheAndUnreservedUsage() {
-        ReserveModelRequest request = request("turn", "main", false);
+        ReserveModelRequest request = request("turn", "main");
         assertThrows(BizException.class, () -> billingService.settleRequest(usage(request, 1, 0, 0, 1)));
         billingService.reserveRequest(request);
         assertThrows(BizException.class, () -> billingService.settleRequest(usage(request, 1, 2, 0, 1)));
@@ -287,11 +275,11 @@ class BillingServiceTests {
         rate.setCreatedAt(LocalDateTime.now(ZoneOffset.UTC));
         rate.setUpdatedAt(LocalDateTime.now(ZoneOffset.UTC));
         rateCardMapper.insert(rate);
-        ReserveModelRequest main = request("same-turn", "main", false);
+        ReserveModelRequest main = request("same-turn", "main");
         billingService.reserveRequest(main);
         billingService.settleRequest(usage(main, 1000, 0, 0, 100));
         ReserveModelRequest subagent = new ReserveModelRequest(UUID.randomUUID().toString().replace("-", ""),
-                userId, "same-turn", sessionId, childId, "reviewer", false);
+                userId, "same-turn", sessionId, childId, "reviewer");
         billingService.reserveRequest(subagent);
         billingService.settleRequest(usage(subagent, 1000, 0, 0, 100));
         amount("9.857");
@@ -300,10 +288,10 @@ class BillingServiceTests {
 
     @Test
     void rejectsCrossUserReservationAndRequestIdConflicts() {
-        ReserveModelRequest request = request("turn", "main", false);
+        ReserveModelRequest request = request("turn", "main");
         billingService.reserveRequest(request);
         ReserveModelRequest conflict = new ReserveModelRequest(request.requestId(), userId,
-                "another-turn", sessionId, modelId, "main", false);
+                "another-turn", sessionId, modelId, "main");
         assertThrows(BizException.class, () -> billingService.reserveRequest(conflict));
         User other = new User();
         other.setId(ids.nextId());
@@ -313,7 +301,7 @@ class BillingServiceTests {
         other.setPointsBalance(BigDecimal.TEN);
         userMapper.insert(other);
         ReserveModelRequest unauthorized = new ReserveModelRequest(UUID.randomUUID().toString().replace("-", ""),
-                other.getId(), "turn", sessionId, modelId, "main", false);
+                other.getId(), "turn", sessionId, modelId, "main");
         assertEquals(404, assertThrows(BizException.class, () -> billingService.reserveRequest(unauthorized)).getStatus());
         assertEquals(0, billingService.balanceOf(other.getId()).compareTo(BigDecimal.TEN));
     }

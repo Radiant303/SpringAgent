@@ -240,6 +240,43 @@
 .session-item:hover .session-time {
   display: inline;
 }
+.session-status {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  gap: 6px;
+}
+.session-running {
+  width: 12px;
+  height: 12px;
+  border: 1.5px solid rgba(0, 0, 0, 0.12);
+  border-top-color: var(--text-dim);
+  border-radius: 50%;
+}
+.session-attention {
+  padding: 0 6px;
+  border-radius: 4px;
+  background: var(--notice-bg);
+  color: var(--warn);
+  font-size: 12px;
+  line-height: 20px;
+}
+.session-unread {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-dim);
+}
+@keyframes session-spin {
+  to { transform: rotate(360deg); }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .session-running { animation: session-spin 1s linear infinite; }
+}
+
+/* 审批遮罩不拦截侧栏：显示中切走会把请求退回队列，切回再弹 */
+#approval-modal { pointer-events: none; }
+#approval-modal .modal-box { pointer-events: auto; }
 
 /* ---- 侧栏底部：积分卡 + 用户行 ---- */
 .sidebar-footer {
@@ -559,17 +596,6 @@
 .msg.assistant .answer {
   font-size: var(--fs-md, 16px);
   line-height: 1.75;
-}
-
-.msg.notice {
-  align-self: flex-end;
-  max-width: 82%;
-  padding: 8px 13px;
-  background: var(--notice-bg, rgba(169, 97, 10, 0.06));
-  border: 1px solid var(--notice-border, rgba(169, 97, 10, 0.25));
-  border-radius: 14px;
-  font-size: var(--fs-sm, 16px);
-  white-space: pre-wrap;
 }
 
 .msg.system {

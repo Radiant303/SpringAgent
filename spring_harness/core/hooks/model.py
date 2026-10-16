@@ -10,10 +10,8 @@ from spring_harness.core.agent.deps import CodingAgentDeps
 hooks = Hooks()
 
 FILE_MONITOR_SOURCE = "file_monitor"
-BACKGROUND_TASK_SOURCE = "background_task"
-BACKGROUND_WAKE_SOURCE = "background_wake"
 
-_AUTO_INJECTED_SOURCES = {FILE_MONITOR_SOURCE, BACKGROUND_TASK_SOURCE, BACKGROUND_WAKE_SOURCE}
+_AUTO_INJECTED_SOURCES = {FILE_MONITOR_SOURCE}
 
 
 def is_auto_injected_message(message: object) -> bool:

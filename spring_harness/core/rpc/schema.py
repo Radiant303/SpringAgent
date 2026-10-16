@@ -50,6 +50,10 @@ class InitializeResult(_WireModel):
 
 class SessionResult(ModelSelectionResult):
     session_id: str | None = Field(validation_alias="sessionId", serialization_alias="sessionId")
+    busy: bool = False
+    pending_input: str | None = Field(
+        default=None, validation_alias="pendingInput", serialization_alias="pendingInput",
+    )
 
 
 class SessionSummary(_WireModel):
@@ -57,6 +61,7 @@ class SessionSummary(_WireModel):
     title: str | None = None
     created_at: str = Field(validation_alias="createdAt", serialization_alias="createdAt")
     updated_at: str | None = Field(default=None, validation_alias="updatedAt", serialization_alias="updatedAt")
+    busy: bool = False
 
 
 class SessionListResult(_WireModel):

@@ -35,7 +35,7 @@ public class UsageRecord {
     private Boolean usageKnown;
     private java.math.BigDecimal costPoints;
 
-    /** 雪花 ID，或催醒轮本地生成的 wake-xxx。 */
+    /** 雪花 ID。 */
     private String turnId;
 
     /** 原始会话 ID，删除会话后仍保留。 */
@@ -64,9 +64,6 @@ public class UsageRecord {
 
     /** 轮次状态：finished / cancelled / error。 */
     private String status;
-
-    /** 是否后台任务催醒轮（出账时可与用户轮区分）。 */
-    private Boolean isWake;
 
     /** 记录时间（UTC）。 */
     private LocalDateTime createdAt;

@@ -9,6 +9,10 @@ import { setMarkdown } from "../../utils/markdown.js";
 import { SproutManager } from "../../components/sprout.js";
 import {
   state,
+  runOf,
+  isBusy,
+  setBusy,
+  releaseBusy,
   ensureAssistant,
   ensureWork,
   setActive,
@@ -36,7 +40,6 @@ import {
   buildToolCard,
   thinkingNode,
   addToGroup,
-  noticeNode,
   addSystem,
 } from "./chatView.js";
 import { updateInputState } from "./input.js";
@@ -132,11 +135,31 @@ export function seqAfter(a, b) {
 }
 
 export function onSessionEvent(sid, event, seq) {
-  if (sid !== state.sessionId) return;
+  if (!sid) return;
   if (seq) {
     const last = state.lastSeq[sid];
     if (last && !seqAfter(seq, last)) return;
     state.lastSeq[sid] = seq;
+  }
+  if (sid !== state.sessionId || !state.sessionReady) {
+    if (event.kind === "turn_finished") {
+      releaseBusy(sid);
+      runOf(sid).unread = true;
+      refreshSessionList();
+    } else {
+      const wasBusy = isBusy(sid);
+      setBusy(sid, true);
+      if (!wasBusy) refreshSessionList();
+    }
+    return;
+  }
+  if (event.kind !== "turn_finished") {
+    const wasBusy = isBusy(sid);
+    setBusy(sid, true);
+    if (!wasBusy) {
+      updateInputState();
+      refreshSessionList();
+    }
   }
   hidePending();
   switch (event.kind) {
@@ -249,23 +272,6 @@ export function onSessionEvent(sid, event, seq) {
       addSystem(`上下文已压缩：折叠 ${event.dropped} 条旧消息（约 ${Math.round(event.before / 1000)}k → ${Math.round(event.after / 1000)}k tokens）`);
       break;
     }
-    case "background_notification": {
-      closeWork();
-      state.assistant = null;
-      const msgBox = $("messages");
-      if (msgBox) msgBox.appendChild(noticeNode(event.text));
-      maybeScroll();
-      break;
-    }
-    case "background_task_started": {
-      addSystem(`⚙ 后台任务 ${event.task_id} 已开始（${event.tool_name}），完成后会自动汇报`);
-      break;
-    }
-    case "background_task_finished": {
-      if (event.cancelled) addSystem(`⚙ 后台任务 ${event.task_id}（${event.tool_name}）已取消`);
-      else if (event.is_error) addSystem(`⚙ 后台任务 ${event.task_id}（${event.tool_name}）出错，详情见后续汇报`, true);
-      break;
-    }
     case "turn_finished": {
       finishTurn(event);
       break;
@@ -291,12 +297,10 @@ export function finishTurn(event) {
   discardEmptyTurn();
   state.currentTurn = null;
   updateLatestPet();
-  if (event.cancelled && !event.wake) addSystem("已中断，可继续输入");
+  if (event.cancelled) addSystem("已中断，可继续输入");
   else if (event.error) addSystem("❌ 运行出错：" + event.error, true);
-  if (!event.wake) {
-    state.busy = false;
-    updateInputState();
-  }
+  releaseBusy(state.sessionId);
+  updateInputState();
   setTimeout(refreshPoints, 1500);
   refreshSessionList();
 }

@@ -29,7 +29,6 @@ from spring_harness.console.cli_ui.inputs import HistoryInput
 from spring_harness.console.cli_ui.modal import SessionSelectModal
 from spring_harness.console.cli_ui.widgets import (
     AssistantMessage,
-    BackgroundMessage,
     PlanMessage,
     SystemMessage,
     TeachingMessage,
@@ -39,10 +38,7 @@ from spring_harness.console.cli_ui.widgets import (
 )
 from spring_harness.core.config.settings import config
 from spring_harness.core.history import HistoryPage
-from spring_harness.core.hooks.model import (
-    BACKGROUND_TASK_SOURCE,
-    is_auto_injected_message,
-)
+from spring_harness.core.hooks.model import is_auto_injected_message
 from spring_harness.core.rpc.client import AppClient
 from spring_harness.core.rpc.connection import JsonRpcError
 from spring_harness.core.rpc.schema import (
@@ -52,9 +48,6 @@ from spring_harness.core.rpc.schema import (
 )
 from spring_harness.core.store.jsonl import format_local_time
 from spring_harness.core.stream.events import (
-    BackgroundNotification,
-    BackgroundTaskFinished,
-    BackgroundTaskStarted,
     CompactionNotice,
     PlanUpdated,
     TeachingUpdated,
@@ -336,42 +329,25 @@ class ConsoleClient(CliApp):
                         await self.show_system(
                             f"上下文已压缩：折叠 {d} 条旧消息（约 {before // 1000}k → {after // 1000}k tokens）\n"
                         )
-                    case BackgroundNotification(text=t):
-                        # 催醒轮的触发消息：蓝色用户式气泡（与用户消息区分）
-                        await self.show_background(t)
-                    case BackgroundTaskStarted(task_id=i, tool_name=n):
-                        # 结尾 \n 留出一行空白，避免和下一条消息（thinking / 回答）粘在一起
-                        # ⚙ 后带 \ufe0f 强制 emoji 表示：终端本来就按 2 格画它，Textual 也按 2 格量，
-                        # 否则宽度差 1 格，后面的空格会被 emoji 字形吃掉
-                        await self.show_system(f"⚙\ufe0f 后台任务 {i} 已开始（{n}），完成后会自动汇报\n")
-                    case BackgroundTaskFinished(task_id=i, tool_name=n, is_error=is_err, cancelled=cancelled):
-                        # 正常完成不刷屏：催醒轮会把结果带出来；取消/出错值得立刻可见
-                        if cancelled:
-                            await self.show_system(f"⚙\ufe0f 后台任务 {i}（{n}）已取消\n")
-                        elif is_err:
-                            await self.show_system(f"⚙\ufe0f 后台任务 {i}（{n}）出错，详情见后续汇报\n")
-                    case TurnFinished(cancelled=cancelled, error=error, wake=wake, usage=usage):
+                    case TurnFinished(cancelled=cancelled, error=error, usage=usage):
                         if sink is not None:
                             await sink.finish()
                             sink = None
                         self.set_working(None)
                         tool_sinks.clear()
-                        if cancelled and not wake:
-                            # 催醒轮是系统轮次，收尾静默；只有用户轮的中断才提示
+                        if cancelled:
                             await self.show_system("已中断（Esc），可继续输入")
                         elif error is not None:
                             await self.show_system(f"❌ 运行出错：{error}")
-                        if not wake and usage is not None and usage.requests:
+                        if usage is not None and usage.requests:
                             cache = f"，其中缓存命中 {usage.cache_read_tokens:,}" if usage.cache_read_tokens else ""
                             await self.show_system(
                                 f"本轮消耗：{', '.join(group.model_id for group in usage.usages)} "
                                 f"输入 {usage.input_tokens:,}{cache}，输出 {usage.output_tokens:,}\n"
                             )
-                        if not wake:
-                            # 只有用户轮占用 _busy、有人等收尾；催醒轮的收尾不动输入状态
-                            self._busy = False
-                            if self._turn_done is not None:
-                                self._turn_done.set()
+                        self._busy = False
+                        if self._turn_done is not None:
+                            self._turn_done.set()
         except asyncio.CancelledError:
             raise
         except Exception as e:  # noqa: BLE001
@@ -631,15 +607,10 @@ class ConsoleClient(CliApp):
                         raise asyncio.CancelledError
                     if isinstance(message, ModelRequest):
                         is_auto_injected = is_auto_injected_message(message)
-                        is_background_notice = (
-                            getattr(message, "metadata", None) or {}
-                        ).get("source") == BACKGROUND_TASK_SOURCE
                         for part in message.parts:
                             if isinstance(part, UserPromptPart) and isinstance(part.content, str):
-                                # 后台通知与实时轮对齐渲染成蓝色气泡；文件变动/催醒 prompt 不进聊天区
-                                if is_background_notice:
-                                    await mount(BackgroundMessage(part.content))
-                                elif not is_auto_injected:
+                                # 系统注入的 prompt 不进聊天区
+                                if not is_auto_injected:
                                     await mount(UserMessage(part.content))
                             elif isinstance(part, ToolReturnPart | RetryPromptPart):
                                 await tool(part)

@@ -27,7 +27,9 @@ import java.io.IOException;
 import java.net.URI;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -72,6 +74,7 @@ public class EngineRelayHandler extends TextWebSocketHandler {
             "session/list", this::handleSessionList,
             "session/history", this::handleSessionHistory,
             "stream/subscribe", this::handleStreamSubscribe,
+            "stream/unsubscribe", this::handleStreamUnsubscribe,
             "turn/start", this::handleTurnStart,
             "turn/cancel", this::handleTurnCancel);
 
@@ -239,7 +242,16 @@ public class EngineRelayHandler extends TextWebSocketHandler {
         return true;
     }
 
-    /** stream/subscribe：订阅事件流推送 */
+    /**
+     * 订阅指定会话的事件流。
+     *
+     * @param session 浏览器 WS 会话
+     * @param idNode 请求 ID
+     * @param params 请求参数
+     * @param userId 用户 ID
+     * @return 是否已处理
+     * @throws IOException 应答发送失败
+     */
     private boolean handleStreamSubscribe(WebSocketSession session, JsonNode idNode, JsonNode params,
                                           Long userId) throws IOException {
         String sessionId = requireSessionId(session, idNode, params);
@@ -249,10 +261,33 @@ public class EngineRelayHandler extends TextWebSocketHandler {
         if (requireControl(session, idNode, sessionId, userId) == null) {
             return true;
         }
-        turnStreamReader.closeFor(session);
         JsonNode lastSeqNode = params.get("lastSeq");
         String lastSeq = lastSeqNode == null || lastSeqNode.isNull() ? null : lastSeqNode.asText();
         turnStreamReader.subscribe(session, sessionId, lastSeq);
+        sendRpcResult(session, idNode);
+        return true;
+    }
+
+    /**
+     * 取消指定会话的事件流订阅。
+     *
+     * @param session 浏览器 WS 会话
+     * @param idNode 请求 ID
+     * @param params 请求参数
+     * @param userId 用户 ID
+     * @return 是否已处理
+     * @throws IOException 应答发送失败
+     */
+    private boolean handleStreamUnsubscribe(WebSocketSession session, JsonNode idNode, JsonNode params,
+                                            Long userId) throws IOException {
+        String sessionId = requireSessionId(session, idNode, params);
+        if (sessionId == null) {
+            return true;
+        }
+        if (requireControl(session, idNode, sessionId, userId) == null) {
+            return true;
+        }
+        turnStreamReader.unsubscribe(session, sessionId);
         sendRpcResult(session, idNode);
         return true;
     }
@@ -347,13 +382,21 @@ public class EngineRelayHandler extends TextWebSocketHandler {
                 ? workIdNode.asText() : null;
         ObjectNode result = objectMapper.createObjectNode();
         ArrayNode sessions = result.putArray("sessions");
-        for (Session row : internalStoreService.listUserSessions(userId, workId)) {
+        List<Session> rows = internalStoreService.listUserSessions(userId, workId);
+        Set<String> busy = Set.of();
+        try {
+            busy = engineClient.busySessions(rows.stream().map(Session::getId).toList());
+        } catch (Exception e) {
+            log.warn("会话运行状态查询失败: userId={} error={}", userId, e.toString());
+        }
+        for (Session row : rows) {
             ObjectNode item = sessions.addObject();
             item.put("sessionId", row.getId());
             item.put("workId", row.getWorkId());
             item.put("title", row.getTitle());
             item.put("createdAt", TimeFormat.isoUtc(row.getCreatedAt()));
             item.put("updatedAt", TimeFormat.isoUtc(row.getUpdatedAt()));
+            item.put("busy", busy.contains(row.getId()));
         }
         return result;
     }

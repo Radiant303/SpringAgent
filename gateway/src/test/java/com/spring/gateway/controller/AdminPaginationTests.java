@@ -161,7 +161,6 @@ class AdminPaginationTests {
             r.setCacheWriteTokens(0L);
             r.setOutputTokens(10L);
             r.setStatus(UsageRecord.STATUS_FINISHED);
-            r.setIsWake(false);
             r.setCreatedAt(LocalDateTime.now(ZoneOffset.UTC));
             usageRecordMapper.insert(r);
         }
