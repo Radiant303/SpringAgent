@@ -203,8 +203,8 @@ export function onSessionEvent(sid, event, seq) {
       if (card) {
         card.args.textContent += event.args_chunk;
         const args = parseArgs(card.args.textContent);
-        const target = args ? targetFromArgs(args) : targetFromPartial(card.args.textContent);
-        if (target && target !== card.target) {
+        const target = args ? targetFromArgs(args, card.name) : targetFromPartial(card.args.textContent, card.name);
+        if (target !== card.target) {
           setToolTarget(card, target);
           if (state.work) refreshWorkSummary(state.work);
         }

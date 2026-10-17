@@ -176,25 +176,43 @@ export function addSystem(text, isError = false) {
 /* ================= 工具元数据 ================= */
 
 export const TOOL_META = {
-  edit_file: { icon: "edit", verb: "编辑", kind: "edit" },
-  write_file: { icon: "edit", verb: "写入", kind: "edit" },
-  edit_knowledge: { icon: "book", verb: "编辑知识", kind: "other" },
-  create_directory: { icon: "folder", verb: "创建目录", kind: "other" },
-  read_file: { icon: "file", verb: "读取", kind: "read" },
-  file_info: { icon: "file", verb: "查看", kind: "read" },
-  list_directory: { icon: "folder", verb: "列出", kind: "list" },
-  search_files: { icon: "search", verb: "搜索", kind: "search" },
-  find_files: { icon: "search", verb: "查找", kind: "search" },
-  web_search: { icon: "search", verb: "搜索网页", kind: "search" },
-  page_url: { icon: "link", verb: "获取页面地址", kind: "other" },
-  run_command: { icon: "terminal", verb: "运行", kind: "command" },
-  run_code: { icon: "terminal", verb: "代码模式", kind: "other" },
-  start_command: { icon: "terminal", verb: "后台运行", kind: "command" },
-  check_command: { icon: "terminal", verb: "查看命令", kind: "other" },
-  stop_command: { icon: "terminal", verb: "停止命令", kind: "other" },
-  read_knowledge: { icon: "book", verb: "查阅知识", kind: "other" },
-  read_index_knowledge: { icon: "book", verb: "查阅知识索引", kind: "other" },
-  ask_user: { icon: "question", verb: "提问", kind: "other" },
+  edit_file: { icon: "edit", verb: "编辑", kind: "edit", targetKeys: ["path"] },
+  write_file: { icon: "edit", verb: "写入", kind: "edit", targetKeys: ["path"] },
+  edit_knowledge: { icon: "edit", verb: "编辑知识", kind: "other", targetKeys: ["type"] },
+  create_directory: { icon: "toolCreateDirectory", verb: "创建目录", kind: "other", targetKeys: ["path"] },
+  delete_path: { icon: "toolTrash", verb: "删除", kind: "other", targetKeys: ["path"] },
+  read_file: { icon: "file", verb: "读取", kind: "read", targetKeys: ["path"] },
+  file_info: { icon: "file", verb: "查看", kind: "read", targetKeys: ["path"] },
+  list_directory: { icon: "folder", verb: "列出", kind: "list", targetKeys: ["path"] },
+  search_files: { icon: "search", verb: "搜索", kind: "search", targetKeys: ["pattern", "path"] },
+  find_files: { icon: "search", verb: "查找", kind: "search", targetKeys: ["pattern", "path"] },
+  web_search: { icon: "toolWebSearch", verb: "搜索网页", kind: "search", targetKeys: ["query"] },
+  page_url: { icon: "link", verb: "获取页面地址", kind: "other", targetKeys: [] },
+  current_session: { icon: "toolCurrentSession", verb: "查看会话", kind: "other", targetKeys: [] },
+  view_url_image: { icon: "toolImage", verb: "查看网络图片", kind: "other", targetKeys: ["url"] },
+  view_local_image: { icon: "toolImage", verb: "查看本地图片", kind: "other", targetKeys: ["path"] },
+  run_command: { icon: "terminal", verb: "运行", kind: "command", targetKeys: ["command"] },
+  run_code: { icon: "terminal", verb: "代码模式", kind: "other", targetKeys: [] },
+  start_command: { icon: "toolStartCommand", verb: "后台运行", kind: "command", targetKeys: ["command"] },
+  check_command: { icon: "toolCheckCommand", verb: "查看命令", kind: "other", targetKeys: ["command_id"] },
+  stop_command: { icon: "toolStopCommand", verb: "停止命令", kind: "other", targetKeys: ["command_id"] },
+  read_knowledge: { icon: "book", verb: "查阅知识", kind: "other", targetKeys: ["type"] },
+  read_index_knowledge: { icon: "toolKnowledgeIndex", verb: "查阅知识索引", kind: "other", targetKeys: ["type"] },
+  ask_user: { icon: "question", verb: "提问", kind: "other", targetKeys: ["question"] },
+  teach_create_unit: { icon: "toolCreateUnit", verb: "创建教学单元", kind: "other", targetKeys: ["title", "slug"] },
+  teach_state: { icon: "toolTeachState", verb: "查看教学状态", kind: "other", targetKeys: [] },
+  teach_record_hint: { icon: "bulb", verb: "记录提示", kind: "other", targetKeys: ["objective_id"] },
+  teach_update_mastery: { icon: "toolUpdateMastery", verb: "更新掌握程度", kind: "other", targetKeys: ["objective_id"] },
+  teach_bump_version: { icon: "toolBumpVersion", verb: "更新教学版本", kind: "other", targetKeys: ["reason"] },
+  teach_close_unit: { icon: "check", verb: "结束教学单元", kind: "other", targetKeys: ["summary"] },
+  write_plan: { icon: "edit", verb: "写入计划", kind: "other", targetKeys: ["items"] },
+  read_plan: { icon: "toolReadPlan", verb: "查看计划", kind: "other", targetKeys: [] },
+  add_task: { icon: "plus", verb: "添加任务", kind: "other", targetKeys: ["active_form", "content"] },
+  update_task_status: { icon: "toolReadPlan", verb: "更新任务状态", kind: "other", targetKeys: ["task_id"] },
+  update_task_statuses: { icon: "toolReadPlan", verb: "更新任务状态", kind: "other", targetKeys: ["updates"] },
+  remove_task: { icon: "toolRemoveTask", verb: "移除任务", kind: "other", targetKeys: ["task_id"] },
+  delegate_task: { icon: "toolDelegateTask", verb: "委派任务", kind: "other", targetKeys: ["agent_name"] },
+  load_capability: { icon: "toolPlug", verb: "加载能力", kind: "other", targetKeys: ["id"] },
 };
 
 export const TARGET_KEYS = ["path", "command", "pattern", "query", "question", "command_id", "type"];
@@ -217,27 +235,38 @@ export function getRelPath(p) {
   return relPath(p, state.workspace);
 }
 
-export function targetFromArgs(args) {
+export function targetFromArgs(args, name) {
   if (!args) return "";
-  for (const k of TARGET_KEYS) {
-    if (args[k] !== undefined && args[k] !== null && args[k] !== "") {
-      const v = String(args[k]);
-      return k === "path" ? getRelPath(v) : v.split("\n")[0];
+  for (const k of toolMeta(name).targetKeys || TARGET_KEYS) {
+    const value = args[k];
+    if ((name === "write_plan" && k === "items" || name === "update_task_statuses" && k === "updates") && Array.isArray(value)) {
+      return `${value.length} 个任务`;
     }
+    if (!["string", "number", "boolean"].includes(typeof value) || value === "") continue;
+    const v = String(value).split(/\r?\n/)[0];
+    return k === "path" ? getRelPath(v) : v;
   }
   return "";
 }
 
-export function targetFromPartial(text) {
-  const m = /"(path|command|pattern|query|question|command_id)"\s*:\s*"((?:[^"\\]|\\.)*)"/.exec(text);
-  if (!m) return "";
-  let v;
-  try {
-    v = JSON.parse(`"${m[2]}"`);
-  } catch {
-    v = m[2];
+export function targetFromPartial(text, name) {
+  const args = parseArgs(text);
+  if (args) return targetFromArgs(args, name);
+  const partial = Object.create(null);
+  let depth = 0;
+  const tokens = /"((?:[^"\\]|\\.)*)"\s*:\s*"((?:[^"\\]|\\.)*)"|"(?:[^"\\]|\\.)*"|[{}[\]]/g;
+  for (const m of String(text || "").matchAll(tokens)) {
+    if (m[0] === "{" || m[0] === "[") depth++;
+    else if (m[0] === "}" || m[0] === "]") depth--;
+    if (depth !== 1 || m[1] === undefined) continue;
+    try {
+      const key = JSON.parse(`"${m[1]}"`);
+      partial[key] = JSON.parse(`"${m[2]}"`);
+    } catch {
+      continue;
+    }
   }
-  return m[1] === "path" ? getRelPath(v) : v.split("\n")[0];
+  return targetFromArgs(partial, name);
 }
 
 export function diffStats(diff) {
@@ -589,7 +618,7 @@ export function historyToolCard(name, argsText, resultText, isError) {
   const card = buildToolCard(name);
   card.args.textContent = argsText || "";
   const args = parseArgs(argsText);
-  setToolTarget(card, targetFromArgs(args));
+  setToolTarget(card, targetFromArgs(args, name));
   setToolStats(card, statsFromArgs(name, args));
   const rows = fileRowsFromArgs(name, args);
   if (rows) {

@@ -27,7 +27,13 @@ export function renderMarkdown(text) {
   const marked = getParser();
   const DOMPurify = getSanitizer();
   const rawHtml = marked ? marked.parse(text || "") : (text || "");
-  return DOMPurify ? DOMPurify.sanitize(rawHtml) : rawHtml;
+  const template = document.createElement("template");
+  template.innerHTML = DOMPurify ? DOMPurify.sanitize(rawHtml) : rawHtml;
+  for (const link of template.content.querySelectorAll("a[href]")) {
+    link.target = "_blank";
+    link.rel = "noopener noreferrer";
+  }
+  return template.innerHTML;
 }
 
 export function enhanceCodeBlocks(container) {
