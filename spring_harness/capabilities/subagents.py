@@ -1,8 +1,7 @@
 from pydantic_ai import Agent
 from pydantic_ai.models import Model
 from pydantic_ai_harness.subagents import SubAgent, SubAgents
-
-from spring_harness.capabilities.research import researcher
+from pydantic_ai.capabilities import WebSearch
 from spring_harness.core.agent.deps import CodingAgentDeps
 from spring_harness.core.config.model import get_model, get_model_config, setting
 from spring_harness.core.config.thinking import thinking_capability
@@ -37,7 +36,7 @@ def searcher(parent_model_id: str, effort: str | None = None) -> SubAgent[Coding
             instructions='你是一个知识搜索子代理Agent,善于科普，你的科普对象是大模型，你需要让你的输出能够让大模型听懂即可',
             deps_type=CodingAgentDeps,
             capabilities=[_thinking(model_id, parent_model_id, effort),
-                          request_hooks(model_id or parent_model_id, agent_name="searcher"), researcher()],
+                          request_hooks(model_id or parent_model_id, agent_name="searcher"),WebSearch()],
             toolsets=[],
         ),
         timeout_seconds=360,
