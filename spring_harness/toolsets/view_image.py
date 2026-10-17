@@ -44,7 +44,7 @@ async def view_url_image(url: str) -> ToolReturn:
 
     图片内容会随本工具的结果进入后续模型请求，调用后即可直接看到图片。
     公网图片直链均可传入；用户上传到本站的图片请改用 view_local_image。
-    不要传入 .html 等网页地址，网页里的图片请先取到图片直链再调用。
+    网页里的图片请先取得图片直链，再调用本工具。
 
     Args:
         url: 图片的 http(s) 直链地址
@@ -62,19 +62,18 @@ async def view_url_image(url: str) -> ToolReturn:
 async def view_local_image(path: str) -> ToolReturn:
     """查看用户上传到本平台的图片的内容。
 
-    用户消息里的本站图片地址（形如 /369158185545314304.png 的扁平地址，
-    或带任意主机名的完整地址）均可传入；工具按站长配置的平台域名拼出
-    可公开访问的直链后读取，图片内容随结果进入后续模型请求。
+    传入用户上传后获得的图片地址或文件名，如 /369158185545314304.png。
+    图片内容随结果进入后续模型请求。
 
     Args:
         path: 本站图片的扁平地址或文件名
     """
     domain = platform_settings().get(KEY_PLATFORM_DOMAIN).strip()
     if not domain:
-        return ToolReturn(return_value="站长未配置平台域名，无法读取本地图片，请联系站长")
+        return ToolReturn(return_value="站长未配置平台域名，无法读取上传图片，请联系站长")
     filename = path.rstrip("/").rsplit("/", 1)[-1]
     if not _LOCAL_FILENAME.fullmatch(filename):
-        raise ModelRetry("本地图片地址格式不正确，请传入用户上传图片返回的扁平地址")
+        raise ModelRetry("上传图片地址格式不正确，请传入用户上传图片返回的扁平地址")
     scheme = "https" if platform_settings().get(KEY_PLATFORM_HTTPS).strip().lower() == "true" else "http"
     url = f"{scheme}://{domain}/{filename}"
     media_type = await _probe_image_headers(url)

@@ -4,6 +4,7 @@ from typing import Any
 
 from pydantic_ai import RunContext
 from pydantic_ai.exceptions import UserError
+from pydantic_ai.tools import ToolDefinition
 from pydantic_ai.toolsets import AbstractToolset, ToolsetTool, WrapperToolset
 from pydantic_ai_harness import CodeMode
 from pydantic_monty import MountDir
@@ -55,6 +56,40 @@ class _SandboxAliases(WrapperToolset[Any]):
         return await self.wrapped.call_tool(name, tool_args, ctx, tool)
 
 
+def _prepare_description(
+    ctx: RunContext[Any], tool_defs: list[ToolDefinition],
+) -> list[ToolDefinition]:
+    guidance = (
+        "批量调用下列 batch_ 只读工具并整理结果。"
+        "使用关键字参数调用，异步函数通过 await 获取结果；"
+        "独立调用可用 await asyncio.gather(...) 组合，按位置传入各个调用。"
+        "工具路径相对于项目工作区，片段末尾的表达式作为返回值。"
+        "片段间保留中间状态，restart=true 开始新的编排。"
+        "可按名称导入 asyncio、json、re、math、typing、sys、unicodedata、datetime、os、pathlib。"
+        "Path 使用虚拟绝对路径：/work 为本次调用的临时视图，/scratch 保存跨调用中间文件。"
+        "项目文件的持久修改通过独立文件工具完成。\n\n"
+    )
+    prepared = []
+    for tool_def in tool_defs:
+        if tool_def.name != "run_code":
+            prepared.append(tool_def)
+            continue
+        description = tool_def.description or ""
+        _, marker, catalog = description.partition("The following functions are available inside the sandbox.")
+        catalog_start = catalog.find("```python\n")
+        if not marker or catalog_start < 0:
+            raise UserError("代码模式需要包含函数签名的工具目录。")
+        schema = dict(tool_def.parameters_json_schema)
+        properties = {key: dict(value) for key, value in schema.get("properties", {}).items()}
+        properties["code"]["description"] = "包含工具调用与结果整理步骤的编排片段。"
+        properties["restart"]["description"] = "设为 true 时重置编排状态，默认保留跨调用状态。"
+        schema["properties"] = properties
+        prepared.append(replace(
+            tool_def, description=guidance + catalog[catalog_start:], parameters_json_schema=schema,
+        ))
+    return prepared
+
+
 class _DualAccessCodeMode(CodeMode[Any]):
     """保留工具直调入口的 Code Mode。
 
@@ -63,7 +98,8 @@ class _DualAccessCodeMode(CodeMode[Any]):
     """
 
     def get_wrapper_toolset(self, toolset: AbstractToolset[Any]) -> AbstractToolset[Any] | None:
-        return super().get_wrapper_toolset(_SandboxAliases(wrapped=toolset))
+        wrapped = super().get_wrapper_toolset(_SandboxAliases(wrapped=toolset))
+        return wrapped.prepared(_prepare_description) if wrapped is not None else None
 
 
 def code_mode(root: Path) -> CodeMode:

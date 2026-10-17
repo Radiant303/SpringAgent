@@ -15,10 +15,8 @@ def page_site_toolset(*, page_id: int) -> FunctionToolset:
     async def page_url() -> str:
         """获取当前项目 page/ 目录的公网访问地址。
 
-        page/ 目录下的静态文件会被挂载到公网：入口固定是 page/index.html，
-        返回的地址以斜杠结尾，访问它即打开入口页；子文件与子目录按相对
-        路径访问，以斜杠结尾的子目录地址返回其中的 index.html。
-        写好或更新页面后，调用本工具获取地址发给用户；不要自己拼接地址。
+        用于用户已授权公开的页面，入口为 page/index.html，子资源按相对路径访问。
+        返回地址以斜杠结尾，可直接分享给用户。页面内容通过文件工具单独确认。
 
         Returns:
             带结尾斜杠的页面访问地址

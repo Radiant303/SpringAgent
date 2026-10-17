@@ -132,7 +132,7 @@ class KnowledgeStore:
         }[type]
 
     def read_index_knowledge(self, type: KnowledgeType) -> str:
-        """读取指定类型知识文件的索引（目录）和当前哈希值。
+        """读取当前用户的知识库中指定类型的目录和当前哈希值。
 
         返回第一行内容为 `文件名 哈希值: <hash>`，这个哈希值就是
         edit_knowledge 必填参数 expected_hash 的来源。索引中每个标题都
@@ -157,7 +157,7 @@ class KnowledgeStore:
 
     @_recoverable
     def read_knowledge(self, type: KnowledgeType, *, offset: int = 1, limit: int | None = None) -> str:
-        """按行号范围读取指定类型的知识内容，并返回当前文件的哈希值。
+        """按行号读取当前用户的知识内容，并返回当前文件的哈希值。
 
         返回内容第一行为 `文件名 哈希值: <hash>`；每行内容都带行号前缀。
         编辑时把读到的哈希值作为 edit_knowledge 必填参数 expected_hash
@@ -184,29 +184,17 @@ class KnowledgeStore:
 
     @_recoverable
     def edit_knowledge(self, type: KnowledgeType, diff: str, *, expected_hash: str) -> str:
-        """使用 unified diff 补丁编辑知识文件。
+        """使用 unified diff 补丁维护当前用户的知识条目。
 
-        对同一文件的所有修改必须合并到一次调用中提交：一个 diff 可以包含
-        多个 hunk，所有 hunk 都直接使用同一次读取时看到的行号即可（前面
-        hunk 造成的行号偏移会自动修正）。禁止把对同一文件的修改拆成多次
-        调用本工具——前一次写入会使后一次调用的 expected_hash 过期，导致
-        后续调用必然失败。
+        根据用户确认的整理目标，记录概念、方法、适用条件和学习要点。
+        同一文件的修改合并为一次调用，可包含多个 hunk，统一使用最近读取的行号与哈希。
+        版本更新后重新读取文件，再生成补丁。
 
         Args:
             type: 知识类型
-            diff: unified diff 格式的补丁，只包含一个或多个 hunk（不要包含
-                ```diff 代码围栏、---/+++ 文件头等额外内容）。
-                hunk 以 @@ -起始行,行数 +起始行,行数 @@ 开头；上下文行以空格开头，
-                删除行以 - 开头，新增行以 + 开头。示例：
-                @@ -3,2 +3,3 @@
-                 保持不变的上下文行
-                -要删除的旧行
-                +新增的第一行
-                +新增的第二行
-            expected_hash: 必填。本次生成补丁所依据的文件哈希值，即刚刚通过
-                read_knowledge 或 read_index_knowledge 读到的哈希值。若与文件
-                当前哈希值不匹配则拒绝编辑（乐观并发控制），此时应重新读取
-                文件后再生成补丁。
+            diff: 纯 unified diff hunk 文本。每段以 @@ -起始行,行数 +起始行,行数 @@ 开头，
+                上下文行以空格开头，删除行以 - 开头，新增行以 + 开头。
+            expected_hash: 最近通过 read_knowledge 或 read_index_knowledge 读取的文件哈希，用于版本校验。
 
         Returns:
             应用结果摘要和文件的新哈希值。

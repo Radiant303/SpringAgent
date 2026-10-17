@@ -26,11 +26,11 @@ async def web_search(
 
     settings = await asyncio.to_thread(platform_settings().snapshot)
     if settings.get("search.local.enabled", "false").strip().lower() != "true":
-        return "站长未启用本地搜索"
+        return "站长未启用平台搜索"
     provider_id = settings.get("search.local.provider", "tavily").strip().lower()
     provider = get_search_provider(provider_id)
     if provider is None:
-        return "站长配置的本地搜索服务不受支持，请联系站长"
+        return "站长配置的平台搜索服务不受支持，请联系站长"
     api_key = settings.get(f"search.providers.{provider.id}.api_key", "").strip()
     if not api_key:
         return f"站长尚未配置{provider.name}搜索API key，请联系站长"
@@ -40,7 +40,7 @@ async def web_search(
     except BillingError:
         raise
     except Exception:
-        return "本地搜索服务暂时不可用，本次调用未记录搜索用量；请联系站长排查"
+        return "平台搜索服务暂时不可用，本次调用未记录搜索用量；请联系站长排查"
 
     billing = ctx.deps.billing
     if billing is not None:

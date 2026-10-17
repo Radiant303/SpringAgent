@@ -1,4 +1,7 @@
+from dataclasses import replace
+
 from pydantic_ai import Agent
+from pydantic_ai.toolsets import AbstractToolset
 from pydantic_ai.models import Model
 from pydantic_ai_harness.subagents import SubAgent, SubAgents
 from spring_harness.capabilities.research import researcher
@@ -32,8 +35,12 @@ def searcher(parent_model_id: str, effort: str | None = None) -> SubAgent[Coding
         agent=Agent(
             model,
             name='searcher',
-            description='强大的搜索Agent，具有世界上最丰富的知识库',
-            instructions='你是一个知识搜索子代理Agent,善于科普，你的科普对象是大模型，你需要让你的输出能够让大模型听懂即可',
+            description='检索资料并整理来源证据，向主 Agent 提供研究结果的子代理。',
+            instructions=(
+                '根据主 Agent 的问题，使用当前可用的检索工具查找资料并归纳结论。'
+                '将结论、来源链接或标识、关键证据及待核实之处返回主 Agent；'
+                '区分检索所得与推断，说明资料覆盖范围与证据强度。'
+            ),
             deps_type=CodingAgentDeps,
             capabilities=[_thinking(model_id, parent_model_id, effort),
                           request_hooks(model_id or parent_model_id, agent_name="searcher"), researcher()],
@@ -51,9 +58,13 @@ def reviewer(root_dir: str, parent_model_id: str, effort: str | None = None) -> 
         agent=Agent(
             model,
             name='reviewer',
-            description='代码审查Agent，拥有项目文件的只读访问权限，擅长发现 bug、边界遗漏、风格不一致和潜在风险',
-            instructions='你是一个代码审查子代理Agent,你的审查对象是大模型产出的代码，你的读者也是大模型。'
-            '审查时先读相关文件再下结论，每条意见给出文件与位置、问题原因、修改建议；只读，不要尝试修改任何文件',
+            description='只读审查当前项目代码，向主 Agent 提供缺陷、边界遗漏和风险证据的子代理。',
+            instructions=(
+                '审查主 Agent 指定的代码，先读相关文件再下结论。'
+                '将每条意见的文件路径、行号、问题原因和修改建议返回主 Agent，'
+                '保留定位问题所需的内部路径作为证据，由主 Agent 整理面向用户的说明。'
+                '通过只读工具核对证据，将审查结果交由主 Agent 在聊天中展示。'
+            ),
             deps_type=CodingAgentDeps,
             capabilities=[_thinking(model_id, parent_model_id, effort),
                           request_hooks(model_id or parent_model_id, agent_name="reviewer")],
@@ -64,7 +75,35 @@ def reviewer(root_dir: str, parent_model_id: str, effort: str | None = None) -> 
     )
 
 
+class _ProjectSubAgents(SubAgents[CodingAgentDeps]):
+    """项目子代理的协作说明。
+
+    @author hanbing
+    @since 2026-10-17
+    """
+
+    def get_instructions(self):
+        instructions = super().get_instructions()
+        if isinstance(instructions, str):
+            return instructions.replace(
+                'Each runs in its own fresh context and does not see this conversation, so pass everything it needs.',
+                'Each starts with a fresh context; include the goal, relevant facts, and expected result in the task.',
+            )
+        return instructions
+
+    def get_toolset(self):
+        toolset = super().get_toolset()
+        if isinstance(toolset, AbstractToolset):
+            return toolset.prepared(lambda ctx, definitions: [
+                replace(definition, description=(
+                    '将独立任务委派给指定子代理并获取结果。任务说明应包含目标、相关事实、文件位置和预期产出。'
+                    '可用子代理及其分工见当前指令。'
+                )) for definition in definitions
+            ])
+        return toolset
+
+
 def subagents(root_dir: str, parent_model_id: str, effort: str | None = None) -> SubAgents[CodingAgentDeps]:
-    return SubAgents[CodingAgentDeps](
+    return _ProjectSubAgents(
         agents=[searcher(parent_model_id, effort), reviewer(root_dir, parent_model_id, effort)]
     )

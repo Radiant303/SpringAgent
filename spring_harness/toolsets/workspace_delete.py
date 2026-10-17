@@ -87,12 +87,10 @@ def workspace_delete_toolset(root_dir: str) -> FunctionToolset:
     root = Path(root_dir).expanduser().resolve()
 
     def delete_path(path: str) -> dict[str, str | int]:
-        """永久删除工作区内的普通文件或目录，目录会递归删除，不可恢复。
+        """永久删除当前项目工作区中的普通文件或目录，目录会递归删除。
 
-        只接受相对于当前 workspace 的路径，例如 page/old.html 或 build。
-        不接受绝对路径、..、工作区根目录、符号链接或 junction；目录中有
-        此类链接也拒绝整次删除。校验失败或目标不存在时返回明确提示，不删除。
-        此工具只有应用层路径护栏，不是容器或内核隔离，不能约束其他任意代码入口。
+        使用工作区相对路径，例如 page/old.html 或 build。
+        目标及其子项须为工作区内的普通文件或目录。
 
         Args:
             path: 待删除文件或目录的工作区相对路径。

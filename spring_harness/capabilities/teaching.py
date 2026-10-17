@@ -21,19 +21,18 @@ TEACHING_DIR = "teaching"
 
 
 class Mastery(str, Enum):
-    """验收等级：D1 会做 / D2 会讲 / D3 会迁移（严格程度递增，按序比较）。"""
+    """对话验收等级：D1 独立解题 / D2 解释机制 / D3 情境迁移。"""
 
     D1 = "D1"
     D2 = "D2"
     D3 = "D3"
 
 
-# 给等级配数字，方便比大小（"只升不降"规则要用）
 _MASTERY_ORDER = {Mastery.D1: 1, Mastery.D2: 2, Mastery.D3: 3}
 
 
 class ZoneKind(str, Enum):
-    """三区划分：AI 代劳区 / 协作区 / 人类必做区。"""
+    """对话三区：AI 讲解示例 / 协作讨论 / 用户独立回答。"""
 
     agent = "agent"
     cowork = "cowork"
@@ -49,21 +48,20 @@ class Objective(BaseModel):
     """学习目标：可观察、可验收的能力点。"""
 
     id: str = Field(description="目标 id，如 OBJ-1")
-    text: str = Field(description="能力点描述，须可观察可验收")
+    text: str = Field(description="可观察的能力点与对话验收要求")
     mastery_required: Mastery = Field(description="要求达到的验收等级")
     mastery_achieved: Mastery | None = Field(default=None, description="已达成的验收等级")
 
 
 class Zone(BaseModel):
-    """人机分工边界的一个区域条目。"""
+    """对话教学的分工范围。"""
 
-    kind: ZoneKind = Field(description="区域类型")
-    scope: str = Field(description="范围：路径/glob 或领域描述，如 src/borrowing/*.rs")
-    note: str = Field(default="", description="该区域覆盖什么工作")
+    kind: ZoneKind = Field(description="对话区域：agent 讲解示例 / cowork 协作讨论 / human 独立回答")
+    scope: str = Field(description="该区域的知识主题或问题范围")
+    note: str = Field(default="", description="该区域的对话活动与回答要求")
     serves: list[str] = Field(
         default_factory=list,
-        description='该区域服务的 objective id 列表，扁平字符串数组。'
-        '正确：["OBJ-1", "OBJ-2"]；错误：[["OBJ-1"]] 或 {"item": [...]}（不要嵌套、不要包装）',
+        description='该区域服务的 objective id 列表，使用扁平字符串数组，如 ["OBJ-1", "OBJ-2"]。',
     )
 
 
@@ -92,9 +90,8 @@ class TeachingUnit(BaseModel):
     objectives: list[Objective]
     zones: list[Zone]
     hint_max_level: int = Field(default=3, description="本单元允许的最高提示级别（1-3）")
-    tests_root: str = Field(default="", description="测试套件所在目录，版本内冻结")
     hints: list[HintEvent] = Field(default_factory=list)
-    changelog: list[str] = Field(default_factory=list, description="版本变更记录（改测试的前置审计）")
+    changelog: list[str] = Field(default_factory=list, description="验收要求与对话三区的版本变更理由")
     created_at: datetime = Field(default_factory=datetime.now)
     updated_at: datetime = Field(default_factory=datetime.now)
 
@@ -108,7 +105,7 @@ def _now() -> datetime:
 
 
 def _is_slug_char(ch: str, allow_dash: bool) -> bool:
-    """判断单个字符是不是 slug 的合法字符（小写字母/数字，可选连字符）。"""
+    """判断字符是否属于 slug 的小写字母、数字或可选连字符。"""
     if "a" <= ch and ch <= "z":
         return True
     if "0" <= ch and ch <= "9":
@@ -138,15 +135,12 @@ def _mastery_value(mastery: Mastery | None) -> str | None:
 
 
 def _yaml_dump(obj: dict) -> str:
-    """字典转 YAML 文本。传入的数据只含 JSON 安全的值（枚举已取 .value、时间已 isoformat）。
-
-    allow_unicode=True：中文不转义；sort_keys=False：保持我们写字段的顺序。
-    """
+    """字典转为保留中文与字段顺序的 YAML 文本。"""
     return yaml.safe_dump(obj, allow_unicode=True, sort_keys=False)
 
 
 def _find_objective(unit: TeachingUnit, objective_id: str) -> Objective | None:
-    """按 id 找目标，找不到返回 None。"""
+    """按 id 返回目标或 None。"""
     for o in unit.objectives:
         if o.id == objective_id:
             return o
@@ -174,11 +168,7 @@ def _format_hint_levels(levels: list[int]) -> str:
 
 
 class TeachingStore:
-    """SQLite 教学单元存储，按工作区隔离；单元不随会话消亡（跨会话恢复）。
-
-    每次 save_unit 都会把工作区 .springharness/teaching/<slug>/ 下的 spec.yaml / record.yaml
-    镜像重写一遍，保证人可读的档案与库中状态始终一致。
-    """
+    """按工作区保存、支持跨会话恢复的 SQLite 教学单元存储。"""
 
     def __init__(self, workspace: Path | str, *, on_change: OnTeachingChange | None = None) -> None:
         self._data_dir = Path(workspace) / STATE_DIR
@@ -305,7 +295,7 @@ class TeachingStore:
                     "human_zone": human_zone,
                 },
                 "hint_policy": {"max_level": unit.hint_max_level, "escalation_rule": "逐级解锁，每级升级前须展示当前级尝试"},
-                "tests": {"location": unit.tests_root, "authority": "测试集为唯一验收契约；版本内冻结，改动须先升 spec 版本"},
+                "assessment": {"method": "对话提问、情境回答与追问反馈", "version": unit.version},
                 "changelog": unit.changelog,
             }
         }
@@ -364,7 +354,7 @@ _stores: dict[Path, TeachingStore] = {}
 
 
 def teaching_store_for(workspace: Path | str, on_change: OnTeachingChange | None = None) -> TeachingStore:
-    """按工作区取教学 store（不存在则创建）；on_change 非 None 时更新回调。"""
+    """按工作区获取或创建教学存储，并应用传入的回调。"""
     key = Path(workspace).expanduser().resolve()
     store = _stores.get(key)
     if store is None:
@@ -391,10 +381,10 @@ def render_unit_state(unit: TeachingUnit) -> str:
         if used:
             hint_text = ", hints used: " + _format_hint_levels(used)
         else:
-            hint_text = ", no hints used"
+            hint_text = ", hints used: 0"
         lines.append(f"  - {o.id} [required {o.mastery_required.value}, achieved {achieved}{hint_text}] {o.text}")
 
-    lines.append("Zones:")
+    lines.append("Dialogue zones: agent = AI explanations/examples; cowork = discussion; human = independent answers")
     for z in unit.zones:
         line = f"  - [{z.kind.value}] {z.scope}"
         if z.serves:
@@ -403,8 +393,7 @@ def render_unit_state(unit: TeachingUnit) -> str:
             line += " — " + z.note
         lines.append(line)
 
-    if unit.tests_root:
-        lines.append(f"Tests: {unit.tests_root} (frozen at v{unit.version}; changes require teach_bump_version first)")
+    lines.append(f"Assessment: dialogue answers and follow-up evidence (v{unit.version}; requirement changes require teach_bump_version first)")
     if unit.changelog:
         lines.append("Changelog: " + "; ".join(unit.changelog))
     return "\n".join(lines)
@@ -431,35 +420,28 @@ def render_closed_summary(units: list[TeachingUnit]) -> str:
 # ---- 工具集 ----
 
 def teaching_toolset(store: TeachingStore) -> FunctionToolset:
-    """SDT/TDT 教学工具集：spec 生命周期 + 提示台账 + 掌握度认证。
-
-    里面的 6 个函数都是闭包：它们抓住了这里的 store 参数，
-    所以 Agent 调用工具时不用（也不应）知道 store 的存在。
-    校验失败返回中文错误串（仿 planning 工具风格），由模型自行修正后重试。
-    """
+    """对话教学单元、逐级提示与掌握度认证工具集。"""
 
     async def teach_create_unit(
         slug: str,
         title: str,
         objectives: list[Objective],
         zones: list[Zone],
-        tests_root: str,
         hint_max_level: int = 3,
     ) -> str:
-        """创建教学单元（学习者已口头确认 spec 之后调用）。同一工作区同时只能有一个活跃单元。
+        """在学习者对话确认 spec 后创建教学单元；每个工作区同时支持一个活跃单元。
 
         Args:
-            slug: 文件系统安全标识（小写字母/数字/单连字符），镜像目录名
+            slug: 文件系统安全标识（小写字母/数字/单连字符），记录目录名
             title: 单元标题
-            objectives: 学习目标列表，id 唯一，各带 mastery_required
-            zones: 三区划分；至少包含一个 human 区，serves 引用已存在的 objective id
-            tests_root: 测试套件目录（版本内冻结）
+            objectives: 学习目标列表，id 唯一，text 描述能力与对话验收要求，各带 mastery_required
+            zones: 对话三区：agent 讲解示例 / cowork 协作讨论 / human 独立回答；至少包含一个 human 区，serves 引用已有 objective id
             hint_max_level: 允许的最高提示级别（1-3，默认 3）
         """
         if await store.get_active() is not None:
             return "创建失败：已有一个活跃单元。先 teach_close_unit 关闭它，或继续当前单元。"
         if not _is_valid_slug(slug):
-            return f"创建失败：slug {slug!r} 不合法（小写字母开头，仅小写字母/数字/单连字符，≤50 字符）。"
+            return f"创建失败：slug {slug!r} 需要符合小写字母或数字开头、后续小写字母/数字/连字符、总长 1-50 的格式。"
         if hint_max_level < 1 or hint_max_level > 3:
             return "创建失败：hint_max_level 必须在 1-3 之间。"
         if not objectives:
@@ -479,7 +461,7 @@ def teaching_toolset(store: TeachingStore) -> FunctionToolset:
             if z.kind is ZoneKind.human:
                 has_human_zone = True
         if not has_human_zone:
-            return "创建失败：zones 中必须至少有一个 human 区（承载学习目标的区域）。"
+            return "创建失败：zones 中需要至少一个 human 区，承载用户独立回答的学习目标。"
 
         for z in zones:
             unknown = []
@@ -487,50 +469,51 @@ def teaching_toolset(store: TeachingStore) -> FunctionToolset:
                 if s not in seen_ids and s not in unknown:
                     unknown.append(s)
             if unknown:
-                return f"创建失败：{z.kind.value} 区 {z.scope!r} 的 serves 引用了不存在的 objective：" + ", ".join(unknown) + "。"
+                return f"创建失败：{z.kind.value} 区 {z.scope!r} 的 serves 需要关联已有 objective，请核对：" + ", ".join(unknown) + "。"
 
         unit = TeachingUnit(
             slug=slug, title=title, objectives=objectives, zones=zones,
-            tests_root=tests_root, hint_max_level=hint_max_level,
+            hint_max_level=hint_max_level,
         )
         await store.save_unit(unit)
         return (
-            f"单元已创建（id={unit.id}）。spec 镜像：teaching/{slug}/spec.yaml；提示与掌握度台账：teaching/{slug}/record.yaml。\n\n"
-            "下一步：完成 AI 代劳区脚手架，编写覆盖全部 objective 的测试套件（含边界用例），"
-            "运行并确认全部失败（Red），然后把人类必做区交给学习者。\n\n" + render_unit_state(unit)
+            f"单元已创建：{unit.title}（id={unit.id}）。\n\n"
+            "下一步：根据各项目标和验收要求准备问题与情境，在聊天中展示学习目标、对话三区与回答要求，"
+            "提出第一个问题并等待用户回答，再依据真实回答给出追问与反馈。"
+            "用户可用文字、解释或粘贴代码作答；代码通过阅读与推演讨论。\n\n"
+            + render_unit_state(unit)
         )
 
     async def teach_state() -> str:
-        """读取当前教学单元状态（跨会话恢复后先调用它重新对齐）。"""
+        """读取当前教学单元的对话验收状态。"""
         unit = await store.get_active()
         if unit is None:
             summary = render_closed_summary(await store.list_units())
-            text = "当前没有活跃的教学单元。"
+            text = "当前可创建新的教学单元。"
             if summary:
                 text += "\n\n" + summary
             return text
         return render_unit_state(unit)
 
     async def teach_record_hint(objective_id: str, level: int, attempt: str) -> str:
-        """记录一次提示升级（唯一被允许的帮助通道）。逐级解锁：首个提示必须是 L1，之后每次只能升一级；
-        升级前学习者必须展示当前级的真实尝试（attempt 参数），全部留痕进学习档案。
+        """记录真实回答尝试并逐级提供提示，从 L1 开始，每次升级一级，保存到项目教学记录。
 
         Args:
             objective_id: 提示针对的 objective id
-            level: 提示级别（1 指方向 / 2 给结构 / 3 给对照示例），不得超过单元的 hint_max_level
-            attempt: 学习者在当前级的尝试记录（做了什么、卡在哪），不能为空
+            level: 提示级别：L1 指方向 / L2 给推理结构 / L3 给类比示例，范围为 1 至 hint_max_level
+            attempt: 学习者在当前级的真实回答或思考过程，须包含具体内容
         """
         unit = await store.get_active()
         if unit is None:
-            return "记录失败：当前没有活跃单元。"
+            return "记录失败：请先创建教学单元。"
         objective = _find_objective(unit, objective_id)
         if objective is None:
             ids = []
             for o in unit.objectives:
                 ids.append(o.id)
-            return f"记录失败：objective {objective_id!r} 不存在（现有：" + ", ".join(ids) + "）。"
+            return f"记录失败：objective {objective_id!r} 需要选自现有目标：" + ", ".join(ids) + "。"
         if not attempt.strip():
-            return "记录失败：attempt 为空。提示有价——升级前学习者必须展示当前级的真实尝试。"
+            return "记录失败：attempt 为空。请记录学习者在当前级的真实回答或思考过程。"
         if level < 1 or level > unit.hint_max_level:
             return f"记录失败：level 须在 1-{unit.hint_max_level} 之间（本单元最高 L{unit.hint_max_level}）。"
 
@@ -541,49 +524,48 @@ def teaching_toolset(store: TeachingStore) -> FunctionToolset:
                 highest = lv
         if level > highest + 1:
             return (
-                f"记录失败：禁止跳级。{objective_id} 目前最高用到 L{highest}，"
-                f"下一级只能是 L{highest + 1}。请先用 L{highest + 1} 级别的提示。"
+                f"记录失败：{objective_id} 目前最高用到 L{highest}，"
+                f"下一提示级别为 L{highest + 1}。请先提供 L{highest + 1} 级别的提示。"
             )
 
         unit.hints.append(HintEvent(objective_id=objective_id, level=level, attempt=attempt.strip()))
         await store.save_unit(unit)
 
         if level == 1:
-            allowance = "L1 指方向：相关概念、文档章节、应思考的问题——不含任何代码。"
+            allowance = "L1 指方向：给出相关概念、资料章节或引导思考的问题。"
         elif level == 2:
-            allowance = "L2 给结构：伪代码或步骤分解——不含可运行实现。"
+            allowance = "L2 给结构：给出推理框架或思考步骤，具体答案由学习者完成。"
         else:
-            allowance = "L3 给对照：同类但不同的已解决示例，要求学习者迁移。"
+            allowance = "L3 给对照：讲解相近主题的已解决示例，再请学习者迁移到当前问题。"
         all_used = used + [level]
         return (
-            f"已记录：{objective_id} 升到 L{level}（该目标累计提示 {_format_hint_levels(all_used)}）。\n"
-            "本级别允许的帮助：" + allowance
+            f"已记录：{objective_id} 提示级别 L{level}（该目标累计提示 {_format_hint_levels(all_used)}）。\n"
+            "本级别的帮助：" + allowance
         )
 
     async def teach_update_mastery(objective_id: str, achieved: Mastery, evidence: str) -> str:
-        """认证某 objective 的掌握等级（评审/讲解/变体任务之后调用）。等级只升不降。
-        D1 的硬规则：该目标使用过 L3 提示则不得认证 D1（提示跳水说明没有独立完成）。
+        """依据对话回答与追问证据认证掌握等级，等级递增；D1 要求独立作答，提示记录限于 L1/L2。
 
         Args:
             objective_id: 目标 id
-            achieved: 已达成的等级（D1 会做 / D2 会讲 / D3 会迁移）
-            evidence: 认证依据（测试全绿截图要点、讲解要点、变体任务完成情况），不能为空
+            achieved: 已达成的等级：D1 独立解题 / D2 解释机制与理由 / D3 迁移到新情境
+            evidence: 包含具体问题、用户真实回答与追问表现的验收依据
         """
         unit = await store.get_active()
         if unit is None:
-            return "认证失败：当前没有活跃单元。"
+            return "认证失败：请先创建教学单元。"
         objective = _find_objective(unit, objective_id)
         if objective is None:
             ids = []
             for o in unit.objectives:
                 ids.append(o.id)
-            return f"认证失败：objective {objective_id!r} 不存在（现有：" + ", ".join(ids) + "）。"
+            return f"认证失败：objective {objective_id!r} 需要选自现有目标：" + ", ".join(ids) + "。"
         if not evidence.strip():
-            return "认证失败：evidence 为空。记录认证依据（测试结果、讲解要点或变体任务表现）。"
+            return "认证失败：evidence 为空。请记录具体问题、用户真实回答和追问表现。"
 
         if objective.mastery_achieved is not None:
             if _MASTERY_ORDER[achieved] < _MASTERY_ORDER[objective.mastery_achieved]:
-                return f"认证失败：{objective_id} 已达成 {objective.mastery_achieved.value}，等级只升不降。"
+                return f"认证失败：{objective_id} 已达成 {objective.mastery_achieved.value}，请维持或提升已有等级。"
 
         used = _used_hint_levels(unit, objective_id)
         used_l3 = False
@@ -592,8 +574,8 @@ def teaching_toolset(store: TeachingStore) -> FunctionToolset:
                 used_l3 = True
         if achieved is Mastery.D1 and used_l3:
             return (
-                f"认证失败：{objective_id} 使用过 L3 提示，按规范不得认证 D1"
-                "（D1 = 测试全绿且未使用 L3 及以上提示）。可在讲解后认证 D2。"
+                f"认证失败：{objective_id} 已使用 L3 类比示例提示；D1 要求独立完成对话验收，提示记录限于 L1/L2。"
+                "可依据机制与理由的讲解证据申请 D2 认证。"
             )
 
         objective.mastery_achieved = achieved
@@ -601,36 +583,35 @@ def teaching_toolset(store: TeachingStore) -> FunctionToolset:
         return f"已认证：{objective_id} 达成 {achieved.value}（要求 {objective.mastery_required.value}）。依据：{evidence.strip()}"
 
     async def teach_bump_version(reason: str) -> str:
-        """升 spec 版本——修改冻结测试集或调整三区划分的法定前置。全部变更记入 changelog 审计轨迹。
+        """升 spec 版本并记录变更理由；调整已确认验收要求或对话三区前调用。
 
         Args:
-            reason: 变更理由（为什么改测试/调边界），不能为空
+            reason: 调整已确认验收要求或对话三区的具体理由
         """
         unit = await store.get_active()
         if unit is None:
-            return "升版失败：当前没有活跃单元。"
+            return "升版失败：请先创建教学单元。"
         if not reason.strip():
-            return "升版失败：reason 为空。记录变更理由（审计轨迹的一部分）。"
+            return "升版失败：reason 为空。请记录具体变更理由。"
 
         old = unit.version
         unit.version += 1
         now_text = _now().isoformat(timespec="seconds")
         unit.changelog.append(f"v{old}→v{unit.version} ({now_text}): {reason.strip()}")
         await store.save_unit(unit)
-        return f"spec 已升到 v{unit.version}。现在可以修改测试或调整边界；旧版断言已归档于 changelog。"
+        return f"spec 已升到 v{unit.version}，变更理由已记录：{reason.strip()}。现在可以调整已确认验收要求或对话三区。"
 
     async def teach_close_unit(summary: str) -> str:
-        """关闭当前单元（目标达成或学习者终止）。关闭后负责归档：
-        把已掌握的知识点按知识系统工作流蒸馏进 declarative/procedural/conditional。
+        """关闭当前单元并返回学习总结。
 
         Args:
-            summary: 单元总结（掌握了什么、哪些点留待下一单元），不能为空
+            summary: 包含已掌握内容、待加强知识点与下一步建议的单元总结
         """
         unit = await store.get_active()
         if unit is None:
-            return "关闭失败：当前没有活跃单元。"
+            return "关闭失败：请先创建教学单元。"
         if not summary.strip():
-            return "关闭失败：summary 为空。写清掌握了什么、遗留什么。"
+            return "关闭失败：summary 为空。请写清已掌握内容与待加强知识点。"
 
         unit.status = UnitStatus.closed
         await store.save_unit(unit)
@@ -641,9 +622,8 @@ def teaching_toolset(store: TeachingStore) -> FunctionToolset:
                 mastered_count += 1
         return (
             f"单元已关闭：{unit.title}（v{unit.version}，掌握 {mastered_count}/{len(unit.objectives)}）。\n"
-            f"档案：teaching/{unit.slug}/（spec.yaml + record.yaml）。\n"
-            "收尾职责：把已掌握的知识点蒸馏进知识系统（read_index_knowledge → read_knowledge → edit_knowledge），"
-            "并向学习者总结本单元与下一步建议。"
+            f"总结：{summary.strip()}\n"
+            "请在聊天中向学习者说明已验收目标、真实回答证据、待加强知识点和下一步建议。"
         )
 
     return FunctionToolset(

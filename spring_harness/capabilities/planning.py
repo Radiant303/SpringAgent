@@ -1,7 +1,11 @@
 import inspect
 from collections.abc import Awaitable, Callable
+from dataclasses import replace
 from pathlib import Path
 
+from pydantic_ai import RunContext
+from pydantic_ai.tools import ToolDefinition
+from pydantic_ai.toolsets import AbstractToolset
 from pydantic_ai_harness import Planning
 from pydantic_ai_harness.planning import PlanItem, PlanStore, SqlitePlanStore
 
@@ -57,12 +61,64 @@ class _ObservableStore:
         return removed
 
 
+def _prepare_descriptions(ctx: RunContext, definitions: list[ToolDefinition]) -> list[ToolDefinition]:
+    prepared = []
+    for definition in definitions:
+        schema = definition.parameters_json_schema
+        if "PlanItem" in schema.get("$defs", {}):
+            schema = {**schema, "$defs": {**schema["$defs"], "PlanItem": {
+                **schema["$defs"]["PlanItem"],
+                "description": "一个计划步骤，包含稳定 ID、任务内容、当前状态及进行时标签；新步骤自动生成 ID。",
+            }}}
+            definition = replace(definition, parameters_json_schema=schema)
+        prepared.append(definition)
+    return prepared
+
+
+class _ProjectPlanning(Planning):
+    """项目计划的交互说明。
+
+    @author hanbing
+    @since 2026-10-17
+    """
+
+    def get_toolset(self):
+        toolset = super().get_toolset()
+        return toolset.prepared(_prepare_descriptions) if isinstance(toolset, AbstractToolset) else toolset
+
+
 def planning(session: str, on_change: OnPlanChange | None = None) -> Planning:
     """加载Plan；on_change 在每次计划变更后收到最新全量 items。"""
     store: PlanStore = SqlitePlanStore(_db_path(), session=session)
     if on_change is not None:
         store = _ObservableStore(store, on_change)
-    return Planning(store=store)
+    return _ProjectPlanning(
+        store=store,
+        guidance=(
+            "对需要多个步骤的任务，先用 write_plan 建立计划，再随实际进展更新。"
+            "执行期间保持一个步骤为 in_progress，达到验收标准后立即标记 completed。"
+            "遇到阻碍时保留当前状态并说明所需条件。"
+            "write_plan 每次提交完整计划；局部调整可用 add_task、update_task_status、"
+            "update_task_statuses 或 remove_task，操作前可用 read_plan 获取步骤 ID。"
+        ),
+        descriptions={
+            "write_plan": (
+                "创建或替换当前会话的完整任务计划。每次提交全部有序步骤及其当前状态；"
+                "执行期间保持一个 in_progress 步骤。"
+            ),
+            "read_plan": "读取当前会话的任务计划、步骤 ID、内容和状态，用于恢复进度或局部调整。",
+            "add_task": "向当前计划追加一个 pending 步骤，保留已有步骤。",
+            "update_task_status": (
+                "按步骤 ID 更新状态。开始执行时标记 in_progress，"
+                "达到该步骤的完成标准并核实结果后标记 completed。"
+            ),
+            "update_task_statuses": (
+                "按步骤 ID 批量更新状态，适合将已完成步骤交接到下一步。"
+                "整批参数校验通过后，按提交顺序执行。"
+            ),
+            "remove_task": "按步骤 ID 永久移除误建或已撤销的计划步骤；完成记录通过状态更新保留。",
+        }
+    )
 
 
 async def load_plan_items(session: str) -> list[PlanItem]:
