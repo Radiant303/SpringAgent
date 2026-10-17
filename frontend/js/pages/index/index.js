@@ -63,14 +63,19 @@ export function setConnected(ok) {
 }
 
 export async function connectAndSetup() {
+  const generation = ++state.viewGeneration;
   state.sessionReady = false;
   hideApproval();
   hideQuestion();
   for (const sid of Object.keys(runs)) delete runs[sid];
   state.lastSeq = {};
   setConnected(false);
-  await rpc.connect(`${WS_BASE}/ws?token=${encodeURIComponent(getToken())}`);
+  const connection = rpc.connect(`${WS_BASE}/ws?token=${encodeURIComponent(getToken())}`);
+  const socket = rpc.ws;
+  await connection;
+  if (rpc.ws !== socket) return;
   const info = await rpc.request("initialize", {});
+  if (rpc.ws !== socket) return;
   state.workspace = info.workspace;
   state.models = info.models || [];
   if (!state.models.some((m) => m.id === state.model)) {
@@ -85,6 +90,7 @@ export async function connectAndSetup() {
   if ($("input-ws")) $("input-ws").title = state.workspace;
   setConnected(true);
   await loadWorks();
+  if (generation !== state.viewGeneration || rpc.ws !== socket || !state.connected) return;
   await openSession();
   await loadWorks();
   reconnectDelay = 1000;
@@ -117,7 +123,9 @@ rpc.onNotification = (method, params) => {
     clearPendingFor(sid);
     delete runs[sid];
     if (sid === state.sessionId) {
+      state.viewGeneration++;
       state.sessionReady = false;
+      UI.clearSkeleton("messages");
       resetFlow();
       state.tools.clear();
       addSystem("该会话已被其他页面或设备接管，点击会话可重新接管");
@@ -129,7 +137,9 @@ rpc.onNotification = (method, params) => {
 };
 
 rpc.onClose = (code) => {
+  state.viewGeneration++;
   state.sessionReady = false;
+  UI.clearSkeleton("messages");
   hideApproval();
   hideQuestion();
   for (const sid of Object.keys(runs)) delete runs[sid];

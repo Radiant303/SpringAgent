@@ -86,18 +86,20 @@ export function updateUsage(tokens) {
   tip.textContent = `使用 ${(tokens / 1000).toFixed(1)}k / ${Math.round(max / 1000)}k tokens (${Math.round(pct * 100)}%)`;
 }
 
-export async function loadPlan() {
+export async function loadPlan(generation = state.viewGeneration) {
   const sid = state.sessionId;
+  const workId = state.workId;
+  const socket = rpc.ws;
+  const isCurrent = () => sid === state.sessionId && generation === state.viewGeneration
+    && workId === state.workId && socket === rpc.ws && state.connected;
   if (!sid) {
-    renderPlan([]);
+    if (isCurrent()) renderPlan([]);
     return;
   }
   try {
     const r = await rpc.request("session/plan", { sessionId: sid });
-    if (sid === state.sessionId) renderPlan(r.items);
-  } catch {
-    /* 旧版服务端没有该方法：退化为只靠 plan_updated 事件 */
-  }
+    if (isCurrent()) renderPlan(r.items);
+  } catch {}
 }
 
 export function renderPlan(items) {

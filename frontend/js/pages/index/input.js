@@ -103,7 +103,7 @@ export async function send() {
 }
 
 export async function cancelTurn() {
-  if (!isBusy(state.sessionId) || !state.sessionId) return;
+  if (!state.connected || !state.sessionReady || !state.sessionId || !isBusy(state.sessionId)) return;
   try {
     await rpc.request("turn/cancel", { sessionId: state.sessionId });
   } catch {
