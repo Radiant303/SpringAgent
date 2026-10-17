@@ -7,7 +7,7 @@ import json
 from typing import TYPE_CHECKING
 
 from spring_harness.cloud.storage import CloudStorageGuard
-from spring_harness.core.filesystem import check_path, directory_size_bytes
+from spring_harness.core.filesystem import check_path
 from spring_harness.core.workspace import FileAccessContext
 from spring_harness.core.agent.deps import CodingAgentDeps
 from spring_harness.core.log import logger
@@ -143,7 +143,6 @@ class CloudSessionHandle:
                     await self._write_stream(event)
                     if isinstance(event, TurnFinished):
                         await self._publish_lifecycle(event)
-                        self._track(asyncio.create_task(self._report_size()))
         except asyncio.CancelledError:
             raise
         except Exception:  # noqa: BLE001 扇出是长驻任务：任何意外只记日志，不让任务静默死掉
@@ -171,15 +170,6 @@ class CloudSessionHandle:
             await self._redis.expire(key, ttl)
         except Exception:  # noqa: BLE001 流写入失败不阻断 turn；事件仍有数据库落库兜底
             logger.exception("事件写 Redis Stream 失败: session={}", self.session_id)
-
-    async def _report_size(self) -> None:
-        """轮次结束后重算 work 目录大小并上报网关（异步，不阻断扇出）。"""
-        if not self.work_id:
-            return
-        from spring_harness.cloud import gateway_store  # 延迟导入避免循环依赖
-
-        size = await asyncio.to_thread(directory_size_bytes, self.session.workspace)
-        await asyncio.to_thread(gateway_store.report_work_size, self.work_id, size)
 
     async def _publish_lifecycle(self, event: TurnFinished) -> None:
         from spring_harness.cloud.mq import get_dispatcher  # 延迟导入避免循环依赖

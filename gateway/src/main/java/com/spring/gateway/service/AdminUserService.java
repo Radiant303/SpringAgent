@@ -69,10 +69,8 @@ public class AdminUserService {
         if (User.ROLE_OWNER.equals(target.getRole()) && User.STATUS_DISABLED.equals(status)) {
             throw new BizException(403, "站长账号不可被禁用");
         }
-        User row = new User();
-        row.setId(targetId);
-        row.setStatus(status);
-        userMapper.updateById(row);
+        userMapper.update(null, new LambdaUpdateWrapper<User>()
+                .eq(User::getId, targetId).set(User::getStatus, status));
     }
 
     /**
@@ -87,10 +85,8 @@ public class AdminUserService {
         if (User.ROLE_OWNER.equals(target.getRole())) {
             throw new BizException(403, "站长角色不可变更");
         }
-        User row = new User();
-        row.setId(targetId);
-        row.setRole(role);
-        userMapper.updateById(row);
+        userMapper.update(null, new LambdaUpdateWrapper<User>()
+                .eq(User::getId, targetId).set(User::getRole, role));
     }
 
     /**
@@ -103,10 +99,8 @@ public class AdminUserService {
      */
     public void resetPassword(String actorRole, Long targetId, String password) {
         requireOperable(actorRole, requireTarget(targetId));
-        User row = new User();
-        row.setId(targetId);
-        row.setPasswordHash(passwordEncoder.encode(password));
-        userMapper.updateById(row);
+        userMapper.update(null, new LambdaUpdateWrapper<User>()
+                .eq(User::getId, targetId).set(User::getPasswordHash, passwordEncoder.encode(password)));
     }
 
     /**
@@ -120,10 +114,8 @@ public class AdminUserService {
     public void setQuota(String actorRole, Long targetId, Long quotaBytes) {
         ResourceLimits.integer(quotaBytes, 0, ResourceLimits.MAX_QUOTA_BYTES, "存储配额（字节）");
         requireOperable(actorRole, requireTarget(targetId));
-        User row = new User();
-        row.setId(targetId);
-        row.setQuotaBytes(quotaBytes);
-        userMapper.updateById(row);
+        userMapper.update(null, new LambdaUpdateWrapper<User>()
+                .eq(User::getId, targetId).set(User::getQuotaBytes, quotaBytes));
     }
 
     /**
@@ -139,7 +131,6 @@ public class AdminUserService {
             ResourceLimits.integer(quotaBytes, 0, ResourceLimits.MAX_QUOTA_BYTES, "工作区配额（字节）");
         }
         requireOperable(actorRole, requireTarget(targetId));
-        // updateById 默认忽略 null 字段，写 NULL（恢复跟随全局）必须显式 set
         userMapper.update(null, new LambdaUpdateWrapper<User>()
                 .eq(User::getId, targetId)
                 .set(User::getWorkQuotaBytes, quotaBytes));

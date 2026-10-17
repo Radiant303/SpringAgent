@@ -45,6 +45,9 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -63,12 +66,15 @@ class FileStorageServiceTests {
     @Autowired private FileStorageService fileStorageService;
     @Autowired private StorageReconcileTask reconcileTask;
     @Autowired private WorkService workService;
+    @Autowired private UserStorageService userStorageService;
     @Autowired private FileRecordMapper fileRecordMapper;
     @Autowired private UserMapper userMapper;
     @Autowired private WorkMapper workMapper;
     @Autowired private SessionMapper sessionMapper;
     @Autowired private SnowflakeIdGenerator idGenerator;
     @Autowired private PlatformTransactionManager transactionManager;
+    @Autowired private org.springframework.jdbc.core.JdbcTemplate jdbc;
+    @MockitoBean(name = "aliyun_oss") private com.spring.gateway.service.storage.AliyunOssStorageService remoteStorage;
     @MockitoBean private SystemSettingService systemSettingService;
     @MockitoBean private ReconcileScheduler reconcileScheduler;
     @MockitoBean private EngineClient engineClient;
@@ -120,11 +126,132 @@ class FileStorageServiceTests {
 
         fileStorageService.delete(userId, row.getId());
         assertEquals(0, fileCount(session));
-        assertEquals(0, userMapper.selectById(userId).getUsedBytes());
+        assertEquals(10, userMapper.selectById(userId).getUsedBytes());
         assertTrue(Files.isRegularFile(disk));
         TestTransaction.flagForCommit();
         TestTransaction.end();
         assertTrue(Files.notExists(disk));
+        assertEquals(0, userMapper.selectById(userId).getUsedBytes());
+        assertEquals(0, workMapper.selectById(session.getWorkId()).getSizeBytes());
+    }
+
+    @Test
+    void lockingReadsBypassMyBatisSessionCache() {
+        Long userId = insertUser(1024);
+        Session session = insertSession(userId);
+        userMapper.selectForUpdate(userId);
+        workMapper.selectForUpdate(session.getWorkId());
+        jdbc.update("UPDATE users SET used_bytes = 15, knowledge_bytes = 3, storage_initialized = TRUE WHERE id = ?", userId);
+        jdbc.update("UPDATE works SET size_bytes = 12 WHERE id = ?", session.getWorkId());
+        assertEquals(15L, userMapper.selectForUpdate(userId).getUsedBytes());
+        assertEquals(12L, workMapper.selectForUpdate(session.getWorkId()).getSizeBytes());
+        jdbc.update("UPDATE users SET used_bytes = 11 WHERE id = ?", userId);
+        jdbc.update("UPDATE works SET size_bytes = 8 WHERE id = ?", session.getWorkId());
+        assertEquals(11L, userMapper.selectForUpdate(userId).getUsedBytes());
+        assertEquals(8L, workMapper.selectForUpdate(session.getWorkId()).getSizeBytes());
+    }
+
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    void remoteDeletesAndProjectReleaseDoNotDoubleSubtract() throws Exception {
+        Long userId = insertUser(1024);
+        Session session = insertSession(userId);
+        Path generated = Path.of(dataRoot, "works", session.getWorkId(), "generated.txt");
+        Files.createDirectories(generated.getParent());
+        Files.writeString(generated, "1234");
+        Path knowledge = Path.of(workService.knowledgePath(userId), "declarative.md");
+        Files.createDirectories(knowledge.getParent());
+        Files.writeString(knowledge, "ab");
+        when(systemSettingService.getStorageType()).thenReturn("aliyun_oss");
+        when(remoteStorage.upload(any(), anyLong(), anyString(), anyString())).thenAnswer(call -> call.getArgument(2));
+        when(remoteStorage.localPath(anyString())).thenReturn(java.util.Optional.empty());
+        FileRecord first = upload(userId, session, 3);
+        FileRecord second = upload(userId, session, 5);
+        assertEquals(14L, userMapper.selectById(userId).getUsedBytes());
+        assertEquals(12L, workMapper.selectById(session.getWorkId()).getSizeBytes());
+        fileStorageService.delete(userId, first.getId());
+        assertEquals(11L, userMapper.selectById(userId).getUsedBytes());
+        assertEquals(9L, workMapper.selectById(session.getWorkId()).getSizeBytes());
+        assertEquals(404, assertThrows(BizException.class, () -> fileStorageService.delete(userId, first.getId())).getStatus());
+        fileStorageService.deleteByWork(session.getWorkId());
+        assertEquals(6L, userMapper.selectById(userId).getUsedBytes());
+        assertEquals(4L, workMapper.selectById(session.getWorkId()).getSizeBytes());
+        assertEquals(0, fileCount(session));
+        verify(remoteStorage, times(1)).delete(first.getPath());
+        verify(remoteStorage, times(1)).delete(second.getPath());
+        assertEquals(0, reconcileTask.reconcileUser(userId));
+        assertEquals(6L, userMapper.selectById(userId).getUsedBytes());
+        workService.hardDelete(userId, session.getWorkId());
+        assertEquals(2L, userMapper.selectById(userId).getUsedBytes());
+        assertNull(workMapper.selectById(session.getWorkId()));
+        assertTrue(Files.notExists(generated));
+    }
+
+    @Test
+    void consecutiveIncrementalWritesUseCurrentLockedCounters() throws Exception {
+        Long userId = insertUser(1024);
+        Session session = insertSession(userId);
+        Path generated = Path.of(dataRoot, "works", session.getWorkId(), "generated.txt");
+        Files.createDirectories(generated.getParent());
+        Files.writeString(generated, "1234567");
+        Path knowledge = Path.of(workService.knowledgePath(userId), "declarative.md");
+        Files.createDirectories(knowledge.getParent());
+        Files.writeString(knowledge, "abc");
+        assertEquals(10L, workService.storageOverview(userId).usedBytes());
+        userMapper.selectForUpdate(userId);
+        userStorageService.beginChange(userId);
+        Files.writeString(generated, "123456789012");
+        userStorageService.addWorkBytes(userId, session.getWorkId(), 5);
+        assertEquals(15L, userMapper.selectForUpdate(userId).getUsedBytes());
+        assertEquals(12L, workMapper.selectForUpdate(session.getWorkId()).getSizeBytes());
+        userStorageService.beginChange(userId);
+        Files.writeString(generated, "12345678");
+        userStorageService.addWorkBytes(userId, session.getWorkId(), -4);
+        assertEquals(11L, userMapper.selectForUpdate(userId).getUsedBytes());
+        assertEquals(8L, workMapper.selectForUpdate(session.getWorkId()).getSizeBytes());
+    }
+
+    @Test
+    void localUploadUsesActualBytesInsteadOfDeclaredSize() {
+        Long userId = insertUser(1024);
+        Session session = insertSession(userId);
+        FileRecord row = fileStorageService.upload(userId, session.getId(), "a.bin", "application/octet-stream",
+                2, new ByteArrayInputStream(new byte[7]));
+        assertEquals(7L, row.getSizeBytes());
+        assertEquals(7L, userMapper.selectForUpdate(userId).getUsedBytes());
+        assertEquals(7L, workMapper.selectForUpdate(session.getWorkId()).getSizeBytes());
+    }
+
+    @Test
+    void actualUploadSizeCannotBypassQuota() {
+        Long userId = insertUser(4);
+        Session session = insertSession(userId);
+        TestTransaction.flagForCommit();
+        TestTransaction.end();
+        assertEquals(409, assertThrows(BizException.class, () -> fileStorageService.upload(userId, session.getId(),
+                "a.bin", "application/octet-stream", 2, new ByteArrayInputStream(new byte[7]))).getStatus());
+        assertEquals(0, fileCount(session));
+        assertEquals(0L, userMapper.selectById(userId).getUsedBytes());
+        assertEquals(0L, workMapper.selectById(session.getWorkId()).getSizeBytes());
+    }
+
+    @Test
+    void localDeleteReleasesRecoveredActualSize() throws Exception {
+        Long userId = insertUser(1024);
+        Session session = insertSession(userId);
+        FileRecord row = upload(userId, session, 6);
+        Path marker = Path.of(dataRoot, "users", userId.toString(), ".storage-pending", UUID.randomUUID() + ".pending");
+        Files.createDirectories(marker.getParent());
+        Files.writeString(marker, "pending");
+        Files.write(diskPath(row), new byte[9]);
+        fileStorageService.delete(userId, row.getId());
+        assertEquals(9L, userMapper.selectForUpdate(userId).getUsedBytes());
+        TestTransaction.flagForCommit();
+        TestTransaction.end();
+        assertFalse(Files.exists(diskPath(row)));
+        assertFalse(Files.exists(marker));
+        assertEquals(0L, userMapper.selectById(userId).getUsedBytes());
+        assertEquals(0L, workMapper.selectById(session.getWorkId()).getSizeBytes());
     }
 
     @Test
@@ -209,11 +336,15 @@ class FileStorageServiceTests {
         Files.writeString(knowledge.resolve("declarative.md"), "12345678");
         assertEquals(8, workService.storageOverview(userId).usedBytes());
         assertEquals(409, assertThrows(BizException.class, () -> upload(userId, session, 4)).getStatus());
+        Path markers = Path.of(dataRoot, "users", userId.toString(), ".storage-pending");
+        Files.createDirectories(markers);
+        Files.writeString(markers.resolve(UUID.randomUUID() + ".pending"), "pending");
         Files.writeString(knowledge.resolve("declarative.md"), "12");
         upload(userId, session, 4);
         assertEquals(6, workService.storageOverview(userId).usedBytes());
         assertEquals(0, reconcileTask.reconcileUser(userId));
         assertEquals(6, workService.storageOverview(userId).usedBytes());
+        Files.writeString(markers.resolve(UUID.randomUUID() + ".pending"), "pending");
         Files.delete(knowledge.resolve("declarative.md"));
         assertEquals(4, workService.storageOverview(userId).usedBytes());
     }
@@ -236,7 +367,7 @@ class FileStorageServiceTests {
     }
 
     @Test
-    void workQuotaIncludesGeneratedFilesWithoutChangingDirectoryCounter() throws Exception {
+    void workQuotaIncludesGeneratedFilesAndInitializesDirectoryCounter() throws Exception {
         Long userId = insertUser(1024);
         User update = new User();
         update.setId(userId);
@@ -249,7 +380,8 @@ class FileStorageServiceTests {
         BizException e = assertThrows(BizException.class, () -> upload(userId, session, 4));
         assertEquals(409, e.getStatus());
         assertEquals(0, fileCount(session));
-        assertEquals(0, workMapper.selectById(session.getWorkId()).getSizeBytes());
+        assertEquals(8, workMapper.selectById(session.getWorkId()).getSizeBytes());
+        assertEquals(8, userMapper.selectById(userId).getUsedBytes());
     }
 
     @Test
@@ -281,11 +413,13 @@ class FileStorageServiceTests {
         FileRecord row = upload(userId, session, 6);
         fileStorageService.deleteByWork(session.getWorkId());
         assertEquals(0, fileCount(session));
-        assertEquals(0, userMapper.selectById(userId).getUsedBytes());
+        assertEquals(6, userMapper.selectById(userId).getUsedBytes());
         assertTrue(Files.isRegularFile(diskPath(row)));
         TestTransaction.flagForCommit();
         TestTransaction.end();
         assertTrue(Files.notExists(diskPath(row)));
+        assertEquals(0, userMapper.selectById(userId).getUsedBytes());
+        assertEquals(0, workMapper.selectById(session.getWorkId()).getSizeBytes());
     }
 
     @Test

@@ -97,7 +97,9 @@ class _DualAccessCodeMode(CodeMode[Any]):
 
     def get_wrapper_toolset(self, toolset: AbstractToolset[Any]) -> AbstractToolset[Any] | None:
         wrapped = super().get_wrapper_toolset(_SandboxAliases(wrapped=toolset))
-        return wrapped.prepared(_prepare_description) if wrapped is not None else None
+        from spring_harness.toolsets.storage import InternalStorageToolset
+
+        return InternalStorageToolset(wrapped.prepared(_prepare_description), code_only=True) if wrapped is not None else None
 
 
 def code_mode(root: Path) -> CodeMode:

@@ -16,7 +16,24 @@ from typing import Any
 from pydantic_ai_harness import FileSystem
 from pydantic_ai_harness.filesystem import FileSystemToolset
 
-from spring_harness.core.workspace import StorageGuard, WorkspaceResource
+from spring_harness.core.workspace import StorageChange, StorageGuard, WorkspaceResource
+
+
+class _UnmeteredChange:
+    """本地文件变更的空计量事务。
+
+    @author hanbing
+    @since 2026-10-17
+    """
+
+    def check_growth(self, growth: int) -> None:
+        pass
+
+    def prepare(self) -> None:
+        pass
+
+    def record(self, path: str, old_size: int, new_size: int | None) -> None:
+        pass
 
 
 def check_path(path: Path, *, directory: bool = False) -> None:
@@ -53,6 +70,22 @@ def directory_size_bytes(root: Path) -> int:
             check_path(path)
             total += info.st_size
     return total
+
+
+def workspace_size_bytes(root: Path, internal_name: str) -> tuple[int, int]:
+    check_path(root, directory=True)
+    try:
+        entries = list(root.iterdir())
+    except FileNotFoundError:
+        return 0, 0
+    total = internal = 0
+    for path in entries:
+        check_path(path, directory=path.is_dir())
+        size = directory_size_bytes(path) if path.is_dir() else path.stat().st_size
+        total += size
+        if path == root / internal_name:
+            internal += size
+    return total, internal
 
 
 def resource_size_bytes(resource: WorkspaceResource) -> int:
@@ -185,13 +218,13 @@ class WorkspaceFiles:
         self, operation: str, path: str, args: dict[str, Any],
         guard: StorageGuard | None, cancelled: threading.Event,
     ) -> Any:
-        context = guard.change(self.resource) if guard is not None else nullcontext(lambda growth: None)
-        with context as check_growth:
+        context = guard.change(self.resource) if guard is not None else nullcontext(_UnmeteredChange())
+        with context as change:
             _check_cancel(cancelled)
             if operation == "create_directory":
-                return self._create_directory(path, cancelled)
+                return self._create_directory(path, cancelled, change)
             if operation == "delete_path":
-                return self._delete(path, cancelled)
+                return self._delete(path, cancelled, change)
             target = self.target(path, write=True)
             if target == self.resource.root:
                 raise ValueError("请选择工作区内的具体文件。")
@@ -218,24 +251,27 @@ class WorkspaceFiles:
                 content = args["content"]
             content = content.replace("\r\n", "\n").replace("\r", "\n")
             encoded = content.encode("utf-8")
-            check_growth(len(encoded) - len(old_bytes))
+            change.check_growth(len(encoded) - len(old_bytes))
             _check_cancel(cancelled)
+            change.prepare()
             if self.resource.allowed_files:
                 self.resource.root.mkdir(parents=True, exist_ok=True)
             check_path(target.parent, directory=True)
             _replace_file(target, encoded, cancelled)
+            change.record(_relative_path(path), len(old_bytes), len(encoded))
             return f"已更新 {path}，{len(encoded)} 字节。[hash:{content_hash(content)}]"
 
-    def _create_directory(self, path: str, cancelled: threading.Event) -> str:
+    def _create_directory(self, path: str, cancelled: threading.Event, change: StorageChange) -> str:
         if self.resource.allowed_files and _relative_path(path) != ".":
             raise ValueError("此工作区的文件直接存放于根目录。")
         target = self.target(path, directory=True, write=True)
         _check_cancel(cancelled)
+        change.prepare()
         target.mkdir(parents=True, exist_ok=True)
         check_path(target, directory=True)
         return f"已创建目录：{path}"
 
-    def _delete(self, path: str, cancelled: threading.Event) -> dict[str, Any]:
+    def _delete(self, path: str, cancelled: threading.Event, change: StorageChange) -> dict[str, Any]:
         relative = _relative_path(path)
         if relative == ".":
             raise ValueError("请选择工作区内的文件或子目录。")
@@ -267,10 +303,12 @@ class WorkspaceFiles:
                 current = node.lstat()
                 if (current.st_dev, current.st_ino, current.st_mode) != (expected.st_dev, expected.st_ino, expected.st_mode):
                     raise ValueError("文件节点已变化，请重新查看目录后重试。")
+                change.prepare()
                 if stat.S_ISDIR(current.st_mode):
                     node.rmdir()
                 else:
                     node.unlink()
+                    change.record(node.relative_to(self.resource.root).as_posix(), current.st_size, None)
                     released += current.st_size
                 deleted += 1
         except (OSError, ValueError) as error:

@@ -29,6 +29,7 @@ from spring_harness.core.hooks.model import hooks, request_hooks
 from spring_harness.instructions.default import register_default_instructions
 from spring_harness.toolsets.ask_user import ask_user_toolset
 from spring_harness.toolsets.filesystem import filesystem
+from spring_harness.toolsets.storage import InternalStorageToolset
 from spring_harness.toolsets.page_site import page_site_toolset
 from spring_harness.toolsets.session_info import session_info_toolset
 from spring_harness.toolsets.view_image import view_image_toolset
@@ -65,7 +66,7 @@ def create_agent(
     toolsets: list[Any] = [
         filesystem(str(root), access=file_access),
         ask_user_toolset,
-        teaching_toolset(teaching_store_for(root, on_change=teach_on_change)),
+        InternalStorageToolset(teaching_toolset(teaching_store_for(root, on_change=teach_on_change))),
         session_info_toolset(session_id=session_id, workspace=root,
                              model_id=model_id, effort=effort),
     ]

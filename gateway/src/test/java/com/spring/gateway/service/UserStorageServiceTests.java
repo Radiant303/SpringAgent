@@ -62,7 +62,9 @@ class UserStorageServiceTests {
 
     private UserStorageService service() {
         UserStorageService service = new UserStorageService(
-                mock(WorkMapper.class), mock(SessionMapper.class), mock(FileRecordMapper.class));
+                mock(WorkMapper.class), mock(SessionMapper.class), mock(FileRecordMapper.class),
+                mock(com.spring.gateway.mapper.UserMapper.class),
+                mock(org.springframework.transaction.PlatformTransactionManager.class));
         ReflectionTestUtils.setField(service, "dataRoot", root.toString());
         return service;
     }

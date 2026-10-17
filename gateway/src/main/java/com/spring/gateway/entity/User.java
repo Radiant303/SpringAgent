@@ -45,11 +45,15 @@ public class User {
     /** 密码哈希（BCrypt）。 */
     private String passwordHash;
 
-    /** 存储配额（字节）：用户全部 work 目录占用合计的上限。 */
+    /** 用户存储总配额，单位字节。 */
     private Long quotaBytes;
 
-    /** 上传文件占用（字节）：files 表的实时计数，上传/删除原子增减，定时对账兜底。 */
+    /** 用户存储总占用字节数。 */
     private Long usedBytes;
+
+    private Long knowledgeBytes;
+
+    private Boolean storageInitialized;
 
     /** 角色：owner / admin / user。 */
     private String role;

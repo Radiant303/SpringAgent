@@ -7,7 +7,6 @@ import com.spring.gateway.dto.InternalCreateSessionRequest;
 import com.spring.gateway.dto.InternalDeleteSessionRequest;
 import com.spring.gateway.dto.InternalEnsureDefaultWorkRequest;
 import com.spring.gateway.dto.InternalMessagePage;
-import com.spring.gateway.dto.InternalReportWorkSizeRequest;
 import com.spring.gateway.dto.InternalSessionSummary;
 import com.spring.gateway.dto.InternalWorkSummary;
 import com.spring.gateway.entity.Session;
@@ -147,16 +146,4 @@ public class InternalStoreController {
                 workService.knowledgePath(row.getUserId()), workService.effectiveWorkMaxBytes(row), pageMappingService.pageIdOf(row.getId()));
     }
 
-    /**
-     * 引擎上报 work 目录占用字节数
-     *
-     * @param workId  work ID
-     * @param request 占用字节数
-     */
-    @PostMapping("/works/{workId}/size")
-    public void reportWorkSize(@PathVariable String workId,
-                               @Valid @RequestBody InternalReportWorkSizeRequest request) {
-        workService.getForInternal(workId);
-        workService.reportSize(workId, request.sizeBytes());
-    }
 }

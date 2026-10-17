@@ -56,20 +56,19 @@ public class WorkService {
     private int maxWorks;
 
     /**
-     * 当前用户的全部 work，返回前逐个重算目录占用并写回 size_bytes
+     * 查询当前用户的项目及存储占用。
      *
      * @param userId 用户 ID
      * @return work 列表，按创建时间倒序
      */
     public List<Work> list(Long userId) {
-        List<Work> rows = workMapper.selectList(new LambdaQueryWrapper<Work>()
+        User user = userMapper.selectById(userId);
+        if (user == null) throw new BizException(404, "用户不存在");
+        userStorageService.snapshot(user);
+        return workMapper.selectList(new LambdaQueryWrapper<Work>()
                 .eq(Work::getUserId, userId)
                 .orderByDesc(Work::getCreatedAt)
                 .orderByDesc(Work::getId));
-        for (Work row : rows) {
-            row.setSizeBytes(refreshSize(row.getId()));
-        }
-        return rows;
     }
 
     /**
@@ -154,7 +153,7 @@ public class WorkService {
      */
     @Transactional
     public void hardDelete(Long userId, String workId) {
-        userMapper.selectForUpdate(userId);
+        requireLockedUser(userId);
         Work work = workMapper.selectForUpdate(workId);
         if (work == null || !userId.equals(work.getUserId())) {
             throw new BizException(404, "项目不存在");
@@ -170,13 +169,14 @@ public class WorkService {
                     + "请先在页面切换到其他项目，或关闭对应标签页后再删除");
         }
         List<Session> sessions = sessionMapper.selectList(
-                new LambdaQueryWrapper<Session>().eq(Session::getWorkId, workId));
+                new LambdaQueryWrapper<Session>().eq(Session::getWorkId, workId).last("FOR UPDATE"));
         fileStorageService.deleteByWork(workId);
         for (Session session : sessions) {
             messageMapper.delete(new LambdaQueryWrapper<Message>().eq(Message::getSessionId, session.getId()));
         }
         sessionMapper.delete(new LambdaQueryWrapper<Session>().eq(Session::getWorkId, workId));
         pageMappingService.deleteByWorkId(workId);
+        userStorageService.releaseWork(requireLockedUser(userId), workId);
         workMapper.deleteById(workId);
         TransactionSynchronizationManager.registerSynchronization(
                 new TransactionSynchronization() {
@@ -185,19 +185,6 @@ public class WorkService {
                         deleteDirectoryRecursively(workspacePath(workId));
                     }
                 });
-    }
-
-    /**
-     * 引擎上报的目录大小落库
-     *
-     * @param workId    work ID
-     * @param sizeBytes 目录占用字节数
-     */
-    public void reportSize(String workId, long sizeBytes) {
-        Work row = new Work();
-        row.setId(workId);
-        row.setSizeBytes(sizeBytes);
-        workMapper.updateById(row);
     }
 
     /**
@@ -256,12 +243,6 @@ public class WorkService {
      * @param workMaxBytes 生效的单工作区配额（覆盖值或全局）
      */
     public record StorageOverview(long usedBytes, long quotaBytes, long workMaxBytes) {
-    }
-
-    private long refreshSize(String workId) {
-        long total = userStorageService.directoryBytes(workId);
-        reportSize(workId, total);
-        return total;
     }
 
     /** 用户不存在（库重建后旧 token 的幽灵用户）时拒绝，避免外键异常冒成 500 */

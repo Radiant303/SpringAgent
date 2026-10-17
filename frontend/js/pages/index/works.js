@@ -20,7 +20,10 @@ export function updateWorkName() {
   if (nameEl) nameEl.textContent = work ? work.name : "未选择项目";
 }
 
+let loadGeneration = 0;
+
 export async function loadWorks() {
+  const generation = ++loadGeneration;
   let works;
   try {
     const r = await apiFetch("/api/works");
@@ -28,11 +31,13 @@ export async function loadWorks() {
     const body = await r.json();
     works = body.data || [];
   } catch (e) {
+    if (generation !== loadGeneration) return;
     UI.clearSkeleton("works");
     updateWorkName();
     addSystem("❌ 项目列表加载失败：" + e.message, true);
     return;
   }
+  if (generation !== loadGeneration) return;
   state.works = works;
   const stored = state.workId;
   const found = works.find((w) => w.work_id === stored);

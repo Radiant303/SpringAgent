@@ -68,8 +68,9 @@ class UserRow(Base):
     quota_bytes: Mapped[int] = mapped_column(
         _BigInt, nullable=False, default=DEFAULT_QUOTA_BYTES,
     )
-    # 上传文件字节数的实时计数
     used_bytes: Mapped[int] = mapped_column(_BigInt, nullable=False, default=0)
+    knowledge_bytes: Mapped[int] = mapped_column(_BigInt, nullable=False, default=0)
+    storage_initialized: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     # 角色：owner（站长）/ admin（管理员）/ user（用户）
     role: Mapped[str] = mapped_column(String(16), nullable=False, default="user")
     # 账号状态：active / disabled
@@ -93,6 +94,7 @@ class WorkRow(Base):
     user_id: Mapped[int] = mapped_column(_BigInt, ForeignKey("users.id"), nullable=False)
     name: Mapped[str] = mapped_column(String(128), nullable=False)
     size_bytes: Mapped[int] = mapped_column(_BigInt, nullable=False, default=0)
+    internal_bytes: Mapped[int] = mapped_column(_BigInt, nullable=False, default=0)
     is_default: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     created_at: Mapped[datetime.datetime] = mapped_column(
         MicrosecondDateTime, nullable=False, default=utc_now,

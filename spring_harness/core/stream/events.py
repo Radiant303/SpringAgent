@@ -68,6 +68,10 @@ class TeachingUpdated(BaseModel):
     kind: Literal["teaching_updated"] = "teaching_updated"
     unit: dict
 
+class StorageUpdated(BaseModel):
+    kind: Literal["storage_updated"] = "storage_updated"
+
+
 class CompactionNotice(BaseModel):
     kind: Literal["compaction"] = "compaction"
     dropped: int; before: int; after: int
@@ -96,4 +100,4 @@ class QuestionRequest(BaseModel):
     allow_custom: bool = True
 
 
-ServerEvent = TextDelta | ThinkingDelta | ToolCallStarted | ToolArgsDelta | ToolDiff | ToolPending | ToolFinished | UsageUpdated | PlanUpdated | TeachingUpdated | CompactionNotice | TurnFinished | ApprovalRequest | QuestionRequest
+ServerEvent = TextDelta | ThinkingDelta | ToolCallStarted | ToolArgsDelta | ToolDiff | ToolPending | ToolFinished | UsageUpdated | PlanUpdated | TeachingUpdated | StorageUpdated | CompactionNotice | TurnFinished | ApprovalRequest | QuestionRequest

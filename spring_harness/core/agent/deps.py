@@ -1,3 +1,4 @@
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -23,6 +24,7 @@ class CodingAgentDeps:
     user_id: int | None = None
     file_access: FileAccessContext | None = None
     storage_guard: StorageGuard | None = None
+    storage_on_change: Callable[[], Awaitable[None]] | None = None
     last_messages: list[ModelMessage] = field(default_factory=list)
     usage_log: list[RequestUsageEntry] = field(default_factory=list)
 

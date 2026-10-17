@@ -237,6 +237,11 @@ export function bindAccountMenu() {
 /* ================= 事件绑定 ================= */
 
 export function bind() {
+  window.addEventListener("storage-changed", () => {
+    if (!state.connected) return;
+    loadWorks();
+    refreshPoints();
+  });
   if ($("reconnect-btn")) $("reconnect-btn").onclick = async () => {
     const button = $("reconnect-btn");
     if (button.disabled) return;

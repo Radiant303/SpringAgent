@@ -15,6 +15,7 @@ from pydantic import BaseModel, Field
 from pydantic_ai.toolsets import FunctionToolset
 
 from spring_harness.core.config.settings import STATE_DIR
+from spring_harness.core.storage_notifications import pending_notifications
 
 TEACHING_DB = "teaching.db"
 TEACHING_DIR = "teaching"
@@ -176,21 +177,20 @@ class TeachingStore:
         self._database = str(self._data_dir / TEACHING_DB)
         self._on_change = on_change
         self._lock = threading.Lock()
-        self._ready = False
 
     def set_on_change(self, on_change: OnTeachingChange | None) -> None:
         self._on_change = on_change
 
-    def _connect(self) -> sqlite3.Connection:
-        connection = sqlite3.connect(self._database)
-        if not self._ready:
+    def _connect(self, *, initialize: bool = False) -> sqlite3.Connection:
+        connection = sqlite3.connect(self._database if initialize else Path(self._database).as_uri() + "?mode=ro",
+                                     uri=not initialize)
+        if initialize:
             connection.execute(
                 "CREATE TABLE IF NOT EXISTS teaching_units ("
                 "id TEXT PRIMARY KEY, slug TEXT NOT NULL, status TEXT NOT NULL, "
                 "data TEXT NOT NULL, updated_at TEXT NOT NULL)"
             )
             connection.commit()
-            self._ready = True
         return connection
 
     # ---- 同步层（锁内执行）----
@@ -198,7 +198,7 @@ class TeachingStore:
     def _save_sync(self, unit: TeachingUnit) -> None:
         data = unit.model_dump_json()
         with self._lock:
-            connection = self._connect()
+            connection = self._connect(initialize=True)
             try:
                 connection.execute(
                     "INSERT INTO teaching_units (id, slug, status, data, updated_at) VALUES (?, ?, ?, ?, ?) "
@@ -214,46 +214,30 @@ class TeachingStore:
     def _row_to_unit(self, row: tuple) -> TeachingUnit:
         return TeachingUnit.model_validate_json(str(row[0]))
 
-    def _get_active_sync(self) -> TeachingUnit | None:
+    def _read_units(self, query: str, parameters: tuple = ()) -> list[TeachingUnit]:
         with self._lock:
+            if not Path(self._database).exists():
+                return []
             connection = self._connect()
             try:
-                row = connection.execute(
-                    "SELECT data FROM teaching_units WHERE status = ? ORDER BY updated_at DESC LIMIT 1",
-                    (UnitStatus.active.value,),
-                ).fetchone()
+                rows = connection.execute(query, parameters).fetchall()
             finally:
                 connection.close()
-        if row is None:
-            return None
-        return self._row_to_unit(row)
+        return [self._row_to_unit(row) for row in rows]
+
+    def _get_active_sync(self) -> TeachingUnit | None:
+        units = self._read_units(
+            "SELECT data FROM teaching_units WHERE status = ? ORDER BY updated_at DESC LIMIT 1",
+            (UnitStatus.active.value,),
+        )
+        return units[0] if units else None
 
     def _get_unit_sync(self, unit_id: str) -> TeachingUnit | None:
-        with self._lock:
-            connection = self._connect()
-            try:
-                row = connection.execute(
-                    "SELECT data FROM teaching_units WHERE id = ?", (unit_id,)
-                ).fetchone()
-            finally:
-                connection.close()
-        if row is None:
-            return None
-        return self._row_to_unit(row)
+        units = self._read_units("SELECT data FROM teaching_units WHERE id = ?", (unit_id,))
+        return units[0] if units else None
 
     def _list_units_sync(self) -> list[TeachingUnit]:
-        with self._lock:
-            connection = self._connect()
-            try:
-                rows = connection.execute(
-                    "SELECT data FROM teaching_units ORDER BY rowid"
-                ).fetchall()
-            finally:
-                connection.close()
-        units = []
-        for row in rows:
-            units.append(self._row_to_unit(row))
-        return units
+        return self._read_units("SELECT data FROM teaching_units ORDER BY rowid")
 
     # ---- 镜像：teaching/<slug>/spec.yaml + record.yaml ----
 
@@ -343,9 +327,18 @@ class TeachingStore:
     async def _notify(self, unit: TeachingUnit) -> None:
         if self._on_change is None:
             return
-        result = self._on_change(unit)
-        if inspect.isawaitable(result):
-            await result
+        callback = self._on_change
+
+        async def notify() -> None:
+            result = callback(unit)
+            if inspect.isawaitable(result):
+                await result
+
+        deferred = pending_notifications.get()
+        if deferred is not None:
+            deferred.append(notify)
+        else:
+            await notify()
 
 
 # ---- store 注册表：工具集与动态指令共享同一实例 ----

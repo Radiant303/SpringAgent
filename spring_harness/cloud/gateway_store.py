@@ -12,7 +12,6 @@
 - POST /internal/sessions/{id}/delete             软删除（404 → False）
 - GET  /internal/works/{workId}                   work 详情（含派生 workspacePath 与生效上限 workMaxBytes）
 - POST /internal/works/default                    ensure-default（幂等，返回默认 work）
-- POST /internal/works/{workId}/size              上报 work 目录占用字节数
 """
 
 from __future__ import annotations
@@ -281,16 +280,3 @@ def ensure_default_work(user_id: int) -> GatewayWorkRow:
     response = _get_client().post("/internal/works/default", json={"userId": user_id})
     response.raise_for_status()
     return GatewayWorkRow.from_payload(response.json())
-
-
-def report_work_size(work_id: str, size_bytes: int) -> None:
-    """上报 work 目录占用字节数；失败只记日志，不影响主流程。"""
-    try:
-        response = _get_client().post(
-            f"/internal/works/{work_id}/size", json={"sizeBytes": size_bytes},
-        )
-        response.raise_for_status()
-    except Exception:  # noqa: BLE001 上报失败不影响主流程
-        from spring_harness.core.log import logger
-
-        logger.exception("work 大小上报失败: work={}", work_id)

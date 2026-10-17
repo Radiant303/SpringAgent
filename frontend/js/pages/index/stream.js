@@ -45,6 +45,7 @@ import {
 } from "./chatView.js";
 import { updateInputState } from "./input.js";
 import { refreshSessionList } from "./sessions.js";
+import { notifyStorageChanged } from "../../utils/storage.js";
 
 export const USAGE_RING_LEN = 56.5;
 
@@ -144,6 +145,11 @@ export function onSessionEvent(sid, event, seq) {
     if (last && !seqAfter(seq, last)) return;
     state.lastSeq[sid] = seq;
   }
+  if (event.kind === "storage_updated") {
+    notifyStorageChanged();
+    return;
+  }
+  if (event.kind === "turn_finished") notifyStorageChanged();
   if (sid !== state.sessionId || !state.sessionReady) {
     if (event.kind === "turn_finished") {
       releaseBusy(sid);
@@ -248,6 +254,9 @@ export function onSessionEvent(sid, event, seq) {
         card.result.textContent = event.result;
         card.result.classList.remove("hidden");
         card.result.classList.toggle("error", !!event.is_error);
+        if (["write_file", "edit_file", "delete_path", "create_directory"].includes(card.name)) {
+          notifyStorageChanged();
+        }
         if (card.name === "read_file" && !event.is_error) {
           applyReadMeta(card, event.result);
           const read = parseReadResult(event.result);
@@ -304,6 +313,7 @@ export function finishTurn(event) {
   else if (event.error) addSystem("❌ 运行出错：" + event.error, true);
   releaseBusy(state.sessionId);
   updateInputState();
+  notifyStorageChanged();
   setTimeout(refreshPoints, 1500);
   refreshSessionList();
 }

@@ -44,6 +44,7 @@ public class StorageReconcileTask {
     private final WorkMapper workMapper;
     private final StorageServiceSelector storageSelector;
     private final PlatformTransactionManager transactionManager;
+    private final UserStorageService userStorageService;
 
     /** 孤儿对象的保留时长，单位毫秒。 */
     @org.springframework.beans.factory.annotation.Value("${app.storage.orphan-grace-ms:3600000}")
@@ -72,25 +73,9 @@ public class StorageReconcileTask {
 
     int reconcileUser(Long userId) {
         return new TransactionTemplate(transactionManager).execute(status -> {
-            if (userMapper.selectForUpdate(userId) == null) {
-                return 0;
-            }
-            ObjectStorageService local = storageSelector.get(StorageTypes.LOCAL);
-            List<FileRecord> rows = fileRecordMapper.selectList(new LambdaQueryWrapper<FileRecord>()
-                    .eq(FileRecord::getUserId, userId).last("FOR UPDATE"));
-            int dropped = 0;
-            long used = 0L;
-            for (FileRecord row : rows) {
-                boolean missing = StorageTypes.LOCAL.equals(row.getStorageType())
-                        && local.localPath(row.getPath()).map(path -> Files.notExists(path)).orElse(false);
-                if (missing) {
-                    dropped += fileRecordMapper.deleteById(row.getId());
-                } else {
-                    used += row.getSizeBytes();
-                }
-            }
-            userMapper.updateUsedBytes(userId, used);
-            return dropped;
+            User user = userMapper.selectForUpdate(userId);
+            if (user == null) return 0;
+            return userStorageService.reconcileLocked(user);
         });
     }
 
@@ -184,7 +169,11 @@ public class StorageReconcileTask {
             if (row != null) {
                 return false;
             }
-            storage.delete(key);
+            if (work != null && StorageTypes.LOCAL.equals(type)) {
+                userStorageService.removeLocalLocked(work.getUserId(), workId, key, storage);
+            } else {
+                storage.delete(key);
+            }
             return true;
         }));
     }

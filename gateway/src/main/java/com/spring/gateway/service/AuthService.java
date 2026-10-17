@@ -1,6 +1,7 @@
 package com.spring.gateway.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.spring.gateway.common.BizException;
 import com.spring.gateway.common.JwtUtils;
 import com.spring.gateway.common.SnowflakeIdGenerator;
@@ -164,8 +165,9 @@ public class AuthService {
             throw new BizException(400, "该邮箱未注册");
         }
         mailCodeService.verifyCode(email, req.code(), MailCodeService.Scene.RESET);
-        user.setPasswordHash(passwordEncoder.encode(req.newPassword()));
-        userMapper.updateById(user);
+        userMapper.update(null, new LambdaUpdateWrapper<User>()
+                .eq(User::getId, user.getId())
+                .set(User::getPasswordHash, passwordEncoder.encode(req.newPassword())));
     }
 
     /**
@@ -214,9 +216,9 @@ public class AuthService {
         if (used) {
             throw new BizException(409, "该邮箱已被其他账号绑定");
         }
-        user.setEmail(normalized);
         try {
-            userMapper.updateById(user);
+            userMapper.update(null, new LambdaUpdateWrapper<User>()
+                    .eq(User::getId, userId).set(User::getEmail, normalized));
         } catch (DuplicateKeyException e) {
             throw new BizException(409, "该邮箱已被其他账号绑定");
         }
@@ -268,7 +270,8 @@ public class AuthService {
                 throw new BizException(400, "旧密码错误");
             }
         }
-        user.setPasswordHash(passwordEncoder.encode(req.newPassword()));
-        userMapper.updateById(user);
+        userMapper.update(null, new LambdaUpdateWrapper<User>()
+                .eq(User::getId, user.getId())
+                .set(User::getPasswordHash, passwordEncoder.encode(req.newPassword())));
     }
 }

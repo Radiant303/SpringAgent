@@ -1,6 +1,5 @@
 """文件工作区资源与存储准入协议。"""
 
-from collections.abc import Callable
 from contextlib import AbstractContextManager
 from dataclasses import dataclass
 from enum import StrEnum
@@ -68,6 +67,18 @@ class FileAccessContext:
         return WorkspaceResource(scope, self.workspace_root)
 
 
+class StorageChange(Protocol):
+    """文件变更的计量事务。
+
+    @author hanbing
+    @since 2026-10-17
+    """
+
+    def check_growth(self, growth: int) -> None: ...
+    def prepare(self) -> None: ...
+    def record(self, path: str, old_size: int, new_size: int | None) -> None: ...
+
+
 class StorageGuard(Protocol):
     """文件变更的存储准入协议。
 
@@ -75,4 +86,5 @@ class StorageGuard(Protocol):
     @since 2026-10-17
     """
 
-    def change(self, resource: WorkspaceResource) -> AbstractContextManager[Callable[[int], None]]: ...
+    def change(self, resource: WorkspaceResource) -> AbstractContextManager[StorageChange]: ...
+    def internal_change(self, paths: tuple[str, ...]) -> AbstractContextManager[None]: ...

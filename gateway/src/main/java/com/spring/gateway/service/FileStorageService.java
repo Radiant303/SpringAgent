@@ -12,6 +12,7 @@ import com.spring.gateway.mapper.SessionMapper;
 import com.spring.gateway.mapper.UserMapper;
 import com.spring.gateway.mapper.WorkMapper;
 import com.spring.gateway.service.storage.ObjectStorageService;
+import com.spring.gateway.service.storage.StorageException;
 import com.spring.gateway.service.storage.StorageKeys;
 import com.spring.gateway.service.storage.StorageServiceSelector;
 import lombok.RequiredArgsConstructor;
@@ -22,7 +23,10 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
+import java.io.IOException;
 import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
@@ -86,12 +90,14 @@ public class FileStorageService {
         if (work == null || !userId.equals(work.getUserId())) {
             throw new BizException(404, "项目不存在");
         }
-        precheckQuota(user, work.getId(), size);
+        UserStorageService.Snapshot baseline = userStorageService.snapshot(user);
+        precheckQuota(user, baseline, work.getId(), size);
         String ext = sanitizeExt(originalFilename);
         long fileId = idGenerator.nextId();
         String key = StorageKeys.imageKey(work.getId(), sessionId, String.valueOf(fileId), ext);
         String storageType = systemSettingService.getStorageType();
         ObjectStorageService storage = storageSelector.get(storageType);
+        userStorageService.beginChange(userId);
         String storedKey;
         try {
             storedKey = storage.upload(content, size, key, sanitizeMime(mimeType));
@@ -103,10 +109,27 @@ public class FileStorageService {
             @Override
             public void afterCompletion(int status) {
                 if (status == STATUS_ROLLED_BACK) {
-                    deleteQuietly(storage, storedKey);
+                    try {
+                        userStorageService.cleanupUpload(userId, work.getId(), storedKey, storage);
+                    } catch (RuntimeException e) {
+                        log.warn("上传回滚清理失败", e);
+                    }
                 }
             }
         });
+        long storedSize = size;
+        Path local = storage.localPath(storedKey).orElse(null);
+        if (local != null) {
+            try {
+                storedSize = Files.size(local);
+            } catch (IOException e) {
+                throw new StorageException("上传文件大小读取失败", e);
+            }
+            if (storedSize <= 0 || storedSize > MAX_FILE_BYTES) {
+                throw new BizException(400, "上传文件实际大小无效");
+            }
+            precheckQuota(user, baseline, work.getId(), storedSize);
+        }
 
         FileRecord row = new FileRecord();
         row.setId(fileId);
@@ -114,13 +137,11 @@ public class FileStorageService {
         row.setSessionId(sessionId);
         row.setStorageType(storageType);
         row.setPath(storedKey);
-        row.setSizeBytes(size);
+        row.setSizeBytes(storedSize);
         row.setMimeType(sanitizeMime(mimeType));
         row.setCreatedAt(LocalDateTime.now(ZoneOffset.UTC));
         fileRecordMapper.insert(row);
-        if (userMapper.addUsedBytesIfUnderQuota(userId, size) == 0) {
-            throw new BizException(409, "存储配额不足，上传被拒绝");
-        }
+        userStorageService.addWorkBytes(userId, work.getId(), storedSize);
         return row;
     }
 
@@ -148,14 +169,18 @@ public class FileStorageService {
      */
     @Transactional
     public void delete(Long userId, long fileId) {
-        userMapper.selectForUpdate(userId);
+        User user = userMapper.selectForUpdate(userId);
+        if (user == null) throw new BizException(404, "用户不存在");
+        userStorageService.ensureCurrent(user);
         FileRecord row = fileRecordMapper.selectOne(new LambdaQueryWrapper<FileRecord>()
                 .eq(FileRecord::getId, fileId).last("FOR UPDATE"));
         if (row == null || !userId.equals(row.getUserId())
                 || fileRecordMapper.deleteById(row.getId()) == 0) {
             throw new BizException(404, "文件不存在");
         }
-        userMapper.subtractUsedBytes(userId, row.getSizeBytes());
+        if (!"local".equals(row.getStorageType())) {
+            userStorageService.addWorkBytes(userId, row.getPath().split("/", 3)[1], -row.getSizeBytes());
+        }
         deleteAfterCommit(row);
     }
 
@@ -170,7 +195,9 @@ public class FileStorageService {
         if (work == null) {
             return;
         }
-        userMapper.selectForUpdate(work.getUserId());
+        User user = userMapper.selectForUpdate(work.getUserId());
+        if (user == null) return;
+        userStorageService.ensureCurrent(user);
         if (workMapper.selectForUpdate(workId) == null) {
             return;
         }
@@ -185,18 +212,23 @@ public class FileStorageService {
                 .in(FileRecord::getSessionId, sessionIds).last("FOR UPDATE"));
         for (FileRecord row : rows) {
             if (fileRecordMapper.deleteById(row.getId()) > 0) {
-                userMapper.subtractUsedBytes(row.getUserId(), row.getSizeBytes());
+                if (!"local".equals(row.getStorageType())) {
+                    userStorageService.addWorkBytes(row.getUserId(), workId, -row.getSizeBytes());
+                }
                 deleteAfterCommit(row);
             }
         }
     }
 
     private void deleteAfterCommit(FileRecord row) {
+        Path marker = "local".equals(row.getStorageType())
+                ? userStorageService.beginDeferredChange(row.getUserId()) : null;
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
             @Override
             public void afterCommit() {
                 try {
-                    storageSelector.get(row.getStorageType()).delete(row.getPath());
+                    ObjectStorageService storage = storageSelector.get(row.getStorageType());
+                    userStorageService.cleanupUpload(row.getUserId(), row.getPath().split("/", 3)[1], row.getPath(), storage, marker);
                 } catch (RuntimeException e) {
                     log.warn("文件删除失败，留孤儿待对账: key={}", row.getPath(), e);
                 }
@@ -209,9 +241,8 @@ public class FileStorageService {
         return storageSelector.get(systemSettingService.getStorageType());
     }
 
-    private void precheckQuota(User user, String workId, long size) {
+    private void precheckQuota(User user, UserStorageService.Snapshot snapshot, String workId, long size) {
         long quota = user.getQuotaBytes() == null ? 0L : user.getQuotaBytes();
-        UserStorageService.Snapshot snapshot = userStorageService.snapshot(user);
         long workUsed = snapshot.workBytes(workId);
         if (snapshot.usedBytes() > quota - size) {
             throw new BizException(409, "存储空间不足：上传后将超出配额，请先清理文件");

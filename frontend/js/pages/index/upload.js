@@ -16,6 +16,7 @@ import { editorEl, insertNodeAtCaret, insertPlainText, markKeepOnRemove,
          skipServerDelete, syncPlaceholder } from "./editor.js";
 import { subscribeStream, refreshSessionList } from "./sessions.js";
 import { updateInputState, applyModelSelection } from "./input.js";
+import { notifyStorageChanged } from "../../utils/storage.js";
 
 /* 待发送附件登记：fileId → {name, url}（chip DOM 之外的备份，供删除失败重建） */
 const pendingAtts = new Map();
@@ -57,6 +58,7 @@ export async function deleteAttachment(fileId, node = null) {
     return;
   }
   pendingAtts.delete(fileId);
+  notifyStorageChanged();
   if (node) {
     markKeepOnRemove(fileId);
     node.remove();
@@ -116,6 +118,7 @@ export async function uploadFiles(files) {
     }
     const uploaded = (payload.data && payload.data.uploaded) || [];
     const failed = (payload.data && payload.data.failed) || [];
+    if (uploaded.length) notifyStorageChanged();
     if (state.workId !== workId || state.sessionId !== sessionId) {
       for (const item of uploaded) {
         await api(`/api/files/${item.id}`, { method: "DELETE" }).catch(() => {});

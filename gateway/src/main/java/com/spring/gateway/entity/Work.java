@@ -27,8 +27,10 @@ public class Work {
     /** 项目名。 */
     private String name;
 
-    /** 目录当前占用字节数，引擎每轮结束上报、网关列表时重算。 */
+    /** 项目文件及远程上传的占用字节数。 */
     private Long sizeBytes;
+
+    private Long internalBytes;
 
     /** 是否该用户的默认项目，每用户至多一个。 */
     private Boolean isDefault;

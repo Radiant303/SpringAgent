@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.spring.gateway.entity.User;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
+import org.apache.ibatis.annotations.Options;
 import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
 
@@ -24,6 +25,7 @@ public interface UserMapper extends BaseMapper<User> {
      * @param id 用户 ID
      * @return 当前积分余额
      */
+    @Options(useCache = false, flushCache = Options.FlushCachePolicy.TRUE)
     @Select("SELECT points_balance FROM users WHERE id = #{id} FOR UPDATE")
     BigDecimal selectBalanceForUpdate(@Param("id") Long id);
 
@@ -70,33 +72,12 @@ public interface UserMapper extends BaseMapper<User> {
      * @param id 用户 ID
      * @return 用户行，不存在时为 null
      */
+    @Options(useCache = false, flushCache = Options.FlushCachePolicy.TRUE)
     @Select("SELECT * FROM users WHERE id = #{id} FOR UPDATE")
     User selectForUpdate(@Param("id") Long id);
 
     /**
-     * 增加上传占用，超额时不更新。
-     *
-     * @param id 用户 ID
-     * @param delta 增量字节数，非负
-     * @return 受影响行数；0 表示用户不存在或超额
-     */
-    @Update("UPDATE users SET used_bytes = used_bytes + #{delta} WHERE id = #{id}"
-            + " AND #{delta} >= 0 AND used_bytes <= quota_bytes - #{delta}")
-    int addUsedBytesIfUnderQuota(@Param("id") Long id, @Param("delta") long delta);
-
-    /**
-     * 扣减上传占用，最低为零。
-     *
-     * @param id 用户 ID
-     * @param delta 扣减字节数，非负
-     * @return 受影响行数
-     */
-    @Update("UPDATE users SET used_bytes = GREATEST(used_bytes - #{delta}, 0)"
-            + " WHERE id = #{id} AND #{delta} >= 0")
-    int subtractUsedBytes(@Param("id") Long id, @Param("delta") long delta);
-
-    /**
-     * 写入用户上传占用。
+     * 写入用户存储总占用。
      *
      * @param id 用户 ID
      * @param bytes 占用字节数
@@ -104,4 +85,9 @@ public interface UserMapper extends BaseMapper<User> {
      */
     @Update("UPDATE users SET used_bytes = #{bytes} WHERE id = #{id}")
     int updateUsedBytes(@Param("id") Long id, @Param("bytes") long bytes);
+
+    @Update("UPDATE users SET used_bytes = #{total}, knowledge_bytes = #{knowledge},"
+            + " storage_initialized = #{initialized} WHERE id = #{id}")
+    int updateStorage(@Param("id") Long id, @Param("total") long total,
+                      @Param("knowledge") long knowledge, @Param("initialized") boolean initialized);
 }

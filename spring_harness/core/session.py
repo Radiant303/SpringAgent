@@ -30,6 +30,7 @@ from spring_harness.core.stream.events import (
     ModelUsage,
     PlanUpdated,
     ServerEvent,
+    StorageUpdated,
     TeachingUpdated,
     TurnFinished,
     TurnUsage,
@@ -121,6 +122,7 @@ class HarnessSession:
         self._history_loaded = False
         self._history_lock = asyncio.Lock()
         self._queue: asyncio.Queue[ServerEvent] = asyncio.Queue()
+        self._deps.storage_on_change = lambda: self._emit(StorageUpdated())
         self._requests = PendingRequests(self._emit)
         self._cancel_token: CancellationToken | None = None
         self._busy = False

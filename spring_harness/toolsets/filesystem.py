@@ -46,9 +46,12 @@ def filesystem(root_dir: str, read_only: bool = False, *, access: FileAccessCont
 
     async def change(ctx: RunContext[CodingAgentDeps], scope: FileScope, name: str, path: str, **args: Any):
         files = selected(ctx, scope)
-        return await run_file_operation(lambda cancelled: files.change(
+        result = await run_file_operation(lambda cancelled: files.change(
             name, path, args, ctx.deps.storage_guard, cancelled,
         ))
+        if ctx.deps.storage_on_change is not None:
+            await ctx.deps.storage_on_change()
+        return result
 
     @_recoverable
     async def read_file(ctx: RunContext[CodingAgentDeps], path: str, *, offset: int = 0,
