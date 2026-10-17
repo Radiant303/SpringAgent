@@ -108,6 +108,13 @@ class HarnessSession:
         self._injected_agent = agent is not None
         self._agent = agent
         self._deps = deps or CodingAgentDeps.create_default(self.workspace)
+        self._user_id = self._deps.user_id
+        self._file_access = self._deps.file_access
+        if self._user_id is not None and (
+            type(self._user_id) is not int or self._user_id <= 0 or self._file_access is None
+            or self._file_access.user_id != self._user_id or self._file_access.workspace_root != self.workspace
+        ):
+            raise ValueError("会话文件资源与用户身份绑定无效")
         self._deps.model_id = model_name or "__default__"
         self._billing_service = billing_service
         self._history: list[ModelMessage] = []
@@ -133,6 +140,10 @@ class HarnessSession:
         turn_id: str | None = None,
         user_id: int | None = None,
     ) -> None:
+        if user_id != self._user_id or self._deps.user_id != self._user_id \
+                or self._deps.file_access != self._file_access \
+                or (user_id is not None and type(user_id) is not int):
+            raise ValueError("会话用户身份不匹配")
         if self._closed:
             raise RuntimeError("会话已关闭")
         if self._busy:
@@ -312,13 +323,16 @@ class HarnessSession:
 
     def _build_agent(self, create_agent: Any) -> Agent[Any, Any]:
         selection = self.model_selection
-        self._deps.model_id = selection["model"]
+        model_id = selection["model"]
+        assert model_id is not None
+        self._deps.model_id = model_id
         return create_agent(
             self.workspace,
-            model_name=selection["model"],
+            model_name=model_id,
             effort=selection["effort"],
             session_id=self.session_id,
             page_id=self.page_id,
+            file_access=self._file_access,
             plan_on_change=lambda items: self._emit(
                 PlanUpdated(items=[i.model_dump() for i in items])),
             teach_on_change=lambda unit: self._emit(

@@ -78,7 +78,10 @@ class AppServer:
         if session.busy:
             raise JsonRpcError(BUSY, "运行中不能切换模型或思考挡位")
         try:
-            session.set_model(model or session.model_selection["model"], effort)
+            selected_model = model or session.model_selection["model"]
+            if selected_model is None:
+                raise ValueError("请选择启用的模型")
+            session.set_model(selected_model, effort)
         except ValueError as e:
             raise JsonRpcError(INVALID_PARAMS, str(e)) from e
 

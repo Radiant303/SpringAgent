@@ -4,6 +4,7 @@ from pathlib import Path
 from pydantic_ai import ModelMessage, RequestUsage
 
 from spring_harness.core.billing import BillingContext
+from spring_harness.core.workspace import FileAccessContext, StorageGuard
 
 
 @dataclass
@@ -19,6 +20,9 @@ class CodingAgentDeps:
     workspace: Path
     model_id: str = "__default__"
     billing: BillingContext | None = None
+    user_id: int | None = None
+    file_access: FileAccessContext | None = None
+    storage_guard: StorageGuard | None = None
     last_messages: list[ModelMessage] = field(default_factory=list)
     usage_log: list[RequestUsageEntry] = field(default_factory=list)
 

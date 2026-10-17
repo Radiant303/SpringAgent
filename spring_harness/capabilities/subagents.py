@@ -6,6 +6,7 @@ from pydantic_ai.models import Model
 from pydantic_ai_harness.subagents import SubAgent, SubAgents
 from spring_harness.capabilities.research import researcher
 from spring_harness.core.agent.deps import CodingAgentDeps
+from spring_harness.core.workspace import FileAccessContext
 from spring_harness.core.config.model import get_model, get_model_config, setting
 from spring_harness.core.config.thinking import thinking_capability
 from spring_harness.core.hooks.model import request_hooks
@@ -51,7 +52,8 @@ def searcher(parent_model_id: str, effort: str | None = None) -> SubAgent[Coding
     )
 
 
-def reviewer(root_dir: str, parent_model_id: str, effort: str | None = None) -> SubAgent[CodingAgentDeps]:
+def reviewer(root_dir: str, parent_model_id: str, effort: str | None = None,
+             file_access: FileAccessContext | None = None) -> SubAgent[CodingAgentDeps]:
     """代码审查子代理。"""
     model, model_id = _resolve_model('reviewer')
     return SubAgent[CodingAgentDeps](
@@ -68,7 +70,7 @@ def reviewer(root_dir: str, parent_model_id: str, effort: str | None = None) -> 
             deps_type=CodingAgentDeps,
             capabilities=[_thinking(model_id, parent_model_id, effort),
                           request_hooks(model_id or parent_model_id, agent_name="reviewer")],
-            toolsets=[filesystem(root_dir, read_only=True)],
+            toolsets=[filesystem(root_dir, read_only=True, access=file_access)],
         ),
         timeout_seconds=3600,
         max_calls=3,
@@ -103,7 +105,8 @@ class _ProjectSubAgents(SubAgents[CodingAgentDeps]):
         return toolset
 
 
-def subagents(root_dir: str, parent_model_id: str, effort: str | None = None) -> SubAgents[CodingAgentDeps]:
+def subagents(root_dir: str, parent_model_id: str, effort: str | None = None,
+              file_access: FileAccessContext | None = None) -> SubAgents[CodingAgentDeps]:
     return _ProjectSubAgents(
-        agents=[searcher(parent_model_id, effort), reviewer(root_dir, parent_model_id, effort)]
+        agents=[searcher(parent_model_id, effort), reviewer(root_dir, parent_model_id, effort, file_access)]
     )

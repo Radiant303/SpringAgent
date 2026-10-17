@@ -132,6 +132,8 @@ class CloudAppServer(AppServer):
     def _adopt(self, handle: CloudSessionHandle, model: str | None, effort: str | None = None,
                *, takeover: bool = False) -> None:
         self._check_connection()
+        if handle.user_id != self._user_id:
+            raise JsonRpcError(SESSION_NOT_FOUND, "未知会话")
         session_id = handle.session_id
         owner = self._active_owners.get(session_id)
         if owner is not None and owner is not self:
@@ -191,8 +193,7 @@ class CloudAppServer(AppServer):
         registry = get_registry()
         assert registry is not None
         handle = await registry.get_or_create(
-            session_id, workspace=Path(work.workspace_path), store=store, work_id=work.work_id,
-            page_id=work.page_id,
+            session_id, store=store, access=work.file_access(self._user_id), page_id=work.page_id,
         )
         self._adopt(handle, p.model, p.effort)
         return self._cloud_result(handle)
@@ -225,15 +226,19 @@ class CloudAppServer(AppServer):
         self._check_connection()
         registry = get_registry()
         assert registry is not None
+        work = await asyncio.to_thread(gateway_store.get_work, row.work_id)
+        if work is None or work.user_id != self._user_id or Path(work.workspace_path) != Path(row.workspace_path):
+            raise JsonRpcError(SESSION_NOT_FOUND, f"未知会话: {p.session_id}")
+        access = work.file_access(self._user_id)
         handle = registry.get(p.session_id)
+        if handle is not None and handle.file_access != access:
+            raise JsonRpcError(SESSION_NOT_FOUND, f"未知会话: {p.session_id}")
         if handle is None:
             store = await asyncio.to_thread(GatewaySessionStore.open, p.session_id)
             if store is None:
                 raise JsonRpcError(SESSION_NOT_FOUND, f"未知会话: {p.session_id}")
-            work = await asyncio.to_thread(gateway_store.get_work, row.work_id)
             handle = await registry.get_or_create(
-                p.session_id, workspace=Path(row.workspace_path), store=store, work_id=row.work_id,
-                page_id=work.page_id if work is not None else None,
+                p.session_id, store=store, access=access, page_id=work.page_id,
             )
         self._adopt(handle, p.model, p.effort, takeover=p.takeover)
         return self._cloud_result(handle)
@@ -311,6 +316,7 @@ async def ws_endpoint(websocket: WebSocket) -> None:
 
     trusted = secrets.compare_digest(websocket.headers.get("x-internal-token", ""), config.cloud.internal_token)
     connection_id = websocket.headers.get("x-connection-id") if trusted else None
+    assert user_id is not None
     connection = JsonRpcConnection(read_line, write_line)
     server = CloudAppServer(
         connection, user_id=user_id, data_root=Path(config.cloud.data_root).expanduser(),

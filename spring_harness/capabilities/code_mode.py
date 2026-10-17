@@ -17,8 +17,6 @@ READ_ONLY_TOOLS = (
     "search_files",
     "find_files",
     "file_info",
-    "read_knowledge",
-    "read_index_knowledge",
     "current_session",
 )
 SANDBOX_ALIASES = {f"batch_{name}": name for name in READ_ONLY_TOOLS}
@@ -63,7 +61,7 @@ def _prepare_description(
         "批量调用下列 batch_ 只读工具并整理结果。"
         "使用关键字参数调用，异步函数通过 await 获取结果；"
         "独立调用可用 await asyncio.gather(...) 组合，按位置传入各个调用。"
-        "工具路径相对于项目工作区，片段末尾的表达式作为返回值。"
+        "文件工具的 scope 选择 workspace 项目空间或 knowledge 个人知识空间，path 相对于所选空间。片段末尾的表达式作为返回值。"
         "片段间保留中间状态，restart=true 开始新的编排。"
         "可按名称导入 asyncio、json、re、math、typing、sys、unicodedata、datetime、os、pathlib。"
         "Path 使用虚拟绝对路径：/work 为本次调用的临时视图，/scratch 保存跨调用中间文件。"

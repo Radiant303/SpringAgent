@@ -6,10 +6,13 @@ import asyncio
 import json
 from typing import TYPE_CHECKING
 
-from spring_harness.cloud import quota
+from spring_harness.cloud.storage import CloudStorageGuard
+from spring_harness.core.filesystem import check_path, directory_size_bytes
+from spring_harness.core.workspace import FileAccessContext
+from spring_harness.core.agent.deps import CodingAgentDeps
 from spring_harness.core.log import logger
 from spring_harness.core.rpc.connection import JsonRpcError
-from spring_harness.core.rpc.server import BUSY, AppServer
+from spring_harness.core.rpc.server import BUSY, SESSION_NOT_FOUND, AppServer
 from spring_harness.core.session import HarnessSession
 from spring_harness.core.stream.events import (
     ApprovalRequest,
@@ -51,10 +54,12 @@ class CloudSessionHandle:
     """一个云端会话的运行时：会话本体 + 事件扇出 + 审批路由。"""
 
     def __init__(
-        self, session: HarnessSession, redis: aioredis.Redis | None, *, work_id: str = "",
+        self, session: HarnessSession, redis: aioredis.Redis | None, *, access: FileAccessContext,
     ) -> None:
         self.session = session
-        self.work_id = work_id
+        self.file_access = access
+        self.work_id = access.work_id
+        self.user_id = access.user_id
         self._redis = redis
         self._approval_target: AppServer | None = None
         self._parked_requests: list[ApprovalRequest | QuestionRequest] = []
@@ -64,8 +69,6 @@ class CloudSessionHandle:
         # 最近见到该会话的用户 ID：lifecycle 事件归属的兜底
         self._last_user_id: int | None = None
         self._fanout_task = self._track(asyncio.create_task(self._fanout_loop()))
-        if work_id:
-            quota.register_workspace(session.workspace, work_id)
 
     @property
     def session_id(self) -> str:
@@ -87,9 +90,10 @@ class CloudSessionHandle:
                 self._track(asyncio.create_task(self._route_request(event)))
 
     def remember_user(self, user_id: int | None) -> None:
-        """记下该会话的用户 ID（挂载/派发时调用），供 lifecycle 兜底。"""
-        if user_id is not None:
-            self._last_user_id = user_id
+        """校验会话所属用户。"""
+        if type(user_id) is not int or user_id != self.user_id:
+            raise JsonRpcError(SESSION_NOT_FOUND, "未知会话")
+        self._last_user_id = self.user_id
 
     @property
     def busy(self) -> bool:
@@ -100,9 +104,9 @@ class CloudSessionHandle:
     ) -> None:
         if self.busy:
             raise JsonRpcError(BUSY, "上一轮还没结束")
+        self.remember_user(user_id)
         self._turn_pending = True
         self._cancel_pending = False
-        self.remember_user(user_id)
         self._track(asyncio.create_task(self._run(text, turn_id=turn_id, user_id=user_id)))
 
     def cancel_turn(self) -> None:
@@ -174,7 +178,7 @@ class CloudSessionHandle:
             return
         from spring_harness.cloud import gateway_store  # 延迟导入避免循环依赖
 
-        size = await asyncio.to_thread(quota.directory_size_bytes, self.session.workspace)
+        size = await asyncio.to_thread(directory_size_bytes, self.session.workspace)
         await asyncio.to_thread(gateway_store.report_work_size, self.work_id, size)
 
     async def _publish_lifecycle(self, event: TurnFinished) -> None:
@@ -209,8 +213,6 @@ class CloudSessionHandle:
             task.cancel()
         if self._tasks:
             await asyncio.gather(*self._tasks, return_exceptions=True)
-        if self.work_id:
-            quota.unregister_workspace(self.session.workspace)
         await self.session.close()
 
 
@@ -226,22 +228,34 @@ class CloudSessionRegistry:
         return self._handles.get(session_id)
 
     async def get_or_create(
-        self, session_id: str, *, workspace: Path, store: SessionStore, work_id: str = "",
+        self, session_id: str, *, store: SessionStore, access: FileAccessContext,
         page_id: int | None = None,
     ) -> CloudSessionHandle:
+        if session_id != store.session_id:
+            raise JsonRpcError(SESSION_NOT_FOUND, "未知会话")
         async with self._create_lock:
             handle = self._handles.get(session_id)
             if handle is not None:
+                if handle.file_access != access:
+                    raise JsonRpcError(SESSION_NOT_FOUND, "未知会话")
                 return handle
-            workspace.mkdir(parents=True, exist_ok=True)
+            check_path(access.workspace_root, directory=True)
+            check_path(access.knowledge_root, directory=True)
+            access.workspace_root.mkdir(parents=True, exist_ok=True)
             from spring_harness.cloud.billing import get_billing_client
 
             billing = get_billing_client()
             if billing is None:
                 raise RuntimeError("云端计费服务未初始化")
-            session = await asyncio.to_thread(HarnessSession, workspace, store=store,
-                                             billing_service=billing, page_id=page_id)
-            handle = CloudSessionHandle(session, self._redis, work_id=work_id)
+            deps = CodingAgentDeps(
+                workspace=access.workspace_root, user_id=access.user_id,
+                file_access=access, storage_guard=CloudStorageGuard(access),
+            )
+            session = await asyncio.to_thread(
+                HarnessSession, access.workspace_root, store=store, deps=deps,
+                billing_service=billing, page_id=page_id,
+            )
+            handle = CloudSessionHandle(session, self._redis, access=access)
             self._handles[session_id] = handle
             logger.info("云端会话已注册: {}", session_id)
             return handle

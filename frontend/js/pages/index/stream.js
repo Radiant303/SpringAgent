@@ -33,6 +33,7 @@ import {
   renderFileView,
   colorizeDiff,
   diffStats,
+  parseUnifiedDiff,
   setToolStatus,
   applyReadMeta,
   parseReadResult,

@@ -4,7 +4,7 @@ import com.spring.gateway.common.TimeFormat;
 import com.spring.gateway.entity.Work;
 
 /**
- * work 摘要。workspacePath 由网关按 {data-root}/works/{workId} 派生，路径权威在网关一侧。
+ * 项目与用户文件资源的内部摘要。
  *
  * @author hanbing
  * @since 2026-10-04
@@ -13,7 +13,8 @@ import com.spring.gateway.entity.Work;
  * @param name          项目名
  * @param sizeBytes     目录当前占用字节数
  * @param defaultWork   是否默认项目
- * @param workspacePath 派生的工作区目录路径
+ * @param workspacePath 项目文件工作区目录
+ * @param knowledgePath 用户知识工作区目录
  * @param workMaxBytes  生效的单工作区上限字节数
  * @param pageId        页面访问 ID（雪花 ID 的字符串形），无映射为 null
  * @param createdAt     创建时间
@@ -26,22 +27,15 @@ public record InternalWorkSummary(
         long sizeBytes,
         boolean defaultWork,
         String workspacePath,
+        String knowledgePath,
         long workMaxBytes,
         String pageId,
         String createdAt,
         String updatedAt
 ) {
 
-    /**
-     * 由 works 行构造摘要
-     *
-     * @param row           works 行
-     * @param workspacePath 网关派生的工作区目录路径
-     * @param workMaxBytes  生效的单工作区上限字节数
-     * @param pageId        页面访问 ID，无映射为 null
-     * @return work 摘要
-     */
-    public static InternalWorkSummary from(Work row, String workspacePath, long workMaxBytes, Long pageId) {
+    public static InternalWorkSummary from(Work row, String workspacePath, String knowledgePath,
+                                           long workMaxBytes, Long pageId) {
         return new InternalWorkSummary(
                 row.getId(),
                 row.getUserId(),
@@ -49,6 +43,7 @@ public record InternalWorkSummary(
                 row.getSizeBytes() == null ? 0L : row.getSizeBytes(),
                 Boolean.TRUE.equals(row.getIsDefault()),
                 workspacePath,
+                knowledgePath,
                 workMaxBytes,
                 pageId == null ? null : String.valueOf(pageId),
                 TimeFormat.isoUtc(row.getCreatedAt()),

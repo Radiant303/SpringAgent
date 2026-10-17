@@ -46,6 +46,7 @@ public class WorkService {
     private final EngineClient engineClient;
     private final SystemSettingService systemSettingService;
     private final FileStorageService fileStorageService;
+    private final UserStorageService userStorageService;
     private final PageMappingService pageMappingService;
 
     @Value("${app.data-root}")
@@ -72,7 +73,7 @@ public class WorkService {
     }
 
     /**
-     * 新建 work；用户已有 work 数量达到上限、或全部 work 占用合计达到其存储配额时抛 409
+     * 新建 work；项目数量或用户存储用量达到上限时抛 409。
      *
      * @param userId 用户 ID
      * @param name   项目名
@@ -81,15 +82,12 @@ public class WorkService {
      */
     @Transactional
     public Work create(Long userId, String name) {
-        User user = requireUser(userId);
+        User user = requireLockedUser(userId);
         Long count = workMapper.selectCount(new LambdaQueryWrapper<Work>().eq(Work::getUserId, userId));
         if (count >= maxWorks) {
             throw new BizException(409, "项目数量已达上限（" + maxWorks + "个），请先删除");
         }
-        long used = workMapper.selectList(new LambdaQueryWrapper<Work>().eq(Work::getUserId, userId))
-                .stream()
-                .mapToLong(row -> row.getSizeBytes() == null ? 0L : row.getSizeBytes())
-                .sum();
+        long used = userStorageService.snapshot(user).usedBytes();
         long quota = user.getQuotaBytes() == null ? Long.MAX_VALUE : user.getQuotaBytes();
         if (used >= quota) {
             throw new BizException(409, "存储配额已用尽（" + used + "/" + quota + " 字节），请联系管理员调整");
@@ -105,7 +103,7 @@ public class WorkService {
      */
     @Transactional
     public Work ensureDefault(Long userId) {
-        requireUser(userId);
+        requireLockedUser(userId);
         Work existing = workMapper.selectOne(new LambdaQueryWrapper<Work>()
                 .eq(Work::getUserId, userId)
                 .eq(Work::getIsDefault, true));
@@ -212,6 +210,10 @@ public class WorkService {
         return dataRoot + "/works/" + workId;
     }
 
+    public String knowledgePath(long userId) {
+        return userStorageService.knowledgeRoot(userId).toString();
+    }
+
     /**
      * 该 work 生效的单工作区上限（字节）：所属用户有覆盖值用覆盖值，否则用全局设置
      *
@@ -241,11 +243,7 @@ public class WorkService {
         long workMax = user.getWorkQuotaBytes() != null
                 ? user.getWorkQuotaBytes()
                 : systemSettingService.getWorkMaxBytes();
-        long used = workMapper.selectList(new LambdaQueryWrapper<Work>()
-                        .eq(Work::getUserId, userId))
-                .stream()
-                .mapToLong(row -> refreshSize(row.getId()))
-                .sum();
+        long used = userStorageService.snapshot(user).usedBytes();
         return new StorageOverview(used,
                 user.getQuotaBytes() == null ? 0L : user.getQuotaBytes(), workMax);
     }
@@ -253,49 +251,30 @@ public class WorkService {
     /**
      * 存储概览三元组。
      *
-     * @param usedBytes  全部 work 占用合计（查询时现算）
+     * @param usedBytes 用户文件与知识文件的总占用字节数
      * @param quotaBytes 总存储配额
      * @param workMaxBytes 生效的单工作区配额（覆盖值或全局）
      */
     public record StorageOverview(long usedBytes, long quotaBytes, long workMaxBytes) {
     }
 
-    /** 遍历目录求字节和；目录不存在视为 0 */
     private long refreshSize(String workId) {
-        Path dir = Path.of(workspacePath(workId));
-        if (!Files.isDirectory(dir)) {
-            reportSize(workId, 0L);
-            return 0L;
-        }
-        long total;
-        try (Stream<Path> walk = Files.walk(dir)) {
-            total = walk.filter(Files::isRegularFile)
-                    .mapToLong(path -> {
-                        try {
-                            return Files.size(path);
-                        } catch (IOException e) {
-                            return 0L;
-                        }
-                    })
-                    .sum();
-        } catch (IOException e) {
-            Work row = workMapper.selectById(workId);
-            return row == null || row.getSizeBytes() == null ? 0L : row.getSizeBytes();
-        }
+        long total = userStorageService.directoryBytes(workId);
         reportSize(workId, total);
         return total;
     }
 
     /** 用户不存在（库重建后旧 token 的幽灵用户）时拒绝，避免外键异常冒成 500 */
-    private User requireUser(Long userId) {
-        User user = userMapper.selectById(userId);
+    private User requireLockedUser(Long userId) {
+        User user = userMapper.selectForUpdate(userId);
         if (user == null) {
             throw new BizException(404, "用户不存在");
         }
         return user;
     }
 
-    private Work insert(Long userId, String name, boolean isDefault) {        LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC);
+    private Work insert(Long userId, String name, boolean isDefault) {
+        LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC);
         Work row = new Work();
         row.setId(UUID.randomUUID().toString());
         row.setUserId(userId);

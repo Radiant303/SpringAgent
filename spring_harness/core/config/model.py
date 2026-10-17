@@ -39,7 +39,9 @@ def _profile(model_config: ModelConfig, native: bool = False) -> ModelProfile:
     )
 
 
-def _provider(provider_type: type[OpenAIProvider], **kwargs: Any) -> OpenAIProvider:
+def _provider(
+    provider_type: type[OpenAIProvider | AlibabaProvider | DeepSeekProvider], **kwargs: Any,
+) -> OpenAIProvider | AlibabaProvider | DeepSeekProvider:
     provider = provider_type(**kwargs)
     return provider_type(openai_client=provider.client.with_options(max_retries=0))
 

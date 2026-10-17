@@ -11,6 +11,8 @@ def make_diff(tool_name: str, args: object) -> str | None:
     if not isinstance(args, dict):
         return None
     path = str(args.get("path", ""))
+    if args.get("scope") == "knowledge":
+        path = f"知识库/{path}"
     if tool_name == "edit_file":
         old, new = args.get("old_text"), args.get("new_text")
         if isinstance(old, str) and isinstance(new, str):
@@ -26,8 +28,4 @@ def make_diff(tool_name: str, args: object) -> str | None:
                 [], content.splitlines(keepends=True),
                 fromfile="/dev/null", tofile=f"b/{path}",
             ))
-    elif tool_name == "edit_knowledge":
-        diff = args.get("diff")
-        if isinstance(diff, str):
-            return diff
     return None

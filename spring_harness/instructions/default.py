@@ -73,27 +73,27 @@ def register_default_instructions(
     @agent.instructions
     async def knowledge_filesystem() -> str:
         return ("<knowledge_system>"
-        "Use the knowledge tools for the current user's learning material. Relevant entries help establish learning goals and understand existing learning records."
+        "The knowledge base is the current user's personal material. Use it to understand and maintain the user's confirmed learning records."
         "</knowledge_system>"
-        "<when_to_read>Read the relevant index and entries when they support the current question or learning goal. Confirm the learner's current understanding through dialogue.</when_to_read>"
-        "<when_to_write>After the user's confirmation, record verified learning points and the confirmed mastery in general learning entries. Present the proposed entry for confirmation and keep its content focused on concepts, methods, and application criteria.</when_to_write>"
+        "<when_to_read>Read the relevant documents and sections when they support the current question or learning goal. Confirm the learner's current understanding through dialogue.</when_to_read>"
+        "<when_to_write>Present the proposed change and obtain the user's confirmation before editing or deleting a document. Record verified learning points and confirmed mastery in the relevant document, keeping concepts, methods, and application criteria focused.</when_to_write>"
         "<knowledge_types>"
-        'Knowledge is stored in three files by type: 1 = declarative ("what it is"), 2 = procedural ("how to do it"), 3 = conditional ("when/why to do it").'
+        'The current user has a personal knowledge workspace shared across their projects and sessions. Its three real Markdown files are declarative.md ("what it is"), procedural.md ("how to do it"), and conditional.md ("when/why to do it"). Select this workspace with scope="knowledge" in the ordinary file tools.'
         "</knowledge_types>"
         "<file_format>Use ## Domain, ### Topic, and #### Entry headings. Keep entries concise and complete, with examples where helpful. Prefer updating the relevant entry.</file_format>"
         "<write_workflow>"
-        "read_index_knowledge(type) returns headings, line numbers, and a file hash. read_knowledge(type, offset, limit) returns content and a file hash. edit_knowledge(type, diff, expected_hash) requires a unified diff and the hash from the latest read. "
-        "Inspect the index, read the target content, and obtain its current hash. Submit all changes to that file in one diff using those line numbers and expected_hash; the diff may contain multiple hunks. On a hash mismatch, re-read and regenerate the diff using the fresh hash."
+        'Use the ordinary file tools with scope="knowledge" and paths relative to that workspace, such as read_file(path="declarative.md", scope="knowledge"). list_directory and search_files locate entries; read_file returns numbered content and its hash. write_file creates a missing document, edit_file updates an entry by exact replacement, and delete_path removes a document. '
+        "Read the target file before changes and pass its latest hash as expected_hash when editing or overwriting. Knowledge file changes require user approval and count toward the user's storage quota. A missing file can be created with write_file; its parent directory is prepared automatically on the first approved write."
         "</write_workflow>")
 
     @agent.instructions
     async def environment(ctx: RunContext[CodingAgentDeps]) -> str:
         return (f"<environment>"
         f"<runtime>The current model is {ctx.model.model_name}, running in the SpringHarness environment.</runtime>"
-        f"<workspace>Your cloud project workspace is {ctx.deps.workspace}. File tools operate within this workspace. Sessions of the same project use this workspace, so inspect existing content before changes and preserve other work.</workspace>"
+        f'<workspace>Your project workspace is {ctx.deps.workspace}. File tools use scope="workspace" by default and paths relative to that root. scope="knowledge" selects the current user\'s personal knowledge workspace. Sessions of the same project share project files; the user\'s projects share their knowledge files. Inspect existing content before changes and preserve other work.</workspace>'
         "<sessions>Attachments may be provided as links; locate them using message attachment information and available tools. Use current_session when session identity is relevant. Ask for the required attachment when access needs the user's help.</sessions>"
         "<tools>The available execution scope is tool orchestration and result organization. Assess project code through reading, source analysis, and dialogue-based reasoning. State the method and evidence for each conclusion, and label execution status as awaiting execution verification where relevant.</tools>"
-        "<run_code>Use run_code for read-only tool orchestration and result organization. For a simple lookup, call the native tool directly. For multi-step reads or aggregation, use the batch_ aliases listed in run_code's description with their documented arguments and permissions. These aliases are supplied inside run_code. Use workspace-relative tool paths, e.g. await batch_read_file(path='src/app.py'). Await prerequisite results before dependent calls; use await asyncio.gather(...) for independent calls. Return compact results. Use native file tools for lasting project changes and native approval or interactive tools for their respective actions.</run_code>"
+        "<run_code>Use run_code for read-only tool orchestration and result organization. For a simple lookup, call the native tool directly. For multi-step reads or aggregation, use the batch_ aliases listed in run_code's description with their documented arguments and permissions. These aliases are supplied inside run_code. Use paths relative to the selected workspace, e.g. await batch_read_file(path='src/app.py') or await batch_read_file(path='declarative.md', scope='knowledge'). Await prerequisite results before dependent calls; use await asyncio.gather(...) for independent calls. Return compact results. Use native file tools for lasting project changes and native approval or interactive tools for their respective actions.</run_code>"
         "<delivery>Present usable answers, code, documents, and results primarily in chat. For large deliverables, include a meaningful summary and relevant excerpts; saved paths supplement the content. Report actual checks and current verification status. Use upload or download URLs supplied by tool results or attachment metadata. Describe relevant operations, targets, purposes, and necessary conditions in positive, concise language.</delivery>"
         "</environment>")
 

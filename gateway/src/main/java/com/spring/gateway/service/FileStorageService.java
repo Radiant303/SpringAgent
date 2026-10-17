@@ -14,24 +14,18 @@ import com.spring.gateway.mapper.WorkMapper;
 import com.spring.gateway.service.storage.ObjectStorageService;
 import com.spring.gateway.service.storage.StorageKeys;
 import com.spring.gateway.service.storage.StorageServiceSelector;
-import com.spring.gateway.service.storage.StorageTypes;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
-import java.io.IOException;
 import java.io.InputStream;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
-import java.util.stream.Stream;
 
 /**
  * 上传文件的存储及配额管理。
@@ -55,9 +49,7 @@ public class FileStorageService {
     private final SystemSettingService systemSettingService;
     private final StorageServiceSelector storageSelector;
     private final SnowflakeIdGenerator idGenerator;
-
-    @Value("${app.data-root}")
-    private String dataRoot;
+    private final UserStorageService userStorageService;
 
     /**
      * 上传文件，用户空间或单工作区配额不足时拒绝。
@@ -219,58 +211,15 @@ public class FileStorageService {
 
     private void precheckQuota(User user, String workId, long size) {
         long quota = user.getQuotaBytes() == null ? 0L : user.getQuotaBytes();
-        long used = user.getUsedBytes() == null ? 0L : user.getUsedBytes();
-        long workUsed = 0L;
-        long total = 0L;
-        List<Work> works = workMapper.selectList(new LambdaQueryWrapper<Work>()
-                .eq(Work::getUserId, user.getId()).last("FOR UPDATE"));
-        for (Work work : works) {
-            long bytes = workUsageBytes(user.getId(), work.getId());
-            total += bytes;
-            if (workId.equals(work.getId())) {
-                workUsed = bytes;
-            }
-        }
-        if (Math.max(used, total) > quota - size) {
+        UserStorageService.Snapshot snapshot = userStorageService.snapshot(user);
+        long workUsed = snapshot.workBytes(workId);
+        if (snapshot.usedBytes() > quota - size) {
             throw new BizException(409, "存储空间不足：上传后将超出配额，请先清理文件");
         }
         long workMax = user.getWorkQuotaBytes() != null
                 ? user.getWorkQuotaBytes() : systemSettingService.getWorkMaxBytes();
         if (workMax > 0 && workUsed > workMax - size) {
             throw new BizException(409, "单工作区配额不足：上传后将超出上限，请先清理文件");
-        }
-    }
-
-    private long workUsageBytes(Long userId, String workId) {
-        long total = dirBytes(Path.of(dataRoot, "works", workId));
-        List<String> sessionIds = sessionMapper.selectList(new LambdaQueryWrapper<Session>()
-                        .eq(Session::getWorkId, workId).select(Session::getId).last("FOR UPDATE"))
-                .stream().map(Session::getId).toList();
-        if (!sessionIds.isEmpty()) {
-            List<FileRecord> remote = fileRecordMapper.selectList(new LambdaQueryWrapper<FileRecord>()
-                    .eq(FileRecord::getUserId, userId).in(FileRecord::getSessionId, sessionIds)
-                    .ne(FileRecord::getStorageType, StorageTypes.LOCAL)
-                    .select(FileRecord::getSizeBytes).last("FOR UPDATE"));
-            total += remote.stream().mapToLong(FileRecord::getSizeBytes).sum();
-        }
-        return total;
-    }
-
-    /** 目录字节和；不存在或不可读视为 0 */
-    private static long dirBytes(Path dir) {
-        if (!Files.isDirectory(dir)) {
-            return 0L;
-        }
-        try (Stream<Path> walk = Files.walk(dir)) {
-            return walk.filter(Files::isRegularFile).mapToLong(path -> {
-                try {
-                    return Files.size(path);
-                } catch (IOException e) {
-                    return 0L;
-                }
-            }).sum();
-        } catch (IOException e) {
-            return 0L;
         }
     }
 

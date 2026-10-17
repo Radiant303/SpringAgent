@@ -94,8 +94,10 @@ class FileStorageServiceTests {
                 userMapper.deleteByIds(userIds);
             });
         }
-        for (String workId : workIds) {
-            Path root = Path.of(dataRoot, "works", workId);
+        List<Path> roots = new ArrayList<>();
+        workIds.forEach(id -> roots.add(Path.of(dataRoot, "works", id)));
+        userIds.forEach(id -> roots.add(Path.of(dataRoot, "users", id.toString())));
+        for (Path root : roots) {
             if (Files.exists(root)) {
                 try (var paths = Files.walk(root)) {
                     for (Path path : paths.sorted(Comparator.reverseOrder()).toList()) {
@@ -196,6 +198,41 @@ class FileStorageServiceTests {
         BizException e = assertThrows(BizException.class, () -> upload(userId, target, 4));
         assertEquals(409, e.getStatus());
         assertEquals(0, fileCount(target));
+    }
+
+    @Test
+    void knowledgeUsesUserQuotaAndReleasesSpaceAfterChange() throws Exception {
+        Long userId = insertUser(10);
+        Session session = insertSession(userId);
+        Path knowledge = Path.of(workService.knowledgePath(userId));
+        Files.createDirectories(knowledge);
+        Files.writeString(knowledge.resolve("declarative.md"), "12345678");
+        assertEquals(8, workService.storageOverview(userId).usedBytes());
+        assertEquals(409, assertThrows(BizException.class, () -> upload(userId, session, 4)).getStatus());
+        Files.writeString(knowledge.resolve("declarative.md"), "12");
+        upload(userId, session, 4);
+        assertEquals(6, workService.storageOverview(userId).usedBytes());
+        assertEquals(0, reconcileTask.reconcileUser(userId));
+        assertEquals(6, workService.storageOverview(userId).usedBytes());
+        Files.delete(knowledge.resolve("declarative.md"));
+        assertEquals(4, workService.storageOverview(userId).usedBytes());
+    }
+
+    @Test
+    void knowledgeIsSharedOnceAndSurvivesProjectDeletion() throws Exception {
+        Long userId = insertUser(1024);
+        Session first = insertSession(userId);
+        insertSession(userId);
+        Path knowledge = Path.of(workService.knowledgePath(userId));
+        Files.createDirectories(knowledge);
+        Files.writeString(knowledge.resolve("procedural.md"), "shared");
+        assertEquals(6, workService.storageOverview(userId).usedBytes());
+        TestTransaction.flagForCommit();
+        TestTransaction.end();
+        workService.hardDelete(userId, first.getWorkId());
+        assertEquals("shared", Files.readString(knowledge.resolve("procedural.md")));
+        assertEquals(6, workService.storageOverview(userId).usedBytes());
+        assertEquals(1, workMapper.selectCount(new LambdaQueryWrapper<Work>().eq(Work::getUserId, userId)));
     }
 
     @Test

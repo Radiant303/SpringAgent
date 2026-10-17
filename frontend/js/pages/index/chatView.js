@@ -178,7 +178,6 @@ export function addSystem(text, isError = false) {
 export const TOOL_META = {
   edit_file: { icon: "edit", verb: "编辑", kind: "edit", targetKeys: ["path"] },
   write_file: { icon: "edit", verb: "写入", kind: "edit", targetKeys: ["path"] },
-  edit_knowledge: { icon: "edit", verb: "编辑知识", kind: "other", targetKeys: ["type"] },
   create_directory: { icon: "toolCreateDirectory", verb: "创建目录", kind: "other", targetKeys: ["path"] },
   delete_path: { icon: "toolTrash", verb: "删除", kind: "other", targetKeys: ["path"] },
   read_file: { icon: "file", verb: "读取", kind: "read", targetKeys: ["path"] },
@@ -196,8 +195,6 @@ export const TOOL_META = {
   start_command: { icon: "toolStartCommand", verb: "后台运行", kind: "command", targetKeys: ["command"] },
   check_command: { icon: "toolCheckCommand", verb: "查看命令", kind: "other", targetKeys: ["command_id"] },
   stop_command: { icon: "toolStopCommand", verb: "停止命令", kind: "other", targetKeys: ["command_id"] },
-  read_knowledge: { icon: "book", verb: "查阅知识", kind: "other", targetKeys: ["type"] },
-  read_index_knowledge: { icon: "toolKnowledgeIndex", verb: "查阅知识索引", kind: "other", targetKeys: ["type"] },
   ask_user: { icon: "question", verb: "提问", kind: "other", targetKeys: ["question"] },
   teach_create_unit: { icon: "toolCreateUnit", verb: "创建教学单元", kind: "other", targetKeys: ["title", "slug"] },
   teach_state: { icon: "toolTeachState", verb: "查看教学状态", kind: "other", targetKeys: [] },
@@ -215,7 +212,7 @@ export const TOOL_META = {
   load_capability: { icon: "toolPlug", verb: "加载能力", kind: "other", targetKeys: ["id"] },
 };
 
-export const TARGET_KEYS = ["path", "command", "pattern", "query", "question", "command_id", "type"];
+export const TARGET_KEYS = ["path", "command", "pattern", "query", "question", "command_id"];
 
 export function toolMeta(name) {
   return TOOL_META[name] || { icon: "tool", verb: name, kind: "other" };
@@ -244,9 +241,10 @@ export function targetFromArgs(args, name) {
     }
     if (!["string", "number", "boolean"].includes(typeof value) || value === "") continue;
     const v = String(value).split(/\r?\n/)[0];
-    return k === "path" ? getRelPath(v) : v;
+    if (k === "path") return args.scope === "knowledge" ? `知识库/${v}` : getRelPath(v);
+    return args.scope === "knowledge" ? `知识库 · ${v}` : v;
   }
-  return "";
+  return args.scope === "knowledge" ? "知识库" : "";
 }
 
 export function targetFromPartial(text, name) {
@@ -293,7 +291,6 @@ export function statsFromArgs(name, args) {
     while (s < a.length - p && s < b.length - p && a[a.length - 1 - s] === b[b.length - 1 - s]) s++;
     return { add: b.length - p - s, del: a.length - p - s };
   }
-  if (name === "edit_knowledge" && typeof args.diff === "string") return diffStats(args.diff);
   return null;
 }
 
@@ -492,7 +489,6 @@ export function fileRowsFromArgs(name, args) {
   if (name === "write_file" && typeof args.content === "string") {
     return args.content.replace(/\n$/, "").split("\n").map((text, i) => ({ type: "add", no: i + 1, text }));
   }
-  if (name === "edit_knowledge" && typeof args.diff === "string") return parseUnifiedDiff(args.diff);
   return null;
 }
 

@@ -21,6 +21,7 @@ from spring_harness.core.agent import (
     shell_patch as _shell_patch,  # noqa: F401  # Windows 杀进程补丁，导入即生效
 )
 from spring_harness.core.agent.deps import CodingAgentDeps
+from spring_harness.core.workspace import FileAccessContext
 from spring_harness.core.config.model import get_model, get_model_config, setting
 from spring_harness.core.config.settings import loop_control
 from spring_harness.core.config.thinking import resolve_effort, thinking_capability
@@ -29,7 +30,6 @@ from spring_harness.instructions.default import register_default_instructions
 from spring_harness.toolsets.ask_user import ask_user_toolset
 from spring_harness.toolsets.filesystem import filesystem
 from spring_harness.toolsets.page_site import page_site_toolset
-from spring_harness.toolsets.repo_knowledge import knowledge_toolsets
 from spring_harness.toolsets.session_info import session_info_toolset
 from spring_harness.toolsets.view_image import view_image_toolset
 
@@ -52,6 +52,7 @@ def create_agent(
     compact_on_change: OnCompaction | None = None,
     effort: str | None = None,
     page_id: int | None = None,
+    file_access: FileAccessContext | None = None,
 ) -> SpringAgent:
     """
     创建 Spring Harness Agent
@@ -62,8 +63,7 @@ def create_agent(
     model_config = get_model_config(model_id)
     effort = resolve_effort(model_config, effort)
     toolsets: list[Any] = [
-        filesystem(str(root)),
-        knowledge_toolsets,
+        filesystem(str(root), access=file_access),
         ask_user_toolset,
         teaching_toolset(teaching_store_for(root, on_change=teach_on_change)),
         session_info_toolset(session_id=session_id, workspace=root,
@@ -88,7 +88,7 @@ def create_agent(
             skills(),
             planning(session_id, on_change=plan_on_change),
             code_mode(root),
-            subagents(str(root), model_id, effort),
+            subagents(str(root), model_id, effort, file_access=file_access),
             researcher(),
             NotifyingCompaction(
                 max_fraction=0.8,

@@ -7,7 +7,7 @@
 
 import { $, el } from "../../utils/dom.js";
 import { UI } from "../../components/ui.js";
-import { colorizeDiff } from "./chatView.js";
+import { colorizeDiff, targetFromArgs, toolMeta } from "./chatView.js";
 import { state, runs, runOf, setBusy } from "./state.js";
 import { refreshSessionList, sessionLabel } from "./sessions.js";
 
@@ -98,7 +98,8 @@ export function drainPendingFor(sid) {
 }
 
 function showApproval(params) {
-  if ($("approval-tool")) $("approval-tool").textContent = params.toolName || "";
+  const target = targetFromArgs(params.args, params.toolName);
+  if ($("approval-tool")) $("approval-tool").textContent = [toolMeta(params.toolName).verb, target].filter(Boolean).join(" · ");
   if ($("approval-args")) $("approval-args").textContent = JSON.stringify(params.args ?? {}, null, 2);
   const diffEl = $("approval-diff");
   if (diffEl) {

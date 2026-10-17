@@ -80,6 +80,7 @@ class GatewayWorkRow:
     is_default: bool
     workspace_path: str
     work_max_bytes: int
+    knowledge_path: str
     page_id: int | None = None
 
     @classmethod
@@ -92,8 +93,17 @@ class GatewayWorkRow:
             is_default=payload.get("defaultWork", False),
             workspace_path=payload.get("workspacePath", ""),
             work_max_bytes=int(payload.get("workMaxBytes") or 0),
+            knowledge_path=payload["knowledgePath"],
             page_id=int(payload["pageId"]) if payload.get("pageId") else None,
         )
+
+    def file_access(self, user_id: int):
+        from pathlib import Path
+        from spring_harness.core.workspace import FileAccessContext
+
+        if type(user_id) is not int or user_id != self.user_id:
+            raise ValueError("文件资源的用户归属不一致。")
+        return FileAccessContext(user_id, self.work_id, Path(self.workspace_path), Path(self.knowledge_path))
 
 
 @dataclass(frozen=True)
