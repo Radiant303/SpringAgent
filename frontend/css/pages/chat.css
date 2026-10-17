@@ -1052,6 +1052,7 @@
   cursor: pointer;
   user-select: none;
   font-size: var(--fs-sm, 16px);
+  line-height: 1.5;
   color: var(--text-dim, rgba(0, 0, 0, 0.6));
 }
 .tool-header:hover { color: var(--text, rgba(0, 0, 0, 0.9)); }
@@ -1064,8 +1065,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-family: ui-monospace, Consolas, monospace;
-  font-size: var(--fs-sm, 16px);
+  font: inherit;
 }
 .tool-stats {
   display: inline-flex;

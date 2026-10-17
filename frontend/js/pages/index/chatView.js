@@ -185,7 +185,10 @@ export const TOOL_META = {
   list_directory: { icon: "folder", verb: "列出", kind: "list" },
   search_files: { icon: "search", verb: "搜索", kind: "search" },
   find_files: { icon: "search", verb: "查找", kind: "search" },
+  web_search: { icon: "search", verb: "搜索网页", kind: "search" },
+  page_url: { icon: "link", verb: "获取页面地址", kind: "other" },
   run_command: { icon: "terminal", verb: "运行", kind: "command" },
+  run_code: { icon: "terminal", verb: "代码模式", kind: "other" },
   start_command: { icon: "terminal", verb: "后台运行", kind: "command" },
   check_command: { icon: "terminal", verb: "查看命令", kind: "other" },
   stop_command: { icon: "terminal", verb: "停止命令", kind: "other" },
@@ -194,7 +197,7 @@ export const TOOL_META = {
   ask_user: { icon: "question", verb: "提问", kind: "other" },
 };
 
-export const TARGET_KEYS = ["path", "command", "pattern", "question", "command_id", "type"];
+export const TARGET_KEYS = ["path", "command", "pattern", "query", "question", "command_id", "type"];
 
 export function toolMeta(name) {
   return TOOL_META[name] || { icon: "tool", verb: name, kind: "other" };
@@ -226,7 +229,7 @@ export function targetFromArgs(args) {
 }
 
 export function targetFromPartial(text) {
-  const m = /"(path|command|pattern|question|command_id)"\s*:\s*"((?:[^"\\]|\\.)*)"/.exec(text);
+  const m = /"(path|command|pattern|query|question|command_id)"\s*:\s*"((?:[^"\\]|\\.)*)"/.exec(text);
   if (!m) return "";
   let v;
   try {
