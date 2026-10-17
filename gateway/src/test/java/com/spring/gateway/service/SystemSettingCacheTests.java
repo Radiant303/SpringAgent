@@ -1,42 +1,58 @@
 package com.spring.gateway.service;
 
-import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
-import static org.junit.jupiter.api.Assertions.assertNull;
+import java.util.List;
+
+import static org.mockito.Mockito.*;
 
 /**
- * system_settings 快照缓存失效器测试（真实 Redis）。
- *
- * <p>不加 @Transactional：invalidate 在非事务环境走"立即删 + 延迟再删"的直接路径。
+ * 系统设置缓存失效器单元测试。
  *
  * @author hanbing
  * @since 2026-10-16
  */
-@SpringBootTest
 class SystemSettingCacheTests {
+    private final StringRedisTemplate redis = mock(StringRedisTemplate.class);
+    private final SystemSettingCache cache = new SystemSettingCache(redis);
 
-    @Autowired
-    private SystemSettingCache cache;
-    @Autowired
-    private StringRedisTemplate redis;
+    @AfterEach
+    void cleanup() {
+        TransactionSynchronizationManager.clear();
+        cache.shutdown();
+    }
 
     @Test
-    @DisplayName("invalidate 立即删除缓存；窗口期回填的旧值被延迟二删清掉")
-    void invalidateDeletesImmediatelyAndAgainLater() throws Exception {
-        String key = SystemSettingCache.CACHE_KEY;
-
-        // 第一次删除：立即生效
-        redis.opsForValue().set(key, "v1");
+    void invalidateDeletesImmediatelyAndAgainLater() {
         cache.invalidate();
-        assertNull(redis.opsForValue().get(key), "invalidate 后缓存应立即被删除");
+        verify(redis).delete(SystemSettingCache.CACHE_KEY);
+        verify(redis, timeout(2500).times(2)).delete(SystemSettingCache.CACHE_KEY);
+    }
 
-        // 模拟并发窗口：读方在第一次删除后把旧快照回填进来；延迟二删应将其清除
-        redis.opsForValue().set(key, "stale");
-        Thread.sleep(1300);  // 延迟窗口 1s，留 300ms 余量
-        assertNull(redis.opsForValue().get(key), "延迟第二次删除应清掉窗口期回填的脏值");
+    @Test
+    void transactionCommitDeletesOnlyAfterCommitAndAgainLater() {
+        TransactionSynchronizationManager.initSynchronization();
+        cache.invalidate();
+        verifyNoInteractions(redis);
+        List<TransactionSynchronization> synchronizations = TransactionSynchronizationManager.getSynchronizations();
+        synchronizations.forEach(s -> s.beforeCommit(false));
+        verifyNoInteractions(redis);
+        synchronizations.forEach(TransactionSynchronization::afterCommit);
+        verify(redis).delete(SystemSettingCache.CACHE_KEY);
+        synchronizations.forEach(s -> s.afterCompletion(TransactionSynchronization.STATUS_COMMITTED));
+        verify(redis, timeout(2500).times(2)).delete(SystemSettingCache.CACHE_KEY);
+    }
+
+    @Test
+    void transactionRollbackNeverDeletesOrSchedulesAnEviction() {
+        TransactionSynchronizationManager.initSynchronization();
+        cache.invalidate();
+        TransactionSynchronizationManager.getSynchronizations()
+                .forEach(s -> s.afterCompletion(TransactionSynchronization.STATUS_ROLLED_BACK));
+        verify(redis, after(1300).never()).delete(SystemSettingCache.CACHE_KEY);
     }
 }

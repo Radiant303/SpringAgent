@@ -51,7 +51,7 @@ app:
   # /internal/** 内部数据面接口的共享静态令牌：Python 引擎经网关切库时带在 X-Internal-Token 头，
   # 与用户 JWT 无关；生产用环境变量 INTERNAL_TOKEN 覆盖
   internal-token: ${INTERNAL_TOKEN:springharness-internal-dev-token-0123456789}
-  # 云端数据根目录：work 工作区路径 = {data-root}/works/{workId}（只写字符串，不建目录）
+  # 云端数据根目录。
   data-root: ${user.home}/.springharness/cloud
   # 每用户最多可创建的 work 数量
   work-max-works: ${WORK_MAX_WORKS:5}

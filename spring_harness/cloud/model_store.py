@@ -2,12 +2,17 @@
 
 from __future__ import annotations
 
-import json
 from typing import Any
 
 import redis
 from sqlalchemy import select
 
+from spring_harness.cloud.cache_crypto import (
+    COMPARE_DELETE_SCRIPT,
+    CacheSecretCipher,
+    decode_envelope,
+    encode_envelope,
+)
 from spring_harness.cloud.db import (
     ModelDefinitionRow,
     ModelProviderRow,
@@ -76,12 +81,53 @@ def load_model_fresh(model_id: str) -> tuple[ModelConfig, ProviderConfig] | None
         )
 
 
-class DbCatalog:
-    """模型配置目录的 DB 实现（满足 core.config.model.ModelCatalog 协议），带 Redis 快照缓存。"""
+def _validate_snapshot(snapshot: dict[str, Any]) -> None:
+    if set(snapshot) != {"default_model", "providers", "models", "subagents"}:
+        raise ValueError("模型目录字段无效")
+    if not isinstance(snapshot["default_model"], str):
+        raise ValueError("默认模型格式无效")
+    for field in ("providers", "models", "subagents"):
+        if not isinstance(snapshot[field], dict) or not all(
+            isinstance(key, str) for key in snapshot[field]
+        ):
+            raise ValueError("模型目录格式无效")
+    for provider in snapshot["providers"].values():
+        if (
+            not isinstance(provider, dict)
+            or set(provider) != {"type", "api_key", "base_url"}
+            or not isinstance(provider["type"], str)
+            or not isinstance(provider["api_key"], str)
+            or not (provider["base_url"] is None or isinstance(provider["base_url"], str))
+        ):
+            raise ValueError("模型厂商格式无效")
+    text_fields = {
+        "provider", "model", "display_name", "capabilities", "support_efforts", "default_effort",
+    }
+    number_fields = {"max_context_size", "max_output_size"}
+    for model in snapshot["models"].values():
+        if (
+            not isinstance(model, dict)
+            or set(model) != text_fields | number_fields | {"enabled"}
+            or not all(isinstance(model[field], str) for field in text_fields)
+            or not all(type(model[field]) is int for field in number_fields)
+            or type(model["enabled"]) is not bool
+            or model["provider"] not in snapshot["providers"]
+        ):
+            raise ValueError("模型定义格式无效")
+    if not all(isinstance(value, str) for value in snapshot["subagents"].values()):
+        raise ValueError("子代理模型格式无效")
 
-    def __init__(self, cache: redis.Redis | None = None) -> None:
-        # cache 为 None 时退化为纯直读（测试/Redis 未装配场景）
+
+class DbCatalog:
+    """模型配置目录的加密快照缓存。
+
+    @author hanbing
+    @since 2026-10-17
+    """
+
+    def __init__(self, cache: redis.Redis | None, cipher: CacheSecretCipher) -> None:
         self._cache = cache
+        self._cipher = cipher
 
     def default_model(self) -> str:
         return self._snapshot()["default_model"]
@@ -109,23 +155,54 @@ class DbCatalog:
     def subagent_model(self, name: str) -> str:
         return self._snapshot()["subagents"].get(name, "")
 
-    # ---- 快照：Redis 优先，未命中回源 MySQL 并回填 ----
-
     def _snapshot(self) -> dict[str, Any]:
-        if self._cache is not None:
-            try:
-                raw = self._cache.get(CACHE_KEY)
-                if raw is not None:
-                    return json.loads(raw)
-            except redis.RedisError as e:
-                logger.warning("模型目录缓存读取失败，回源 MySQL: {}", e)
+        cached = self._load_from_cache()
+        if cached is not None:
+            return cached
         snapshot = self._load_from_db()
         if self._cache is not None:
             try:
-                self._cache.set(CACHE_KEY, json.dumps(snapshot), ex=CACHE_TTL_SECONDS)
-            except redis.RedisError as e:
-                logger.warning("模型目录缓存回填失败（不影响本次读取）: {}", e)
+                _validate_snapshot(snapshot)
+                payload = self._transform_keys(snapshot, encrypt=True)
+                self._cache.set(CACHE_KEY, encode_envelope(payload), ex=CACHE_TTL_SECONDS)
+            except Exception:
+                logger.warning("模型目录缓存回填失败")
         return snapshot
+
+    def _transform_keys(self, snapshot: dict[str, Any], *, encrypt: bool) -> dict[str, Any]:
+        transform = self._cipher.encrypt if encrypt else self._cipher.decrypt
+        return {
+            **snapshot,
+            "providers": {
+                name: {
+                    **provider,
+                    "api_key": transform(provider["api_key"], CACHE_KEY, "providers", name, "api_key"),
+                }
+                for name, provider in snapshot["providers"].items()
+            },
+        }
+
+    def _load_from_cache(self) -> dict[str, Any] | None:
+        if self._cache is None:
+            return None
+        try:
+            raw = self._cache.get(CACHE_KEY)
+        except Exception:
+            logger.warning("模型目录缓存读取失败，回源数据库")
+            return None
+        if raw is None:
+            return None
+        try:
+            snapshot = decode_envelope(raw)
+            _validate_snapshot(snapshot)
+            return self._transform_keys(snapshot, encrypt=False)
+        except Exception:
+            logger.warning("模型目录缓存无效，回源数据库")
+        try:
+            self._cache.eval(COMPARE_DELETE_SCRIPT, 1, CACHE_KEY, raw)
+        except Exception:
+            logger.warning("模型目录缓存清除失败")
+        return None
 
     def _load_from_db(self) -> dict[str, Any]:
         with get_sessionmaker()() as s:

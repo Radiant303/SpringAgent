@@ -24,7 +24,7 @@ async def web_search(
     if isinstance(max_results, bool) or not isinstance(max_results, int) or not 1 <= max_results <= 10:
         return "搜索结果数量必须为 1 到 10 之间的整数"
 
-    settings = platform_settings().snapshot()
+    settings = await asyncio.to_thread(platform_settings().snapshot)
     if settings.get("search.local.enabled", "false").strip().lower() != "true":
         return "站长未启用本地搜索"
     provider_id = settings.get("search.local.provider", "tavily").strip().lower()

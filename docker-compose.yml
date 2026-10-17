@@ -60,8 +60,13 @@ services:
       - "8090:80"
     volumes:
       - ./nginx/conf.d/default.conf:/etc/nginx/conf.d/default.conf:ro
-      # 数据目录只读挂载：Nginx 经 X-Accel-Redirect 直接发本地文件
-      - ${USERPROFILE:-$HOME}/.springharness/cloud:/data:ro
+      # 工作区文件只读挂载。
+      - type: bind
+        source: ${APP_DATA_ROOT:-${USERPROFILE:-$HOME}/.springharness/cloud}/works
+        target: /data/works
+        read_only: true
+        bind:
+          create_host_path: false
     restart: unless-stopped
 
 volumes:

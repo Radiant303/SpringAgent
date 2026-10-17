@@ -134,6 +134,92 @@ class PageControllerTests {
     }
 
     @Test
+    @DisplayName("页面根被链接替换时返回友好 404")
+    void rejectsLinkedPageRoot() throws Exception {
+        Path page = dataRoot.resolve("works/" + WORK_ID + "/page");
+        Files.move(page, page.resolveSibling("original-page"));
+        Path secrets = Files.createDirectories(dataRoot.resolve(".secrets"));
+        Files.writeString(secrets.resolve("index.html"), "fixture-only");
+        createDirectoryLink(page, secrets);
+        assertRejected("/");
+    }
+
+    @Test
+    @DisplayName("工作区祖先被链接替换时返回友好 404")
+    void rejectsLinkedWorkAncestor() throws Exception {
+        Path work = dataRoot.resolve("works/" + WORK_ID);
+        Path moved = Files.move(work, dataRoot.resolve("moved-work"));
+        createDirectoryLink(work, moved);
+        assertRejected("/");
+    }
+
+    @Test
+    @DisplayName("数据根自身或祖先是链接时拒绝页面分发")
+    void rejectsLinkedDataRootAndAncestor() throws Exception {
+        Path realRoot = Files.createDirectories(dataRoot.resolve("separate-root"));
+        Path nestedRoot = realRoot.resolve("nested");
+        Path realPage = Files.createDirectories(nestedRoot.resolve("works/" + WORK_ID + "/page"));
+        Files.writeString(realPage.resolve("index.html"), "fixture-only");
+        Path alias = dataRoot.resolve("alias");
+        createDirectoryLink(alias, nestedRoot);
+        Path parentAlias = dataRoot.resolve("parent-alias");
+        createDirectoryLink(parentAlias, realRoot);
+        PageController controller = new PageController(pageMappingService);
+        for (Path root : new Path[]{alias, parentAlias.resolve("nested")}) {
+            ReflectionTestUtils.setField(controller, "dataRoot", root.toString());
+            MockMvcBuilders.standaloneSetup(controller).build().perform(get("/page/{id}/", PAGE_ID))
+                    .andExpect(status().isNotFound());
+        }
+    }
+
+    @Test
+    @DisplayName("页面子目录链接不能分发秘密文件")
+    void rejectsLinkedTargetDirectory() throws Exception {
+        Path secrets = Files.createDirectories(dataRoot.resolve(".secrets"));
+        Files.writeString(secrets.resolve("fixture.txt"), "fixture-only");
+        Path link = dataRoot.resolve("works/" + WORK_ID + "/page/leak");
+        createDirectoryLink(link, secrets);
+        assertRejected("/leak/fixture.txt");
+    }
+
+    @Test
+    @DisplayName("页面文件链接不能分发秘密文件")
+    void rejectsLinkedTargetFile() throws Exception {
+        Path secret = Files.writeString(dataRoot.resolve("fixture.txt"), "fixture-only");
+        Path link = dataRoot.resolve("works/" + WORK_ID + "/page/leak.txt");
+        try {
+            Files.createSymbolicLink(link, secret);
+        } catch (java.io.IOException | UnsupportedOperationException e) {
+            org.junit.jupiter.api.Assumptions.abort("文件符号链接不可用");
+        }
+        assertRejected("/leak.txt");
+    }
+
+    private void assertRejected(String suffix) throws Exception {
+        for (boolean accel : new boolean[]{false, true}) {
+            var request = get("/page/" + PAGE_ID + suffix);
+            if (accel) {
+                request.header("X-Accel-Capable", "nginx");
+            }
+            mockMvc.perform(request)
+                    .andExpect(status().isNotFound())
+                    .andExpect(header().doesNotExist("X-Accel-Redirect"))
+                    .andExpect(content().string(org.hamcrest.Matchers.containsString("页面不存在")));
+        }
+    }
+
+    private static void createDirectoryLink(Path link, Path target) throws Exception {
+        if (System.getProperty("os.name").startsWith("Windows")) {
+            Process process = new ProcessBuilder("cmd.exe", "/c", "mklink", "/J",
+                    link.toString(), target.toString()).redirectErrorStream(true).start();
+            process.getInputStream().readAllBytes();
+            org.junit.jupiter.api.Assertions.assertEquals(0, process.waitFor(), "创建测试 junction 失败");
+        } else {
+            Files.createSymbolicLink(link, target);
+        }
+    }
+
+    @Test
     @DisplayName("文件不存在或映射不存在返回友好 404 页")
     void friendlyNotFound() throws Exception {
         mockMvc.perform(get("/page/{id}/missing.html", PAGE_ID))

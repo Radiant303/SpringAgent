@@ -28,7 +28,6 @@ public record AdminSearchSettingsRequest(
      */
     public record ProviderSettings(
             @Size(max = 1024, message = "API key 最多 1024 个字符") String apiKey,
-            Boolean clearApiKey,
             @NotNull BigDecimal points) {
     }
 }

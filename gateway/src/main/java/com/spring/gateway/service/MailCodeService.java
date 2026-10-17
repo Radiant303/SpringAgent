@@ -127,8 +127,9 @@ public class MailCodeService {
         if (!settings.isMailRegisterEnabled()) {
             throw new BizException(403, "当前未开启邮箱验证码功能");
         }
-        String from = settings.getMailUsername();
-        String authCode = settings.getMailAuthCode();
+        SystemSettingService.MailCredentials credentials = settings.getMailCredentials();
+        String from = credentials.username();
+        String authCode = credentials.authCode();
         if (from.isBlank() || authCode.isBlank()) {
             throw new BizException(500, "邮箱验证码服务未配置，请联系站长");
         }
@@ -155,7 +156,7 @@ public class MailCodeService {
             // 发信失败：清掉锁与验证码，让用户可以立刻重发，而不是等锁自然过期
             redis.delete(LOCK_KEY_PREFIX + normalized);
             redis.delete(codeKey);
-            log.error("验证码邮件发送失败: email={} scene={} err={}", normalized, scene.keySegment, e.getMessage());
+            log.error("验证码邮件发送失败: email={} scene={}", normalized, scene.keySegment);
             throw new BizException(500, "验证码发送失败，请稍后再试");
         }
         log.info("验证码已发送: email={} scene={}", normalized, scene.keySegment);

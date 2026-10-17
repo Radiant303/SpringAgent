@@ -236,7 +236,6 @@ function stashSearchProvider() {
   const draft = searchDraft?.[searchProvider];
   if (!draft) return;
   draft.apiKey = $("search-api-key").value;
-  draft.clearApiKey = $("search-clear-api-key").checked;
   draft.points = $("search-provider-points").value;
 }
 
@@ -244,9 +243,7 @@ function renderSearchProvider() {
   const draft = searchDraft?.[searchProvider];
   if (!draft) return;
   $("search-api-key").value = draft.apiKey;
-  $("search-api-key").placeholder = draft.apiKeyConfigured ? "已配置，留空保持不变" : "未配置，留空保持不变";
-  $("search-api-key").disabled = draft.clearApiKey;
-  $("search-clear-api-key").checked = draft.clearApiKey;
+  $("search-api-key").placeholder = draft.apiKeyConfigured ? "已配置，留空保持不变" : "未配置";
   $("search-provider-points").value = draft.points;
 }
 
@@ -256,10 +253,6 @@ export function bindSearchSettings() {
     stashSearchProvider();
     searchProvider = $("search-local-provider").value;
     renderSearchProvider();
-  });
-  $("search-clear-api-key")?.addEventListener("change", () => {
-    if ($("search-clear-api-key").checked) $("search-api-key").value = "";
-    $("search-api-key").disabled = $("search-clear-api-key").checked;
   });
 }
 
@@ -283,7 +276,7 @@ export async function loadSearch() {
       if (typeof provider.label !== "string" || typeof provider.points !== "string") {
         throw new Error("搜索设置加载失败，请重新进入页面");
       }
-      return [id, { ...provider, apiKey: "", clearApiKey: false }];
+      return [id, { ...provider, apiKey: "" }];
     }));
     if (typeof search.nativePoints !== "string" || typeof search.localEnabled !== "boolean") {
       throw new Error("搜索设置加载失败，请重新进入页面");
@@ -323,16 +316,15 @@ export async function saveSearch() {
         const points = pointsValue(draft.points, searchLimits);
         if (points === null) throw new Error(draft.label + " 搜索积分须为 " + pointsHint(searchLimits));
         if (draft.apiKey.length > 1024) throw new Error("API key 最多 1024 个字符");
-        return [id, { apiKey: draft.apiKey, clearApiKey: draft.clearApiKey, points }];
+        return [id, { apiKey: draft.apiKey, points }];
       }));
       await api("/api/admin/settings/search", {
         method: "POST",
         body: { localEnabled: $("search-local-enabled").checked, localProvider: searchProvider, nativePoints, providers },
       });
       for (const draft of Object.values(searchDraft)) {
-        draft.apiKeyConfigured = draft.clearApiKey ? false : !!draft.apiKey.trim() || draft.apiKeyConfigured;
+        draft.apiKeyConfigured = !!draft.apiKey.trim() || draft.apiKeyConfigured;
         draft.apiKey = "";
-        draft.clearApiKey = false;
       }
       renderSearchProvider();
     } finally {

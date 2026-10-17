@@ -22,6 +22,8 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.scheduling.support.CronExpression;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -53,6 +55,8 @@ public class AdminSettingsController {
      */
     @GetMapping
     public Result<Map<String, Object>> get() {
+        SystemSettingService.MailCredentials mail = systemSettingService.getMailCredentials();
+        SystemSettingService.OssConfig oss = systemSettingService.getOssConfig();
         Map<String, Object> data = new HashMap<>(Map.of(
                 "registrationOpen", systemSettingService.isRegistrationOpen(),
                 "workMaxBytes", systemSettingService.getWorkMaxBytes(),
@@ -63,8 +67,8 @@ public class AdminSettingsController {
                 "billingEstOutputTokens", systemSettingService.getLong(
                         SystemSetting.KEY_BILLING_EST_OUTPUT_TOKENS, 20000L),
                 "mailRegisterEnabled", systemSettingService.isMailRegisterEnabled(),
-                "mailUsername", systemSettingService.getMailUsername(),
-                "mailAuthCodeConfigured", !systemSettingService.getMailAuthCode().isBlank(),
+                "mailUsername", mail.username(),
+                "mailAuthCodeConfigured", !mail.authCode().isBlank(),
                 "mailResendIntervalSeconds", systemSettingService.getMailResendIntervalSeconds(),
                 "mailCodeTtlSeconds", systemSettingService.getMailCodeTtlSeconds()));
         data.put("communityLink", systemSettingService.getCommunityLink());
@@ -72,11 +76,10 @@ public class AdminSettingsController {
         data.put("platformHttps", systemSettingService.isPlatformHttps());
         data.put("storageType", systemSettingService.getStorageType());
         data.put("storageReconcileCron", systemSettingService.getStorageReconcileCron());
-        data.put("ossEndpoint", systemSettingService.getOssEndpoint());
-        data.put("ossBucket", systemSettingService.getOssBucket());
-        data.put("ossAccessKeyId", systemSettingService.getOssAccessKeyId());
-        data.put("ossAccessKeySecretConfigured",
-                !systemSettingService.getOssAccessKeySecret().isBlank());
+        data.put("ossEndpoint", oss.endpoint());
+        data.put("ossBucket", oss.bucket());
+        data.put("ossAccessKeyId", oss.accessKeyId());
+        data.put("ossAccessKeySecretConfigured", !oss.accessKeySecret().isBlank());
         data.put("search", systemSettingService.getSearchSettings());
         return Result.ok(data);
     }
@@ -100,11 +103,8 @@ public class AdminSettingsController {
             }
             ResourceLimits.points(settings.points(), false, "搜索厂商积分");
             String apiKey = settings.apiKey() == null ? "" : settings.apiKey().trim();
-            if (Boolean.TRUE.equals(settings.clearApiKey()) && !apiKey.isEmpty()) {
-                throw new BizException(400, "清除 API key 时不能同时填写新 key");
-            }
             values.put(SearchProviders.pointsSetting(id), settings.points().toPlainString());
-            if (Boolean.TRUE.equals(settings.clearApiKey()) || !apiKey.isEmpty()) {
+            if (!apiKey.isEmpty()) {
                 values.put(SearchProviders.apiKeySetting(id), apiKey);
             }
         });
@@ -147,15 +147,16 @@ public class AdminSettingsController {
      */
     @RequiresOwner(message = "仅站长可修改系统设置")
     @PostMapping("/mail")
+    @Transactional
     public Result<Void> setMail(@Valid @RequestBody AdminMailSettingsRequest req) {
         String username = req.username() == null ? "" : req.username().trim();
         if (!username.isEmpty() && !MailCodeService.isValidEmail(username)) {
             throw new BizException(400, "发件邮箱格式不正确");
         }
         String authCode = req.authCode() == null ? "" : req.authCode().trim();
-        // 生效值 = 本次传入优先，否则沿用已存储值
-        String effectiveUsername = username.isEmpty() ? systemSettingService.getMailUsername() : username;
-        boolean authReady = !authCode.isEmpty() || !systemSettingService.getMailAuthCode().isBlank();
+        SystemSettingService.MailCredentials current = systemSettingService.getMailCredentials();
+        String effectiveUsername = username.isEmpty() ? current.username() : username;
+        boolean authReady = !authCode.isEmpty() || !current.authCode().isBlank();
         if (Boolean.TRUE.equals(req.enabled()) && (effectiveUsername.isBlank() || !authReady)) {
             throw new BizException(400, "开启前请先配置发件 QQ 邮箱与 SMTP 授权码");
         }
@@ -219,6 +220,7 @@ public class AdminSettingsController {
      */
     @RequiresOwner(message = "仅站长可修改系统设置")
     @PostMapping("/storage")
+    @Transactional
     public Result<Void> setStorage(@Valid @RequestBody AdminStorageSettingsRequest req) {
         String type = req.type().trim();
         if (!StorageTypes.ALL.contains(type)) {
@@ -232,12 +234,11 @@ public class AdminSettingsController {
         String accessKeyId = req.accessKeyId() == null ? "" : req.accessKeyId().trim();
         String accessKeySecret = req.accessKeySecret() == null ? "" : req.accessKeySecret().trim();
         if (StorageTypes.ALIYUN_OSS.equals(type)) {
-            // 生效值 = 本次传入优先，否则沿用已存储值
-            String effectiveEndpoint = endpoint.isEmpty() ? systemSettingService.getOssEndpoint() : endpoint;
-            String effectiveBucket = bucket.isEmpty() ? systemSettingService.getOssBucket() : bucket;
-            String effectiveKeyId = accessKeyId.isEmpty() ? systemSettingService.getOssAccessKeyId() : accessKeyId;
-            boolean secretReady = !accessKeySecret.isEmpty()
-                    || !systemSettingService.getOssAccessKeySecret().isBlank();
+            SystemSettingService.OssConfig current = systemSettingService.getOssConfig();
+            String effectiveEndpoint = endpoint.isEmpty() ? current.endpoint() : endpoint;
+            String effectiveBucket = bucket.isEmpty() ? current.bucket() : bucket;
+            String effectiveKeyId = accessKeyId.isEmpty() ? current.accessKeyId() : accessKeyId;
+            boolean secretReady = !accessKeySecret.isEmpty() || !current.accessKeySecret().isBlank();
             if (effectiveEndpoint.isBlank() || effectiveBucket.isBlank()
                     || effectiveKeyId.isBlank() || !secretReady) {
                 throw new BizException(400, "切换到阿里云 OSS 前请补齐 endpoint、bucket 与 AccessKey");
@@ -266,7 +267,17 @@ public class AdminSettingsController {
         }
         systemSettingService.set(SystemSetting.KEY_STORAGE_RECONCILE_CRON,
                 cron.isEmpty() ? SystemSettingService.DEFAULT_RECONCILE_CRON : cron);
-        reconcileScheduler.apply(cron);
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(
+                    new TransactionSynchronization() {
+                        @Override
+                        public void afterCommit() {
+                            reconcileScheduler.requestRefresh();
+                        }
+                    });
+        } else {
+            reconcileScheduler.requestRefresh();
+        }
         return Result.ok(null);
     }
 

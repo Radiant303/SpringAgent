@@ -661,9 +661,8 @@ button.row-link:hover { text-decoration: none; }
 .settings-hint { font-size: 12px; color: var(--text-faint, rgba(0, 0, 0, 0.45)); }
 .settings-actions { position: relative; }
 .search-settings-fields { margin: 0; padding: 0; border: 0; min-width: 0; }
+.search-settings-fields > .section-caption:first-child { margin-top: 0; }
 .search-settings-fields:disabled { opacity: 0.6; }
-.search-settings-fields .ui-select { min-width: 180px; }
-.search-settings-fields .settings-hint { margin: 12px 4px 0; }
 #search-save:disabled { opacity: 0.5; cursor: not-allowed; }
 
 /* 存储页：存储类型为本地时隐藏 OSS 配置行 */

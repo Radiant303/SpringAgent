@@ -16,9 +16,12 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.util.UriUtils;
 
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
 import java.nio.file.Path;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.Map;
 import java.util.regex.Pattern;
 
@@ -161,12 +164,40 @@ public class PageController {
         if (!CONTENT_TYPES.containsKey(ext)) {
             return null;
         }
-        Path root = Path.of(dataRoot, "works", workId, "page").normalize();
-        Path target = root.resolve(String.join("/", segments)).normalize();
-        if (!target.startsWith(root)) {
+        if (workId == null || !SEGMENT.matcher(workId).matches()
+                || ".".equals(workId) || "..".equals(workId)) {
             return null;
         }
-        return new Resolved(target, String.join("/", segments), ext);
+        try {
+            Path root = Path.of(dataRoot, "works", workId, "page").toAbsolutePath().normalize();
+            Path target = root.resolve(String.join("/", segments)).normalize();
+            if (!target.startsWith(root)) {
+                return null;
+            }
+            Path realRoot = checkedRealPath(root);
+            Path realTarget = checkedRealPath(target);
+            if (!realTarget.startsWith(realRoot)
+                    || !Files.isRegularFile(realTarget, LinkOption.NOFOLLOW_LINKS)) {
+                return null;
+            }
+            return new Resolved(realTarget, String.join("/", segments), ext);
+        } catch (IOException | SecurityException | IllegalArgumentException e) {
+            return null;
+        }
+    }
+
+    private static Path checkedRealPath(Path path) throws IOException {
+        Path current = path.getRoot();
+        for (Path segment : path) {
+            current = current.resolve(segment);
+            BasicFileAttributes attributes = Files.readAttributes(
+                    current, BasicFileAttributes.class, LinkOption.NOFOLLOW_LINKS);
+            if (attributes.isSymbolicLink() || attributes.isOther()
+                    || !current.toRealPath().equals(current.toRealPath(LinkOption.NOFOLLOW_LINKS))) {
+                throw new IOException("页面路径包含链接");
+            }
+        }
+        return path.toRealPath();
     }
 
     private static ResponseEntity<String> notFound() {

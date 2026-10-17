@@ -1,4 +1,6 @@
 import asyncio
+import os
+import stat
 import time
 from pathlib import Path
 from collections.abc import AsyncIterator
@@ -12,6 +14,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from pydantic_ai import Agent
 
+from spring_harness.cloud.cache_crypto import CacheSecretCipher
 from spring_harness.cloud.model_store import DbCatalog, load_model_fresh
 from spring_harness.cloud.mq import TurnDispatcher, set_dispatcher
 from spring_harness.cloud.registry import (
@@ -40,24 +43,43 @@ class BusySessionsRequest(BaseModel):
     session_ids: list[str]
 
 
+def _initialize_works(data_root: Path) -> None:
+    works = data_root / "works"
+    try:
+        for directory in (*reversed(works.parents), works):
+            try:
+                info = directory.lstat()
+            except FileNotFoundError:
+                directory.mkdir(exist_ok=True)
+                info = directory.lstat()
+            if stat.S_ISLNK(info.st_mode) or getattr(info, "st_file_attributes", 0) & 0x400:
+                raise ValueError("存储路径包含链接")
+            if not stat.S_ISDIR(info.st_mode):
+                raise ValueError("存储路径不是目录")
+        if not os.access(works, os.W_OK | os.X_OK):
+            raise PermissionError("工作区目录不可写")
+    except (OSError, ValueError) as e:
+        raise RuntimeError(f"本地存储工作区初始化失败: {works}") from e
+
+
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
-    # 模型配置来源切到 DB；Redis 快照缓存 + 写后延迟双删。
-    # catalog 用同步客户端（模型解析在同步代码路径上），与下方异步事件流客户端互不干扰
+    data_root = Path(config.cloud.data_root).expanduser().absolute()
+    _initialize_works(data_root)
+    cipher = CacheSecretCipher.load(data_root)
     catalog_cache = redis.from_url(config.cloud.redis_url, decode_responses=True)
-    set_catalog(DbCatalog(catalog_cache))
-    # system_settings 同样走 Redis 快照（平台域名等热点配置）
+    set_catalog(DbCatalog(catalog_cache, cipher))
     from spring_harness.cloud.settings_store import DbSettings
     from spring_harness.core.config.platform import set_platform_settings
 
-    set_platform_settings(DbSettings(catalog_cache))
+    set_platform_settings(DbSettings(catalog_cache, cipher))
 
     # 进程级会话注册表 + Redis Stream 事件流（断线续传的前提）
     redis_client = aioredis.from_url(config.cloud.redis_url, decode_responses=True)
     from spring_harness.cloud.billing import BillingClient, set_billing_client
 
     billing = BillingClient(config.cloud.gateway_base_url, config.cloud.internal_token,
-                            Path(config.cloud.data_root).expanduser() / "billing-outbox.sqlite3")
+                            data_root / "billing-outbox.sqlite3")
     await billing.start()
     set_billing_client(billing)
     registry = CloudSessionRegistry(redis_client)

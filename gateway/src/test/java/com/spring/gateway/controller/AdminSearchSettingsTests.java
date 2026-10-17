@@ -131,10 +131,22 @@ class AdminSearchSettingsTests {
     }
 
     @Test
-    void keysAreWriteOnlyAndBlankPreservesWhileClearRemoves() throws Exception {
+    void keysAreWriteOnlyAndBlankPreservesWhileNonblankReplaces() throws Exception {
         String keys = "{\"tavily\":{\"apiKey\":\"secret-tavily\",\"points\":\"1.000001\"},"
                 + "\"exa\":{\"apiKey\":\"secret-exa\",\"points\":\"2\"}}";
         save(owner, request(false, "tavily", "1", keys), 200);
+        save(owner, request(false, "exa", "1", "{\"tavily\":{\"apiKey\":\"\",\"points\":\"3\"},"
+                + "\"exa\":{\"apiKey\":null,\"points\":\"2\"}}"), 200);
+        assertEquals("secret-tavily", service.getString(SearchProviders.apiKeySetting("tavily"), ""));
+        assertEquals("secret-exa", service.getString(SearchProviders.apiKeySetting("exa"), ""));
+        save(owner, request(false, "exa", "1", "{\"tavily\":{\"apiKey\":\"   \",\"points\":\"3\"},"
+                + "\"exa\":{\"apiKey\":\" \\t\\r\\n \",\"points\":\"2\"}}"), 200);
+        assertEquals("secret-tavily", service.getString(SearchProviders.apiKeySetting("tavily"), ""));
+        assertEquals("secret-exa", service.getString(SearchProviders.apiKeySetting("exa"), ""));
+        save(owner, request(false, "exa", "1", "{\"exa\":{\"apiKey\":\" secret-exa-replaced \","
+                + "\"points\":\"2\"}}"), 200);
+        assertEquals("secret-exa-replaced", service.getString(SearchProviders.apiKeySetting("exa"), ""));
+        assertEquals("secret-tavily", service.getString(SearchProviders.apiKeySetting("tavily"), ""));
         for (String reader : new String[]{owner, bearer(User.ROLE_ADMIN)}) {
             mvc.perform(get("/api/admin/settings").header("Authorization", reader))
                     .andExpect(status().isOk())
@@ -144,13 +156,6 @@ class AdminSearchSettingsTests {
                     .andExpect(jsonPath("$.data.search.providers.exa.apiKey").doesNotExist())
                     .andExpect(content().string(not(containsString("secret-"))));
         }
-        save(owner, request(false, "exa", "1", "{\"tavily\":{\"apiKey\":\"\",\"points\":\"3\"},"
-                + "\"exa\":{\"apiKey\":null,\"points\":\"2\"}}"), 200);
-        assertEquals("secret-tavily", service.getString(SearchProviders.apiKeySetting("tavily"), ""));
-        assertEquals("secret-exa", service.getString(SearchProviders.apiKeySetting("exa"), ""));
-        save(owner, request(false, "exa", "1", "{\"exa\":{\"clearApiKey\":true,\"points\":\"2\"}}"), 200);
-        assertEquals("", service.getString(SearchProviders.apiKeySetting("exa"), ""));
-        assertEquals("secret-tavily", service.getString(SearchProviders.apiKeySetting("tavily"), ""));
     }
 
     @Test

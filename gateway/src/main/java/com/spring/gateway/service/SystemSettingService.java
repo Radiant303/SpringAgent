@@ -1,19 +1,24 @@
 package com.spring.gateway.service;
 
-import tools.jackson.core.type.TypeReference;
-import tools.jackson.databind.ObjectMapper;
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.spring.gateway.common.BizException;
+import com.spring.gateway.common.CacheSecretCipher;
 import com.spring.gateway.common.ResourceLimits;
 import com.spring.gateway.common.SearchProviders;
+import com.spring.gateway.common.SystemSettingCachePolicy;
 import com.spring.gateway.entity.SystemSetting;
 import com.spring.gateway.mapper.SystemSettingMapper;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.scheduling.support.CronExpression;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
+import tools.jackson.databind.ObjectMapper;
 
 import java.math.BigDecimal;
 import java.time.Duration;
@@ -22,12 +27,13 @@ import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 /**
- * 运行时系统设置。MySQL 为权威数据，Redis 全表快照缓存（读多写少的热点数据），
- * 写入后延迟双删保持最终一致；事务内读取直走 MySQL，保证读到本事务的写入。
+ * 运行时系统设置。
  *
  * @author hanbing
  * @since 2026-10-05
@@ -42,6 +48,7 @@ public class SystemSettingService {
     private final SystemSettingCache systemSettingCache;
     private final StringRedisTemplate redis;
     private final ObjectMapper objectMapper;
+    private final CacheSecretCipher cacheSecretCipher;
 
     /**
      * 读布尔设置；键不存在时返回默认值
@@ -51,7 +58,7 @@ public class SystemSettingService {
      * @return 设置值
      */
     public boolean getBool(String key, boolean defaultValue) {
-        String value = snapshot().get(key);
+        String value = readValue(key);
         return value == null ? defaultValue : Boolean.parseBoolean(value);
     }
 
@@ -72,7 +79,7 @@ public class SystemSettingService {
      * @return 设置值
      */
     public long getLong(String key, long defaultValue) {
-        String value = snapshot().get(key);
+        String value = readValue(key);
         if (value == null) {
             return defaultValue;
         }
@@ -100,7 +107,7 @@ public class SystemSettingService {
      * @return 设置值
      */
     public String getString(String key, String defaultValue) {
-        String value = snapshot().get(key);
+        String value = readValue(key);
         return value == null ? defaultValue : value.trim();
     }
 
@@ -148,21 +155,27 @@ public class SystemSettingService {
     }
 
     /**
-     * 发件 QQ 邮箱；默认空串（未配置）
+     * 获取发件邮箱凭证。
      *
-     * @return 发件邮箱
+     * @return 发件邮箱凭证
      */
-    public String getMailUsername() {
-        return getString(SystemSetting.KEY_MAIL_USERNAME, "");
+    public MailCredentials getMailCredentials() {
+        Map<String, String> values = snapshot();
+        return new MailCredentials(values.getOrDefault(SystemSetting.KEY_MAIL_USERNAME, "").trim(),
+                values.getOrDefault(SystemSetting.KEY_MAIL_AUTH_CODE, "").trim());
     }
 
     /**
-     * QQ 邮箱 SMTP 授权码；默认空串（未配置）
+     * 发件邮箱凭证。
      *
-     * @return 授权码
+     * @author hanbing
+     * @since 2026-10-17
      */
-    public String getMailAuthCode() {
-        return getString(SystemSetting.KEY_MAIL_AUTH_CODE, "");
+    public record MailCredentials(String username, String authCode) {
+        @Override
+        public String toString() {
+            return "MailCredentials[username=<redacted>, authCode=<redacted>]";
+        }
     }
 
     /**
@@ -211,39 +224,36 @@ public class SystemSettingService {
     }
 
     /**
-     * 阿里云 OSS endpoint；默认空串（未配置）
+     * 获取阿里云 OSS 配置。
      *
-     * @return endpoint
+     * @return OSS 配置
      */
-    public String getOssEndpoint() {
-        return getString(SystemSetting.KEY_OSS_ENDPOINT, "");
+    public OssConfig getOssConfig() {
+        Map<String, String> values = snapshot();
+        return new OssConfig(values.getOrDefault(SystemSetting.KEY_OSS_ENDPOINT, "").trim(),
+                values.getOrDefault(SystemSetting.KEY_OSS_BUCKET, "").trim(),
+                values.getOrDefault(SystemSetting.KEY_OSS_ACCESS_KEY_ID, "").trim(),
+                values.getOrDefault(SystemSetting.KEY_OSS_ACCESS_KEY_SECRET, "").trim());
     }
 
     /**
-     * 阿里云 OSS bucket；默认空串（未配置）
+     * 阿里云 OSS 配置。
      *
-     * @return bucket
+     * @author hanbing
+     * @since 2026-10-17
      */
-    public String getOssBucket() {
-        return getString(SystemSetting.KEY_OSS_BUCKET, "");
-    }
+    public record OssConfig(String endpoint, String bucket, String accessKeyId, String accessKeySecret) {
+        public boolean complete() {
+            return endpoint != null && !endpoint.isBlank()
+                    && bucket != null && !bucket.isBlank()
+                    && accessKeyId != null && !accessKeyId.isBlank()
+                    && accessKeySecret != null && !accessKeySecret.isBlank();
+        }
 
-    /**
-     * 阿里云 OSS AccessKey ID；默认空串（未配置）
-     *
-     * @return AccessKey ID
-     */
-    public String getOssAccessKeyId() {
-        return getString(SystemSetting.KEY_OSS_ACCESS_KEY_ID, "");
-    }
-
-    /**
-     * 阿里云 OSS AccessKey Secret；默认空串（未配置）
-     *
-     * @return AccessKey Secret
-     */
-    public String getOssAccessKeySecret() {
-        return getString(SystemSetting.KEY_OSS_ACCESS_KEY_SECRET, "");
+        @Override
+        public String toString() {
+            return "OssConfig[endpoint=<redacted>, bucket=<redacted>, accessKeyId=<redacted>, accessKeySecret=<redacted>]";
+        }
     }
 
     /**
@@ -253,6 +263,13 @@ public class SystemSettingService {
      */
     public String getStorageReconcileCron() {
         return getString(SystemSetting.KEY_STORAGE_RECONCILE_CRON, DEFAULT_RECONCILE_CRON);
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW, readOnly = true)
+    public String loadStorageReconcileCron() {
+        String value = loadFromDb(Set.of(SystemSetting.KEY_STORAGE_RECONCILE_CRON))
+                .get(SystemSetting.KEY_STORAGE_RECONCILE_CRON);
+        return value == null ? DEFAULT_RECONCILE_CRON : value.trim();
     }
 
     /**
@@ -330,39 +347,94 @@ public class SystemSettingService {
         row.setSettingKey(key);
         row.setSettingValue(value);
         row.setUpdatedAt(LocalDateTime.now(ZoneOffset.UTC));
-        systemSettingMapper.insertOrUpdate(row);
-        systemSettingCache.invalidate();
+        systemSettingMapper.upsert(row);
+        if (SystemSettingCachePolicy.CACHEABLE_KEYS.contains(key)) {
+            systemSettingCache.invalidate();
+        }
     }
 
-    /** 设置全表快照：Redis 优先，未命中回源 MySQL 并回填；事务内直读 MySQL，保证读到本事务未提交的写入。 */
+    private String readValue(String key) {
+        if (!SystemSettingCachePolicy.CACHEABLE_KEYS.contains(key)) {
+            return loadFromDb(Set.of(key)).get(key);
+        }
+        return snapshot().get(key);
+    }
+
     private Map<String, String> snapshot() {
         if (TransactionSynchronizationManager.isSynchronizationActive()) {
-            return loadFromDb();
+            return loadFromDb(SystemSettingCachePolicy.CACHEABLE_KEYS);
         }
         try {
             String raw = redis.opsForValue().get(SystemSettingCache.CACHE_KEY);
             if (raw != null) {
-                return objectMapper.readValue(raw, new TypeReference<>() {
-                });
+                try {
+                    return decodeSnapshot(raw);
+                } catch (Exception e) {
+                    log.warn("设置快照缓存无效，重新加载");
+                }
+                deleteInvalidSnapshot(raw);
             }
         } catch (Exception e) {
-            log.warn("设置快照缓存读取失败，回源 MySQL: {}", e.getMessage());
+            log.warn("设置快照缓存读取失败，回源数据库");
         }
-        Map<String, String> snapshot = loadFromDb();
+        Map<String, String> snapshot = loadFromDb(SystemSettingCachePolicy.CACHEABLE_KEYS);
         try {
-            redis.opsForValue().set(SystemSettingCache.CACHE_KEY, objectMapper.writeValueAsString(snapshot),
+            Map<String, String> encoded = new HashMap<>();
+            snapshot.forEach((key, value) -> encoded.put(key, SystemSettingCachePolicy.SENSITIVE_KEYS.contains(key)
+                    ? cacheSecretCipher.encrypt(value, SystemSettingCache.CACHE_KEY, key) : value));
+            String raw = objectMapper.writeValueAsString(Map.of("version", 1, "payload", encoded));
+            redis.opsForValue().set(SystemSettingCache.CACHE_KEY, raw,
                     SystemSettingCache.CACHE_TTL_SECONDS, TimeUnit.SECONDS);
         } catch (Exception e) {
-            log.warn("设置快照缓存回填失败（不影响本次读取）: {}", e.getMessage());
+            log.warn("设置快照缓存回填失败");
         }
         return snapshot;
     }
 
-    private Map<String, String> loadFromDb() {
-        Map<String, String> snapshot = new HashMap<>();
-        for (SystemSetting row : systemSettingMapper.selectList(null)) {
-            snapshot.put(row.getSettingKey(), row.getSettingValue());
+    private Map<String, String> decodeSnapshot(String raw) {
+        Object decoded = objectMapper.readerFor(Object.class)
+                .with(tools.jackson.databind.DeserializationFeature.FAIL_ON_TRAILING_TOKENS)
+                .with(tools.jackson.core.StreamReadFeature.STRICT_DUPLICATE_DETECTION)
+                .readValue(raw);
+        if (!(decoded instanceof Map<?, ?> envelope)
+                || !envelope.keySet().equals(Set.of("version", "payload"))
+                || !(envelope.get("version") instanceof Integer version) || version != 1
+                || !(envelope.get("payload") instanceof Map<?, ?> values)) {
+            throw new IllegalArgumentException();
         }
-        return snapshot;
+        Map<String, String> validated = new HashMap<>();
+        for (Map.Entry<?, ?> entry : values.entrySet()) {
+            if (!(entry.getKey() instanceof String key)
+                    || !SystemSettingCachePolicy.CACHEABLE_KEYS.contains(key)
+                    || !(entry.getValue() instanceof String value)) {
+                throw new IllegalArgumentException();
+            }
+            validated.put(key, SystemSettingCachePolicy.SENSITIVE_KEYS.contains(key)
+                    ? cacheSecretCipher.decrypt(value, SystemSettingCache.CACHE_KEY, key) : value);
+        }
+        return validated;
+    }
+
+    private void deleteInvalidSnapshot(String raw) {
+        try {
+            redis.execute(new DefaultRedisScript<>(
+                    "if redis.call('GET', KEYS[1]) == ARGV[1] then return redis.call('DEL', KEYS[1]) else return 0 end",
+                    Long.class), List.of(SystemSettingCache.CACHE_KEY), raw);
+        } catch (RuntimeException e) {
+            log.warn("无效设置快照缓存删除失败");
+        }
+    }
+
+    private Map<String, String> loadFromDb(java.util.Collection<String> keys) {
+        Map<String, String> values = new HashMap<>();
+        QueryWrapper<SystemSetting> query = new QueryWrapper<SystemSetting>()
+                .select("setting_key", "setting_value")
+                .in("setting_key", keys);
+        for (SystemSetting row : systemSettingMapper.selectList(query)) {
+            if (keys.contains(row.getSettingKey()) && row.getSettingValue() != null) {
+                values.put(row.getSettingKey(), row.getSettingValue());
+            }
+        }
+        return values;
     }
 }

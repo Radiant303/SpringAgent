@@ -24,10 +24,10 @@ public class SystemSettingCache {
 
     private static final Logger log = LoggerFactory.getLogger(SystemSettingCache.class);
 
-    /** system_settings 全表快照 key（键 → 值的 JSON 对象）。 */
+    /** 白名单设置快照。 */
     public static final String CACHE_KEY = "sysconf:settings";
 
-    /** 快照 TTL（秒）：最终一致性兜底（延迟双删失败/遗漏时最多脏这么久）。 */
+    /** 快照过期时间（秒）。 */
     public static final long CACHE_TTL_SECONDS = 60;
 
     /** 第二次删除的延迟：需大于"读方 cache miss 读库 + 回填缓存"的典型耗时。 */
@@ -78,7 +78,7 @@ public class SystemSettingCache {
         try {
             redis.delete(CACHE_KEY);
         } catch (RuntimeException e) {
-            log.warn("设置快照缓存删除失败（TTL 兜底）: key={} err={}", CACHE_KEY, e.getMessage());
+            log.warn("设置快照缓存删除失败: key={}", CACHE_KEY);
         }
     }
 
