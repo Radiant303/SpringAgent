@@ -1,4 +1,4 @@
-"""存储事务提交后的通知队列。"""
+"""文件用量更新后的通知队列。"""
 
 from collections.abc import Awaitable, Callable
 from contextvars import ContextVar

@@ -1,5 +1,4 @@
 from dataclasses import dataclass, replace
-from pathlib import Path
 from typing import Any
 
 from pydantic_ai import RunContext
@@ -7,9 +6,6 @@ from pydantic_ai.exceptions import UserError
 from pydantic_ai.tools import ToolDefinition
 from pydantic_ai.toolsets import AbstractToolset, ToolsetTool, WrapperToolset
 from pydantic_ai_harness import CodeMode
-from pydantic_monty import MountDir
-
-from spring_harness.core.config.settings import STATE_DIR
 
 READ_ONLY_TOOLS = (
     "read_file",
@@ -62,10 +58,11 @@ def _prepare_description(
         "使用关键字参数调用，异步函数通过 await 获取结果；"
         "独立调用可用 await asyncio.gather(...) 组合，按位置传入各个调用。"
         "文件工具的 scope 选择 workspace 项目空间或 knowledge 个人知识空间，path 相对于所选空间。片段末尾的表达式作为返回值。"
-        "片段间保留中间状态，restart=true 开始新的编排。"
-        "可按名称导入 asyncio、json、re、math、typing、sys、unicodedata、datetime、os、pathlib。"
-        "Path 使用虚拟绝对路径：/work 为本次调用的临时视图，/scratch 保存跨调用中间文件。"
-        "项目文件的持久修改通过独立文件工具完成。\n\n"
+        "同一次 Agent 运行内，连续的 run_code 调用可复用内存变量；restart=true 重置本次编排状态。"
+        "开始新的对话轮次、恢复用户回答或工具审批后，先通过只读工具重新获取所需数据。"
+        "将后续需要的关键信息作为片段返回值，便于后续运行依据对话历史重新构建数据。"
+        "可按名称导入 asyncio、json、re、math、typing、sys、unicodedata、datetime。"
+        "文件读取通过 batch_ 工具完成，文件修改通过独立文件工具完成。\n\n"
     )
     prepared = []
     for tool_def in tool_defs:
@@ -80,7 +77,7 @@ def _prepare_description(
         schema = dict(tool_def.parameters_json_schema)
         properties = {key: dict(value) for key, value in schema.get("properties", {}).items()}
         properties["code"]["description"] = "包含工具调用与结果整理步骤的编排片段。"
-        properties["restart"]["description"] = "设为 true 时重置编排状态，默认保留跨调用状态。"
+        properties["restart"]["description"] = "设为 true 时重置本次 Agent 运行内的编排状态；默认在同次运行的连续调用间复用状态。"
         schema["properties"] = properties
         prepared.append(replace(
             tool_def, description=guidance + catalog[catalog_start:], parameters_json_schema=schema,
@@ -97,19 +94,9 @@ class _DualAccessCodeMode(CodeMode[Any]):
 
     def get_wrapper_toolset(self, toolset: AbstractToolset[Any]) -> AbstractToolset[Any] | None:
         wrapped = super().get_wrapper_toolset(_SandboxAliases(wrapped=toolset))
-        from spring_harness.toolsets.storage import InternalStorageToolset
-
-        return InternalStorageToolset(wrapped.prepared(_prepare_description), code_only=True) if wrapped is not None else None
+        return wrapped.prepared(_prepare_description) if wrapped is not None else None
 
 
-def code_mode(root: Path) -> CodeMode:
+def code_mode() -> CodeMode:
     """提供只读工具直调与编排双入口。"""
-    scratch = root / STATE_DIR / ".agent-scratch"
-    scratch.mkdir(parents=True, exist_ok=True)
-    return _DualAccessCodeMode(
-        mount=[
-            MountDir(virtual_path="/work", host_path=root, mode="overlay"),
-            MountDir(virtual_path="/scratch", host_path=scratch, mode="read-write"),
-        ],
-        tools=list(SANDBOX_ALIASES),
-    )
+    return _DualAccessCodeMode(tools=list(SANDBOX_ALIASES))

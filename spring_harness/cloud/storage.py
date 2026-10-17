@@ -4,8 +4,6 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
-import shutil
-import tempfile
 
 from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
@@ -89,14 +87,12 @@ class _Change:
     maximum: int
     marker: Path | None = None
 
-    def check_growth(self, growth: int) -> None:
-        if growth <= 0:
-            return
-        if self.user.used_bytes + growth > self.user.quota_bytes:
-            raise ValueError("用户存储空间不足，请清理文件或缩小内容。")
+    def check_write(self) -> None:
+        if self.user.used_bytes >= self.user.quota_bytes:
+            raise ValueError("用户存储空间已达上限，请清理文件后重试。")
         if self.resource.scope == FileScope.WORKSPACE and self.maximum > 0 \
-                and self.work.size_bytes + growth > self.maximum:
-            raise ValueError("项目工作区存储空间不足，请清理文件或缩小内容。")
+                and self.work.size_bytes >= self.maximum:
+            raise ValueError("项目工作区存储空间已达上限，请清理文件后重试。")
 
     def prepare(self) -> None:
         if self.marker is None:
@@ -158,40 +154,22 @@ class CloudStorageGuard:
 
     @contextmanager
     def internal_change(self, paths: tuple[str, ...]) -> Iterator[None]:
-        if not paths or any(name not in {"teaching.db", "teaching", ".agent-scratch"} for name in paths):
-            raise ValueError("请选择受管的内部文件资源。")
+        if not paths or any(name not in {"teaching.db", "teaching"} for name in paths):
+            raise ValueError("请选择受管的教学文件资源。")
         root = self.access.workspace_root / STATE_DIR
+        error = None
         with self.change(self.access.resource(FileScope.WORKSPACE)) as change:
-            with tempfile.TemporaryDirectory(prefix="spring-storage-") as temporary:
-                backup = Path(temporary)
-                old_size = 0
-                for name in paths:
-                    target = root / name
-                    old_size += _path_bytes(target)
-                    if target.is_dir():
-                        shutil.copytree(target, backup / name)
-                    elif target.exists():
-                        shutil.copy2(target, backup / name)
-                change.prepare()
-                try:
-                    yield
-                    new_size = sum(_path_bytes(root / name) for name in paths)
-                    change.check_growth(new_size - old_size)
-                except BaseException:
-                    for name in paths:
-                        target = root / name
-                        check_path(target, directory=target.is_dir())
-                        if target.is_dir():
-                            shutil.rmtree(target)
-                        else:
-                            target.unlink(missing_ok=True)
-                        saved = backup / name
-                        if saved.is_dir():
-                            shutil.copytree(saved, target)
-                        elif saved.exists():
-                            shutil.copy2(saved, target)
-                    raise
-                change.record(f"{STATE_DIR}/internal", old_size, new_size)
+            change.check_write()
+            old_size = sum(_path_bytes(root / name) for name in paths)
+            change.prepare()
+            try:
+                yield
+            except BaseException as original:
+                error = original
+            new_size = sum(_path_bytes(root / name) for name in paths)
+            change.record(f"{STATE_DIR}/internal", old_size, new_size)
+        if error is not None:
+            raise error
 
     def _locked(self, session: Session) -> tuple[UserRow, WorkRow]:
         user = session.scalar(select(UserRow).where(UserRow.id == self.access.user_id).with_for_update())

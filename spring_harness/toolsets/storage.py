@@ -15,20 +15,15 @@ from spring_harness.core.storage_notifications import pending_notifications
 
 @dataclass
 class InternalStorageToolset(WrapperToolset[CodingAgentDeps]):
-    """内部工具的配额和占用事务。
+    """教学文件的配额检查与用量记录。
 
     @author hanbing
     @since 2026-10-17
     """
 
-    code_only: bool = False
-
     async def call_tool(self, name: str, tool_args: dict[str, Any],
                         ctx: RunContext[CodingAgentDeps], tool: ToolsetTool[CodingAgentDeps]) -> Any:
-        paths = (".agent-scratch",) if name == "run_code" else ("teaching.db", "teaching")
-        if (self.code_only and name != "run_code") or (
-            name != "run_code" and (not name.startswith("teach_") or name == "teach_state")
-        ):
+        if not name.startswith("teach_") or name == "teach_state":
             return await self.wrapped.call_tool(name, tool_args, ctx, tool)
         guard = ctx.deps.storage_guard
         access = ctx.deps.file_access
@@ -48,7 +43,7 @@ class InternalStorageToolset(WrapperToolset[CodingAgentDeps]):
                 pending_notifications.reset(token)
 
         def operation(cancelled: threading.Event) -> Any:
-            with guard.internal_change(paths):
+            with guard.internal_change(("teaching.db", "teaching")):
                 if cancelled.is_set():
                     raise InterruptedError("文件操作已取消。")
                 result = asyncio.run_coroutine_threadsafe(invoke(), loop).result()

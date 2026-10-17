@@ -20,13 +20,13 @@ from spring_harness.core.workspace import StorageChange, StorageGuard, Workspace
 
 
 class _UnmeteredChange:
-    """本地文件变更的空计量事务。
+    """本地文件变更的空计量记录。
 
     @author hanbing
     @since 2026-10-17
     """
 
-    def check_growth(self, growth: int) -> None:
+    def check_write(self) -> None:
         pass
 
     def prepare(self) -> None:
@@ -251,7 +251,7 @@ class WorkspaceFiles:
                 content = args["content"]
             content = content.replace("\r\n", "\n").replace("\r", "\n")
             encoded = content.encode("utf-8")
-            change.check_growth(len(encoded) - len(old_bytes))
+            change.check_write()
             _check_cancel(cancelled)
             change.prepare()
             if self.resource.allowed_files:
@@ -265,6 +265,7 @@ class WorkspaceFiles:
         if self.resource.allowed_files and _relative_path(path) != ".":
             raise ValueError("此工作区的文件直接存放于根目录。")
         target = self.target(path, directory=True, write=True)
+        change.check_write()
         _check_cancel(cancelled)
         change.prepare()
         target.mkdir(parents=True, exist_ok=True)

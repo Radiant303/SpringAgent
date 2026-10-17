@@ -68,13 +68,13 @@ class FileAccessContext:
 
 
 class StorageChange(Protocol):
-    """文件变更的计量事务。
+    """文件变更的配额检查与用量记录。
 
     @author hanbing
     @since 2026-10-17
     """
 
-    def check_growth(self, growth: int) -> None: ...
+    def check_write(self) -> None: ...
     def prepare(self) -> None: ...
     def record(self, path: str, old_size: int, new_size: int | None) -> None: ...
 
