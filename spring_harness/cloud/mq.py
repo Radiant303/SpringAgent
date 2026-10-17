@@ -5,16 +5,23 @@ from __future__ import annotations
 import asyncio
 import json
 from collections import deque
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 import aio_pika
 from aio_pika.abc import AbstractIncomingMessage
+from pamqp.commands import Basic
 
 from spring_harness.core.log import logger
 from spring_harness.core.rpc.connection import JsonRpcError
 
 if TYPE_CHECKING:
     from aio_pika.abc import AbstractChannel, AbstractExchange, AbstractRobustConnection
+
+SEARCH_EXCHANGE = "springharness.search"
+SEARCH_ROUTING_KEY = "search.usage"
+
+# 搜索消息发布确认超时（秒）。
+SEARCH_PUBLISH_TIMEOUT = 10
 
 TURN_EXCHANGE = "harness.turn"
 TURN_DLX = "harness.turn.dlx"
@@ -38,11 +45,13 @@ class TurnDispatcher:
         self._url = url
         self._connection: AbstractRobustConnection | None = None
         self._exchange: AbstractExchange | None = None
+        self._search_exchange: AbstractExchange | None = None
         self._seen: set[Any] = set()
         self._seen_order: deque[Any] = deque()
 
     async def start(self) -> None:
         connection: AbstractRobustConnection = await aio_pika.connect_robust(self._url)
+        self._connection = connection
         channel: AbstractChannel = await connection.channel(publisher_confirms=True)
         # prefetch=1：一条处理完再取下一条，同会话串行之外也不让单进程积压未确认消息
         await channel.set_qos(prefetch_count=1)
@@ -67,7 +76,10 @@ class TurnDispatcher:
             await dlq.bind(dlx, routing_key=f"{name}.dlq")
             queues[name] = queue
 
-        self._connection = connection
+        search_channel = await connection.channel(publisher_confirms=True, on_return_raises=True)
+        self._search_exchange = await search_channel.declare_exchange(
+            SEARCH_EXCHANGE, aio_pika.ExchangeType.DIRECT, durable=True,
+        )
         self._exchange = exchange
 
         await queues[QUEUE_DISPATCH].consume(self._on_dispatch)
@@ -75,10 +87,32 @@ class TurnDispatcher:
         logger.info("MQ 控制面已连接: {} (消费 {} / {})", self._url, QUEUE_DISPATCH, QUEUE_CANCEL)
 
     async def stop(self) -> None:
-        if self._connection is not None:
-            await self._connection.close()
-            self._connection = None
-            self._exchange = None
+        connection = self._connection
+        self._connection = None
+        self._exchange = None
+        self._search_exchange = None
+        if connection is not None:
+            await connection.close()
+
+    async def publish_search_usage(self, payload: dict[str, Any]) -> None:
+        connection = self._connection
+        exchange = self._search_exchange
+        if connection is None or connection.is_closed or not connection.connected.is_set() \
+                or exchange is None:
+            raise ConnectionError("搜索用量 MQ 尚未连接")
+        confirmation = await exchange.publish(
+            aio_pika.Message(
+                body=json.dumps(payload).encode(),
+                content_type="application/json",
+                delivery_mode=aio_pika.DeliveryMode.PERSISTENT,
+                message_id=payload["eventId"],
+            ),
+            routing_key=SEARCH_ROUTING_KEY,
+            mandatory=True,
+            timeout=SEARCH_PUBLISH_TIMEOUT,
+        )
+        if not isinstance(confirmation, Basic.Ack):
+            raise RuntimeError("搜索用量 MQ 未收到发布确认")
 
     # ---- 消费：turn 派发/取消 ----
 
@@ -150,7 +184,7 @@ class TurnDispatcher:
         """有限重投：requeue 不会累加任何计数（x-death 只在死信转投时记录），
         所以重投次数记在自定义头 x-retry-count——失败时把消息复制一份（计数 +1）
         发回原队列并 ack 原件；超限后 nack(requeue=False) 进 DLQ。"""
-        retries = (message.headers or {}).get(RETRY_HEADER) or 0
+        retries = cast(int, (message.headers or {}).get(RETRY_HEADER) or 0)
         if retries < MAX_REQUEUE and self._exchange is not None:
             await self._exchange.publish(
                 aio_pika.Message(
@@ -159,7 +193,7 @@ class TurnDispatcher:
                     delivery_mode=aio_pika.DeliveryMode.PERSISTENT,
                     headers={**(message.headers or {}), RETRY_HEADER: retries + 1},
                 ),
-                routing_key=message.routing_key,
+                routing_key=cast(str, message.routing_key),
             )
             await message.ack()
             logger.warning("消息处理失败，重投（第 {} 次）", retries + 1)

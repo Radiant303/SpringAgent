@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-from typing import Any
 
 import redis
 from sqlalchemy import select
@@ -24,11 +23,9 @@ class DbSettings:
         self._cache = cache
 
     def get(self, key: str, default: str = "") -> str:
-        return self._snapshot().get(key, default)
+        return self.snapshot().get(key, default)
 
-    # ---- 快照：Redis 优先，未命中回源 MySQL 并回填 ----
-
-    def _snapshot(self) -> dict[str, Any]:
+    def snapshot(self) -> dict[str, str]:
         if self._cache is not None:
             try:
                 raw = self._cache.get(CACHE_KEY)

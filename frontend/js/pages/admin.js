@@ -20,6 +20,7 @@ import {
   loadPlatform, savePlatform,
   loadBilling, saveBilling,
   loadCommunity, saveCommunity,
+  loadSearch, saveSearch, bindSearchSettings,
 } from "./admin/settings.js";
 
 // 注册各页数据加载器
@@ -36,6 +37,7 @@ registerPageLoader("storage", () => loadStorage());
 registerPageLoader("platform", () => loadPlatform());
 registerPageLoader("billing", () => loadBilling());
 registerPageLoader("community", () => loadCommunity());
+registerPageLoader("search", loadSearch);
 
 // 用户列表加载或刷新后，同步用量统计和积分流水页的用户筛选下拉框
 onUsersUpdated((list) => {
@@ -105,6 +107,8 @@ export function init() {
       if ($("platform-save")) $("platform-save").onclick = savePlatform;
       if ($("billing-save")) $("billing-save").onclick = saveBilling;
       if ($("community-save")) $("community-save").onclick = saveCommunity;
+      if ($("search-save")) $("search-save").onclick = saveSearch;
+      bindSearchSettings();
       bindStorageSettings();
       if ($("redeem-open-gen")) $("redeem-open-gen").onclick = () => openRedeemGen().catch((e) => UI.toast(e.message, { type: "error" }));
 

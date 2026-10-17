@@ -20,12 +20,13 @@ export const PAGE_TITLES = {
   platform: "平台设置",
   billing: "计费设置",
   community: "社群设置",
+  search: "搜索服务",
 };
 
 export const pageLoaders = {};
 
 /** 仅站长的页面 */
-const OWNER_PAGES = new Set(["model-config", "registration", "storage", "platform", "billing", "community"]);
+const OWNER_PAGES = new Set(["model-config", "registration", "storage", "platform", "billing", "community", "search"]);
 /** 站长/管理员的页面 */
 const STAFF_PAGES = new Set(["users", "usage", "ledger", "models", "redeem"]);
 

@@ -82,6 +82,10 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/></svg>
           平台设置
         </div>
+        <div class="nav-item" data-page="search">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></svg>
+          搜索服务
+        </div>
         <div class="nav-item" data-page="billing">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2h16v20l-2-1.5L16 22l-2-1.5L12 22l-2-1.5L8 22l-2-1.5L4 22z"/><path d="M8 7h8M8 11h8M8 15h5"/></svg>
           计费设置
@@ -572,6 +576,56 @@
         <div class="settings-actions">
           <button id="storage-save" class="wide-btn primary">保存设置</button>
           <span id="storage-tip" class="settings-tip"></span>
+        </div>
+      </section>
+
+      <section class="admin-page" data-page="search">
+        <h1 class="page-title">搜索服务</h1>
+        <fieldset id="search-fields" class="search-settings-fields" disabled>
+          <div class="section-caption">本地回退</div>
+          <div class="card group-card" data-slot="card">
+            <label class="row">
+              <span class="row-label">启用本地回退</span>
+              <input type="checkbox" id="search-local-enabled" class="switch">
+            </label>
+            <div class="row">
+              <label class="row-label" for="search-local-provider">当前厂商</label>
+              <span class="row-control">
+                <select id="search-local-provider" title="搜索厂商" disabled></select>
+              </span>
+            </div>
+            <div class="row">
+              <label class="row-label" for="search-api-key">API key</label>
+              <span class="row-control">
+                <input type="password" id="search-api-key" class="settings-number settings-text" maxlength="1024" autocomplete="new-password">
+              </span>
+            </div>
+            <label class="row">
+              <span class="row-label">清除当前厂商 API key</span>
+              <input type="checkbox" id="search-clear-api-key" class="switch">
+            </label>
+            <div class="row">
+              <label class="row-label" for="search-provider-points">每次搜索积分</label>
+              <span class="row-control">
+                <input type="text" inputmode="decimal" id="search-provider-points" class="settings-number" maxlength="14">
+                <span class="unit">积分</span>
+              </span>
+            </div>
+          </div>
+          <div class="section-caption">原生搜索</div>
+          <div class="card group-card" data-slot="card">
+            <div class="row">
+              <label class="row-label" for="search-native-points">每次搜索默认积分</label>
+              <span class="row-control">
+                <input type="text" inputmode="decimal" id="search-native-points" class="settings-number" maxlength="14">
+                <span class="unit">积分</span>
+              </span>
+            </div>
+          </div>
+          <p class="settings-hint">原生搜索不受本地回退开关影响。</p>
+        </fieldset>
+        <div class="settings-actions">
+          <button id="search-save" class="wide-btn primary" disabled>保存设置</button>
         </div>
       </section>
 

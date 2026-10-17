@@ -10,8 +10,19 @@ class PlatformSettings(Protocol):
     def get(self, key: str, default: str = "") -> str:
         ...
 
+    def snapshot(self) -> dict[str, str]:
+        ...
 
-_settings: PlatformSettings | None = None
+
+class _EmptySettings:
+    def get(self, key: str, default: str = "") -> str:
+        return default
+
+    def snapshot(self) -> dict[str, str]:
+        return {}
+
+
+_settings: PlatformSettings = _EmptySettings()
 
 
 def set_platform_settings(settings: PlatformSettings) -> None:
@@ -20,6 +31,4 @@ def set_platform_settings(settings: PlatformSettings) -> None:
 
 
 def platform_settings() -> PlatformSettings:
-    if _settings is None:
-        raise RuntimeError("平台设置未初始化，请先调用 set_platform_settings()")
     return _settings

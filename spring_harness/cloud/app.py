@@ -63,25 +63,34 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     registry = CloudSessionRegistry(redis_client)
     set_registry(registry)
 
-    # MQ 消费者：连接失败不阻断启动（turn/start 另有 WS 透传兜底），仅缺席生命周期回传
     dispatcher = TurnDispatcher(config.cloud.rabbitmq_url)
-    try:
-        await dispatcher.start()
-    except Exception:
-        logger.exception("MQ 控制面连接失败，turn 派发不可用（可回退 WS 透传）")
-        set_dispatcher(None)
-    else:
-        set_dispatcher(dispatcher)
+
+    async def connect_dispatcher() -> None:
+        while True:
+            try:
+                await dispatcher.start()
+            except Exception:
+                logger.exception("MQ 连接失败，等待重试")
+                await dispatcher.stop()
+                await asyncio.sleep(5)
+            else:
+                set_dispatcher(dispatcher)
+                await billing.retry_pending()
+                return
+
+    mq_worker = asyncio.create_task(connect_dispatcher())
     try:
         yield
     finally:
-        set_dispatcher(None)
-        await dispatcher.stop()
+        mq_worker.cancel()
+        await asyncio.gather(mq_worker, return_exceptions=True)
         set_registry(None)
         await registry.close_all()
         await billing.retry_pending()
         set_billing_client(None)
         await billing.close()
+        set_dispatcher(None)
+        await dispatcher.stop()
         await redis_client.aclose()
         catalog_cache.close()
 

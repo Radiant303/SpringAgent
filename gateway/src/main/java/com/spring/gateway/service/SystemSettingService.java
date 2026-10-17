@@ -4,6 +4,7 @@ import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
 import com.spring.gateway.common.BizException;
 import com.spring.gateway.common.ResourceLimits;
+import com.spring.gateway.common.SearchProviders;
 import com.spring.gateway.entity.SystemSetting;
 import com.spring.gateway.mapper.SystemSettingMapper;
 import lombok.RequiredArgsConstructor;
@@ -14,11 +15,13 @@ import org.springframework.scheduling.support.CronExpression;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
+import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
@@ -99,6 +102,40 @@ public class SystemSettingService {
     public String getString(String key, String defaultValue) {
         String value = snapshot().get(key);
         return value == null ? defaultValue : value.trim();
+    }
+
+    public BigDecimal getSearchPoints(String provider) {
+        return searchPoints(snapshot(), provider);
+    }
+
+    public Map<String, Object> getSearchSettings() {
+        Map<String, String> values = snapshot();
+        Map<String, Object> providers = new LinkedHashMap<>();
+        SearchProviders.ALL.forEach((id, label) -> providers.put(id, Map.of(
+                "label", label,
+                "apiKeyConfigured", !values.getOrDefault(SearchProviders.apiKeySetting(id), "").isBlank(),
+                "points", searchPoints(values, id).toPlainString())));
+        String provider = values.getOrDefault(SearchProviders.LOCAL_PROVIDER_KEY, SearchProviders.DEFAULT_PROVIDER);
+        return Map.of(
+                "localEnabled", Boolean.parseBoolean(values.getOrDefault(SearchProviders.LOCAL_ENABLED_KEY, "false")),
+                "localProvider", SearchProviders.isSupported(provider) ? provider : SearchProviders.DEFAULT_PROVIDER,
+                "nativePoints", searchPoints(values, "native").toPlainString(),
+                "providers", providers);
+    }
+
+    private BigDecimal searchPoints(Map<String, String> values, String provider) {
+        String key = SearchProviders.pointsSetting(provider);
+        String value = values.get(key);
+        if (value == null) {
+            return BigDecimal.ONE;
+        }
+        try {
+            BigDecimal points = new BigDecimal(value.trim());
+            ResourceLimits.points(points, false, "搜索积分");
+            return points;
+        } catch (NumberFormatException | BizException e) {
+            return BigDecimal.ONE;
+        }
     }
 
     /**

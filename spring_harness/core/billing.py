@@ -17,6 +17,8 @@ class BillingGateway(Protocol):
 
     async def settle(self, payload: dict[str, Any]) -> None: ...
 
+    async def record_search(self, payload: dict[str, Any]) -> None: ...
+
 
 @dataclass(frozen=True)
 class BillingContext:

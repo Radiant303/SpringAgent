@@ -55,6 +55,7 @@ public class BillingService {
     private final SystemSettingService systemSettingService;
     private final SessionMapper sessionMapper;
     private final ModelDefinitionMapper modelDefinitionMapper;
+    private final SearchBillingService searchBillingService;
 
     @Transactional
     public BigDecimal reserveRequest(ReserveModelRequest request) {
@@ -130,6 +131,12 @@ public class BillingService {
         if (hold == null || !Objects.equals(hold.getUserId(), request.userId())) {
             throw new BizException(404, "计费请求不存在");
         }
+        String status = settleTokens(request, hold, balance);
+        searchBillingService.chargeNative(hold, request.webSearches());
+        return status;
+    }
+
+    private String settleTokens(SettleModelRequest request, PointsHold hold, BigDecimal balance) {
         if (request.inputTokens() < 0 || request.cacheReadTokens() < 0
                 || request.cacheWriteTokens() < 0 || request.outputTokens() < 0
                 || request.cacheReadTokens() > request.inputTokens()

@@ -4,7 +4,7 @@
 
 import { $ } from "../../utils/dom.js";
 import { parseInteger } from "../../utils/numeric.js";
-import { loadResourceLimits, quotaValue } from "../../utils/resourceLimits.js";
+import { loadResourceLimits, quotaValue, pointsValue, pointsHint } from "../../utils/resourceLimits.js";
 import { getRole } from "../../api/auth.js";
 import { api } from "../../api/client.js";
 import { UI } from "../../components/ui.js";
@@ -223,5 +223,122 @@ export async function saveCommunity() {
       method: "POST",
       body: { link: communityLink },
     });
+  });
+}
+
+let searchDraft = null;
+let searchProvider = "";
+let searchReady = false;
+let searchBusy = false;
+let searchLimits;
+
+function stashSearchProvider() {
+  const draft = searchDraft?.[searchProvider];
+  if (!draft) return;
+  draft.apiKey = $("search-api-key").value;
+  draft.clearApiKey = $("search-clear-api-key").checked;
+  draft.points = $("search-provider-points").value;
+}
+
+function renderSearchProvider() {
+  const draft = searchDraft?.[searchProvider];
+  if (!draft) return;
+  $("search-api-key").value = draft.apiKey;
+  $("search-api-key").placeholder = draft.apiKeyConfigured ? "已配置，留空保持不变" : "未配置，留空保持不变";
+  $("search-api-key").disabled = draft.clearApiKey;
+  $("search-clear-api-key").checked = draft.clearApiKey;
+  $("search-provider-points").value = draft.points;
+}
+
+export function bindSearchSettings() {
+  $("search-local-provider")?.addEventListener("change", () => {
+    if (!searchReady || searchBusy) return;
+    stashSearchProvider();
+    searchProvider = $("search-local-provider").value;
+    renderSearchProvider();
+  });
+  $("search-clear-api-key")?.addEventListener("change", () => {
+    if ($("search-clear-api-key").checked) $("search-api-key").value = "";
+    $("search-api-key").disabled = $("search-clear-api-key").checked;
+  });
+}
+
+export async function loadSearch() {
+  if (getRole() !== "owner" || searchBusy) return;
+  searchBusy = true;
+  searchReady = false;
+  const section = document.querySelector('.admin-page[data-page="search"]');
+  section?.classList.add("is-loading");
+  $("search-fields").disabled = true;
+  $("search-local-provider").disabled = true;
+  $("search-save").disabled = true;
+  try {
+    const [data, limits] = await Promise.all([api("/api/admin/settings"), loadResourceLimits()]);
+    const search = data?.search;
+    const providers = Object.entries(search?.providers ?? {});
+    if (!providers.length || !Object.hasOwn(search.providers, search.localProvider)) {
+      throw new Error("搜索设置加载失败，请重新进入页面");
+    }
+    const draft = Object.fromEntries(providers.map(([id, provider]) => {
+      if (typeof provider.label !== "string" || typeof provider.points !== "string") {
+        throw new Error("搜索设置加载失败，请重新进入页面");
+      }
+      return [id, { ...provider, apiKey: "", clearApiKey: false }];
+    }));
+    if (typeof search.nativePoints !== "string" || typeof search.localEnabled !== "boolean") {
+      throw new Error("搜索设置加载失败，请重新进入页面");
+    }
+    searchLimits = limits;
+    searchDraft = draft;
+    searchProvider = search.localProvider;
+    $("search-local-provider").replaceChildren(...providers.map(([id, provider]) => new Option(provider.label, id)));
+    $("search-local-provider").value = searchProvider;
+    $("search-local-enabled").checked = search.localEnabled;
+    $("search-native-points").value = search.nativePoints;
+    for (const id of ["search-provider-points", "search-native-points"]) {
+      $(id).title = pointsHint(limits);
+    }
+    renderSearchProvider();
+    searchReady = true;
+  } finally {
+    searchBusy = false;
+    section?.classList.remove("is-loading");
+    $("search-fields").disabled = !searchReady;
+    $("search-local-provider").disabled = !searchReady;
+    $("search-save").disabled = !searchReady;
+  }
+}
+
+export async function saveSearch() {
+  if (getRole() !== "owner" || !searchReady || searchBusy) return;
+  await saveWith("search-save", async () => {
+    searchBusy = true;
+    $("search-fields").disabled = true;
+    $("search-local-provider").disabled = true;
+    try {
+      stashSearchProvider();
+      const nativePoints = pointsValue($("search-native-points").value, searchLimits);
+      if (nativePoints === null) throw new Error("原生搜索积分须为 " + pointsHint(searchLimits));
+      const providers = Object.fromEntries(Object.entries(searchDraft).map(([id, draft]) => {
+        const points = pointsValue(draft.points, searchLimits);
+        if (points === null) throw new Error(draft.label + " 搜索积分须为 " + pointsHint(searchLimits));
+        if (draft.apiKey.length > 1024) throw new Error("API key 最多 1024 个字符");
+        return [id, { apiKey: draft.apiKey, clearApiKey: draft.clearApiKey, points }];
+      }));
+      await api("/api/admin/settings/search", {
+        method: "POST",
+        body: { localEnabled: $("search-local-enabled").checked, localProvider: searchProvider, nativePoints, providers },
+      });
+      for (const draft of Object.values(searchDraft)) {
+        draft.apiKeyConfigured = draft.clearApiKey ? false : !!draft.apiKey.trim() || draft.apiKeyConfigured;
+        draft.apiKey = "";
+        draft.clearApiKey = false;
+      }
+      renderSearchProvider();
+    } finally {
+      searchBusy = false;
+      $("search-fields").disabled = false;
+      $("search-local-provider").disabled = false;
+    }
   });
 }

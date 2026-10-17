@@ -8,6 +8,7 @@ dependencies = [
     "aio-pika>=9.5",
     "alembic>=1.16",
     "bcrypt>=4.3",
+    "exa-py==2.25.0",
     "fastapi>=0.121",
     "httpx>=0.28",
     "loguru>=0.7.3",
@@ -19,6 +20,7 @@ dependencies = [
     "python-dotenv>=1.2.2",
     "redis>=5.0",
     "sqlalchemy>=2.0",
+    "tavily-python==0.8.5",
     "uvicorn[standard]>=0.52.3",
 ]
 

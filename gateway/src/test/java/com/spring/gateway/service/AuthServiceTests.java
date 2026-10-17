@@ -103,6 +103,7 @@ class AuthServiceTests {
     @DisplayName("注册→登录全链路：id 是雪花的量级，token 能解回同一个用户")
     void registerThenLogin() {
         enableMailRegister();
+        register(randomUsername(), randomEmail());
         String username = randomUsername();
         UserResponse registered = register(username, randomEmail());
 
@@ -113,7 +114,6 @@ class AuthServiceTests {
         TokenResponse login = authService.login(new LoginRequest(username, "pass123456"));
         assertEquals(Long.parseLong(registered.userId()), jwtUtils.parseUserId(login.token()));
         assertEquals(username, login.username());
-        // 非首用户初始积分为 0（首用户引导的 1000 积分由全库走查覆盖，此处库内已有存量用户）
         assertEquals(0, java.math.BigDecimal.ZERO.compareTo(login.pointsBalance()));
     }
 

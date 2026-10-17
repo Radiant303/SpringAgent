@@ -158,7 +158,7 @@ class WorkDeletionTests {
 
     private com.spring.gateway.dto.SettleModelRequest usage(com.spring.gateway.dto.ReserveModelRequest request) {
         return new com.spring.gateway.dto.SettleModelRequest(request.requestId(), request.userId(),
-                "finished", true, 1000L, 0L, 0L, 100L);
+                "finished", true, 1000L, 0L, 0L, 100L, null);
     }
 
     private UsageRecord record(String requestId) {

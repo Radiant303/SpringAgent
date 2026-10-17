@@ -52,6 +52,27 @@ class InternalBillingControllerTests {
     }
 
     @Test
+    void rejectsNegativeSearchCountBeforeBilling() throws Exception {
+        mvc.perform(post("/internal/billing/requests/settle")
+                        .header("X-Internal-Token", internalToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(USAGE.replace("\"outputTokens\":20", "\"outputTokens\":20,\"webSearches\":-1")))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void acceptsNullableAndNonnegativeSearchCounts() throws Exception {
+        for (String searches : new String[]{"null", "0", "2"}) {
+            mvc.perform(post("/internal/billing/requests/settle")
+                            .header("X-Internal-Token", internalToken)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(USAGE.replace("\"outputTokens\":20",
+                                    "\"outputTokens\":20,\"webSearches\":" + searches)))
+                    .andExpect(status().isNotFound());
+        }
+    }
+
+    @Test
     void refusesUsageWithoutReservation() throws Exception {
         mvc.perform(post("/internal/billing/requests/settle")
                         .header("X-Internal-Token", internalToken)

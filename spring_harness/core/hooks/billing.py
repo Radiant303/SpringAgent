@@ -6,7 +6,7 @@ import asyncio
 import uuid
 from collections.abc import AsyncIterator, Awaitable
 from contextlib import asynccontextmanager
-from dataclasses import replace
+from copy import copy
 from typing import Any, TypeVar
 
 from pydantic_ai import ModelMessage, ModelResponse, RequestUsage, RunContext
@@ -68,7 +68,10 @@ class RequestBillingModel(WrapperModel):
 
     async def _settle(self, request_id: str, response: ModelResponse | None,
                       error: BaseException | None, *, issued: bool = True) -> None:
-        usage = replace(response.usage) if response is not None else RequestUsage()
+        usage = copy(response.usage) if response is not None else RequestUsage()
+        web_searches = getattr(response.usage, "web_searches", None) if response is not None else None
+        if type(web_searches) is not int or web_searches < 0:
+            web_searches = None
         reported = any((usage.input_tokens, usage.output_tokens, usage.cache_read_tokens,
                         usage.cache_write_tokens))
         known_rejection = isinstance(error, ModelHTTPError) and 400 <= error.status_code < 500
@@ -83,6 +86,7 @@ class RequestBillingModel(WrapperModel):
             "status": status, "usageKnown": usage_known,
             "inputTokens": usage.input_tokens, "outputTokens": usage.output_tokens,
             "cacheReadTokens": usage.cache_read_tokens, "cacheWriteTokens": usage.cache_write_tokens,
+            "webSearches": web_searches,
         }
         _, cancelled = await finish_shielded(self.billing.gateway.settle(payload))
         if cancelled and error is None:

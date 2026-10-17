@@ -1,17 +1,18 @@
 package com.spring.gateway.controller;
 
+import com.spring.gateway.common.BizException;
 import com.spring.gateway.common.RequiresOwner;
+import com.spring.gateway.common.ResourceLimits;
 import com.spring.gateway.common.Result;
+import com.spring.gateway.common.SearchProviders;
 import com.spring.gateway.dto.AdminBillingEstRequest;
 import com.spring.gateway.dto.AdminCommunityLinkRequest;
 import com.spring.gateway.dto.AdminMailSettingsRequest;
 import com.spring.gateway.dto.AdminPlatformSettingsRequest;
 import com.spring.gateway.dto.AdminRegistrationRequest;
+import com.spring.gateway.dto.AdminSearchSettingsRequest;
 import com.spring.gateway.dto.AdminStorageSettingsRequest;
 import com.spring.gateway.dto.AdminWorkMaxBytesRequest;
-
-import java.util.HashMap;
-import com.spring.gateway.common.BizException;
 import com.spring.gateway.entity.SystemSetting;
 import com.spring.gateway.service.MailCodeService;
 import com.spring.gateway.service.ReconcileScheduler;
@@ -20,12 +21,15 @@ import com.spring.gateway.service.storage.StorageTypes;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.scheduling.support.CronExpression;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
@@ -73,7 +77,39 @@ public class AdminSettingsController {
         data.put("ossAccessKeyId", systemSettingService.getOssAccessKeyId());
         data.put("ossAccessKeySecretConfigured",
                 !systemSettingService.getOssAccessKeySecret().isBlank());
+        data.put("search", systemSettingService.getSearchSettings());
         return Result.ok(data);
+    }
+
+    @RequiresOwner(message = "仅站长可修改系统设置")
+    @PostMapping("/search")
+    @Transactional
+    public Result<Void> setSearch(@Valid @RequestBody AdminSearchSettingsRequest req) {
+        String provider = req.localProvider().trim();
+        if (!SearchProviders.isSupported(provider)) {
+            throw new BizException(400, "未知搜索厂商: " + provider);
+        }
+        ResourceLimits.points(req.nativePoints(), false, "原生搜索积分");
+        Map<String, String> values = new LinkedHashMap<>();
+        values.put(SearchProviders.LOCAL_ENABLED_KEY, String.valueOf(req.localEnabled()));
+        values.put(SearchProviders.LOCAL_PROVIDER_KEY, provider);
+        values.put(SearchProviders.NATIVE_POINTS_KEY, req.nativePoints().toPlainString());
+        req.providers().forEach((id, settings) -> {
+            if (!SearchProviders.isSupported(id)) {
+                throw new BizException(400, "未知搜索厂商: " + id);
+            }
+            ResourceLimits.points(settings.points(), false, "搜索厂商积分");
+            String apiKey = settings.apiKey() == null ? "" : settings.apiKey().trim();
+            if (Boolean.TRUE.equals(settings.clearApiKey()) && !apiKey.isEmpty()) {
+                throw new BizException(400, "清除 API key 时不能同时填写新 key");
+            }
+            values.put(SearchProviders.pointsSetting(id), settings.points().toPlainString());
+            if (Boolean.TRUE.equals(settings.clearApiKey()) || !apiKey.isEmpty()) {
+                values.put(SearchProviders.apiKeySetting(id), apiKey);
+            }
+        });
+        values.forEach(systemSettingService::set);
+        return Result.ok(null);
     }
 
     /**

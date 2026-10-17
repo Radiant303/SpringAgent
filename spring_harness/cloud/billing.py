@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 import sqlite3
+from collections.abc import Awaitable, Callable
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
@@ -14,22 +16,31 @@ import httpx
 from spring_harness.core.billing import BillingError
 from spring_harness.core.log import logger
 
+# 单条搜索事件发布等待上限（秒）。
+_SEARCH_DELIVERY_TIMEOUT = 10
+
 
 class BillingClient:
     def __init__(self, base_url: str, internal_token: str, outbox_path: Path,
-                 *, transport: httpx.AsyncBaseTransport | None = None) -> None:
+                 *, transport: httpx.AsyncBaseTransport | None = None,
+                 search_publisher: Callable[[dict[str, Any]], Awaitable[None]] | None = None) -> None:
         outbox_path.parent.mkdir(parents=True, exist_ok=True)
         self._path = outbox_path
         self._client = httpx.AsyncClient(base_url=base_url,
                                         headers={"X-Internal-Token": internal_token},
                                         timeout=10, transport=transport)
         self._worker: asyncio.Task | None = None
+        self._search_worker: asyncio.Task | None = None
         self._delivery_lock = asyncio.Lock()
+        self._search_lock = asyncio.Lock()
+        self._search_publisher = search_publisher or self._publish_search
         with self._connection() as db:
             db.execute("PRAGMA journal_mode=WAL")
             db.execute("CREATE TABLE IF NOT EXISTS billing_outbox ("
                        "request_id TEXT PRIMARY KEY, user_id INTEGER NOT NULL, "
                        "payload TEXT NOT NULL, ready INTEGER NOT NULL)")
+            db.execute("CREATE TABLE IF NOT EXISTS search_outbox ("
+                       "event_id TEXT PRIMARY KEY, payload TEXT NOT NULL)")
 
     @contextmanager
     def _connection(self):
@@ -59,6 +70,76 @@ class BillingClient:
                                   (user_id,)).fetchall()
         return [json.loads(row[0]) for row in rows]
 
+    def _save_search(self, event_id: str, encoded: str) -> None:
+        with self._connection() as db:
+            db.execute("INSERT INTO search_outbox (event_id, payload) VALUES (?, ?) "
+                       "ON CONFLICT(event_id) DO NOTHING", (event_id, encoded))
+            row = db.execute("SELECT payload FROM search_outbox WHERE event_id = ?", (event_id,)).fetchone()
+            if row is None or row[0] != encoded:
+                raise ValueError("搜索事件 ID 已存在且内容不同")
+
+    def _delete_search(self, event_id: str) -> None:
+        with self._connection() as db:
+            db.execute("DELETE FROM search_outbox WHERE event_id = ?", (event_id,))
+
+    def _pending_search(self) -> list[tuple[str, str]]:
+        with self._connection() as db:
+            return db.execute("SELECT event_id, payload FROM search_outbox ORDER BY rowid").fetchall()
+
+    @staticmethod
+    async def _publish_search(payload: dict[str, Any]) -> None:
+        from spring_harness.cloud.mq import get_dispatcher
+
+        dispatcher = get_dispatcher()
+        if dispatcher is None:
+            raise ConnectionError("搜索用量 MQ 尚未连接")
+        await dispatcher.publish_search_usage(payload)
+
+    async def record_search(self, payload: dict[str, Any]) -> None:
+        fields = {"eventId", "source", "provider", "searches", "userId", "sessionId",
+                  "turnId", "requestId", "agentName"}
+        if set(payload) != fields or payload["source"] != "local" \
+                or type(payload["searches"]) is not int or payload["searches"] != 1 \
+                or type(payload["userId"]) is not int or payload["userId"] <= 0 \
+                or payload["requestId"] is not None:
+            raise ValueError("搜索次数事件格式不正确")
+        provider = payload["provider"]
+        agent_name = payload["agentName"]
+        if not isinstance(provider, str) or re.fullmatch(r"[a-z][a-z0-9_]{0,31}", provider) is None:
+            raise ValueError("搜索供应商标识格式不正确")
+        if agent_name is not None and (not isinstance(agent_name, str) or len(agent_name) > 64):
+            raise ValueError("搜索代理名称格式不正确")
+        for name, limit in (("eventId", 32), ("sessionId", 36), ("turnId", 64)):
+            if not isinstance(payload[name], str) or not 0 < len(payload[name]) <= limit:
+                raise ValueError("搜索次数事件归属不正确")
+        encoded = json.dumps(payload, sort_keys=True, separators=(",", ":"))
+        saved = json.loads(encoded)
+        try:
+            await asyncio.to_thread(self._save_search, saved["eventId"], encoded)
+        except (sqlite3.Error, OSError) as error:
+            raise BillingError("搜索次数事件写入失败") from error
+        if not self._search_lock.locked():
+            async with self._search_lock:
+                await self._deliver_search(saved)
+
+    async def _deliver_search(self, payload: dict[str, Any]) -> None:
+        try:
+            await asyncio.wait_for(self._search_publisher(payload), timeout=_SEARCH_DELIVERY_TIMEOUT)
+            await asyncio.to_thread(self._delete_search, payload["eventId"])
+        except Exception as error:
+            logger.error("搜索次数事件待重试: event={} error={}", payload["eventId"], error)
+
+    async def _retry_search_pending(self) -> None:
+        async with self._search_lock:
+            for event_id, encoded in await asyncio.to_thread(self._pending_search):
+                try:
+                    payload = json.loads(encoded)
+                    if payload["eventId"] != event_id:
+                        raise ValueError("搜索事件 ID 不一致")
+                    await self._deliver_search(payload)
+                except Exception as error:
+                    logger.error("搜索次数事件读取失败: event={} error={}", event_id, error)
+
     async def _post(self, endpoint: str, payload: dict) -> dict:
         for attempt in range(3):
             try:
@@ -83,7 +164,8 @@ class BillingClient:
     @staticmethod
     def _recovery(request_id: str, user_id: int, *, issued: bool) -> dict:
         return {"requestId": request_id, "userId": user_id, "status": "error", "usageKnown": not issued,
-                "inputTokens": 0, "cacheReadTokens": 0, "cacheWriteTokens": 0, "outputTokens": 0}
+                "inputTokens": 0, "cacheReadTokens": 0, "cacheWriteTokens": 0, "outputTokens": 0,
+                "webSearches": None}
 
     async def reserve(self, payload: dict[str, Any]) -> None:
         async with self._delivery_lock:
@@ -121,7 +203,8 @@ class BillingClient:
             await self._post("settle", payload)
         except BillingError as error:
             if getattr(error, "status_code", None) == 404 and payload["usageKnown"] \
-                    and not (payload["inputTokens"] or payload["outputTokens"]):
+                    and not (payload["inputTokens"] or payload["outputTokens"]) \
+                    and (payload.get("webSearches") or 0) <= 0:
                 await asyncio.to_thread(self._delete, payload["requestId"])
                 return
             raise
@@ -132,29 +215,39 @@ class BillingClient:
             with self._connection() as db:
                 db.execute("UPDATE billing_outbox SET ready = 1 WHERE ready = 0")
         await asyncio.to_thread(recover)
-        await self.retry_pending()
+        self._search_worker = asyncio.create_task(self._retry_loop(search=True))
+        await self._retry_http_pending()
         self._worker = asyncio.create_task(self._retry_loop())
 
     async def retry_pending(self) -> None:
+        await asyncio.gather(self._retry_http_pending(), self._retry_search_pending())
+
+    async def _retry_http_pending(self) -> None:
         async with self._delivery_lock:
             for payload in await asyncio.to_thread(self._pending):
                 try:
+                    payload.setdefault("webSearches", None)
                     await self._deliver(payload)
                 except BillingError as error:
                     logger.error("模型请求结算待重试: request={} error={}", payload["requestId"], error)
 
-    async def _retry_loop(self) -> None:
+    async def _retry_loop(self, *, search: bool = False) -> None:
         while True:
-            await asyncio.sleep(5)
             try:
-                await self.retry_pending()
+                if search:
+                    await self._retry_search_pending()
+                else:
+                    await self._retry_http_pending()
             except Exception:
-                logger.exception("模型请求结算重试失败")
+                logger.exception("搜索次数事件重试失败" if search else "模型请求结算重试失败")
+            await asyncio.sleep(5)
 
     async def close(self) -> None:
-        if self._worker is not None:
-            self._worker.cancel()
-            await asyncio.gather(self._worker, return_exceptions=True)
+        workers = [worker for worker in (self._worker, self._search_worker) if worker is not None]
+        for worker in workers:
+            worker.cancel()
+        await asyncio.gather(*workers, return_exceptions=True)
+        self._worker = self._search_worker = None
         await self._client.aclose()
 
 

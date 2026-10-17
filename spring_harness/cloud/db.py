@@ -168,6 +168,31 @@ class UsageRecordRow(Base):
     )
 
 
+class SearchUsageRecordRow(Base):
+    """搜索用量与积分快照。"""
+
+    __tablename__ = "search_usage_records"
+    __table_args__ = (
+        Index("ix_search_usage_user_time", "user_id", "created_at"),
+        Index("ix_search_usage_session", "session_id"),
+    )
+
+    event_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    source: Mapped[str] = mapped_column(String(16), nullable=False)
+    provider: Mapped[str] = mapped_column(String(32), nullable=False)
+    user_id: Mapped[int] = mapped_column(_BigInt, nullable=False)
+    session_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    turn_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    request_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    agent_name: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    searches: Mapped[int] = mapped_column(_BigInt, nullable=False)
+    unit_points: Mapped[Decimal] = mapped_column(DECIMAL(20, 6), nullable=False)
+    cost_points: Mapped[Decimal] = mapped_column(DECIMAL(20, 6), nullable=False)
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        MicrosecondDateTime, nullable=False, default=utc_now,
+    )
+
+
 class ModelRateRow(Base):
     """模型资费卡。"""
 

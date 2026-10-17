@@ -36,6 +36,8 @@ public class PointsLedger {
     /** 类型：兑换码入账（ref_id = 码 ID）。 */
     public static final String TYPE_REDEEM = "REDEEM";
 
+    public static final String TYPE_SEARCH = "SEARCH";
+
     /** 主键，雪花 ID。 */
     @TableId(type = IdType.INPUT)
     private Long id;
@@ -49,10 +51,9 @@ public class PointsLedger {
     /** 变动后余额（审计快照）。 */
     private BigDecimal balanceAfter;
 
-    /** 类型：HOLD / SETTLE / RELEASE / DIRECT / ADJUST。 */
     private String type;
 
-    /** 计费请求单号、调账单号或兑换码 ID。 */
+    /** 计费请求单号、搜索事件 ID、调账单号或兑换码 ID。 */
     private String refId;
 
     /** 结算时实际计费的模型配置 ID。 */
@@ -61,7 +62,7 @@ public class PointsLedger {
     /** ADJUST 的操作人用户 ID。 */
     private Long operatorId;
 
-    /** ADJUST 的事由。 */
+    /** 调账事由或搜索厂商及次数。 */
     private String reason;
 
     /** 记录时间（UTC）。 */

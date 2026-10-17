@@ -4,12 +4,14 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.spring.gateway.common.BizException;
 import com.spring.gateway.common.SnowflakeIdGenerator;
 import com.spring.gateway.dto.ReserveModelRequest;
+import com.spring.gateway.dto.SearchUsageEvent;
 import com.spring.gateway.dto.SettleModelRequest;
 import com.spring.gateway.entity.ModelDefinition;
 import com.spring.gateway.entity.ModelProvider;
 import com.spring.gateway.entity.PointsHold;
 import com.spring.gateway.entity.PointsLedger;
 import com.spring.gateway.entity.RateCard;
+import com.spring.gateway.entity.SearchUsageRecord;
 import com.spring.gateway.entity.Session;
 import com.spring.gateway.entity.SystemSetting;
 import com.spring.gateway.entity.UsageRecord;
@@ -20,6 +22,7 @@ import com.spring.gateway.mapper.ModelProviderMapper;
 import com.spring.gateway.mapper.PointsHoldMapper;
 import com.spring.gateway.mapper.PointsLedgerMapper;
 import com.spring.gateway.mapper.RateCardMapper;
+import com.spring.gateway.mapper.SearchUsageRecordMapper;
 import com.spring.gateway.mapper.SessionMapper;
 import com.spring.gateway.mapper.UsageRecordMapper;
 import com.spring.gateway.mapper.UserMapper;
@@ -58,6 +61,8 @@ class BillingServiceTests {
     @Autowired private ModelDefinitionMapper modelMapper;
     @Autowired private SnowflakeIdGenerator ids;
     @Autowired private SystemSettingService settings;
+    @Autowired private SearchBillingService searchBilling;
+    @Autowired private SearchUsageRecordMapper searchRecords;
     private long userId;
     private String sessionId;
     private String modelId;
@@ -124,7 +129,7 @@ class BillingServiceTests {
 
     private SettleModelRequest usage(ReserveModelRequest request, long input, long cr, long cw, long output) {
         return new SettleModelRequest(request.requestId(), request.userId(), "finished", true,
-                input, cr, cw, output);
+                input, cr, cw, output, null);
     }
 
     private void amount(String expected) {
@@ -201,7 +206,7 @@ class BillingServiceTests {
         ReserveModelRequest request = request("turn", "main");
         billingService.reserveRequest(request);
         billingService.settleRequest(new SettleModelRequest(request.requestId(), userId, "error",
-                false, 0L, 0L, 0L, 0L));
+                false, 0L, 0L, 0L, 0L, null));
         amount("9.21");
         assertEquals(PointsHold.STATUS_UNKNOWN, holdMapper.selectById(request.requestId()).getStatus());
         billingService.settleRequest(usage(request, 1000, 0, 0, 100));
@@ -225,12 +230,12 @@ class BillingServiceTests {
         ReserveModelRequest failure = request("turn", "main");
         billingService.reserveRequest(failure);
         billingService.settleRequest(new SettleModelRequest(failure.requestId(), userId, "error",
-                true, 0L, 0L, 0L, 0L));
+                true, 0L, 0L, 0L, 0L, null));
         amount("10");
         ReserveModelRequest cancelled = request("turn", "main");
         billingService.reserveRequest(cancelled);
         billingService.settleRequest(new SettleModelRequest(cancelled.requestId(), userId, "cancelled",
-                true, 1000L, 0L, 0L, 100L));
+                true, 1000L, 0L, 0L, 100L, null));
         amount("9.987");
     }
 
@@ -304,6 +309,107 @@ class BillingServiceTests {
                 other.getId(), "turn", sessionId, modelId, "main");
         assertEquals(404, assertThrows(BizException.class, () -> billingService.reserveRequest(unauthorized)).getStatus());
         assertEquals(0, billingService.balanceOf(other.getId()).compareTo(BigDecimal.TEN));
+    }
+
+    private SettleModelRequest searchUsage(ReserveModelRequest request, String status,
+                                          boolean known, long input, Long searches) {
+        return new SettleModelRequest(request.requestId(), userId, status, known,
+                input, 0L, 0L, 0L, searches);
+    }
+
+    @Test
+    void tokenAndSearchInterleavingNeverOverwritesBalanceOrAggregatesAgents() {
+        ReserveModelRequest main = request("same-turn", "main");
+        ReserveModelRequest child = request("same-turn", "reviewer");
+        billingService.reserveRequest(main);
+        billingService.reserveRequest(child);
+        SearchUsageEvent local = new SearchUsageEvent("local:" + main.requestId(), "local", "exa", 1L,
+                userId, sessionId, "same-turn", main.requestId(), "main");
+        searchBilling.chargeLocal(local);
+        SettleModelRequest mainUsage = searchUsage(main, "finished", true, 1000, 2L);
+        billingService.settleRequest(mainUsage);
+        billingService.settleRequest(searchUsage(child, "finished", true, 2000, 1L));
+        billingService.settleRequest(mainUsage);
+        searchBilling.chargeLocal(local);
+        BigDecimal expected = new BigDecimal("9.97").subtract(settings.getSearchPoints("exa"))
+                .subtract(settings.getSearchPoints("native").multiply(BigDecimal.valueOf(3)));
+        assertEquals(0, expected.compareTo(billingService.balanceOf(userId)));
+        assertEquals(2, usageCount());
+        assertEquals(3, searchRecords.selectCount(new LambdaQueryWrapper<SearchUsageRecord>()
+                .eq(SearchUsageRecord::getUserId, userId)));
+    }
+
+    @Test
+    void knownTokensAllowLateSearchReportWithoutRepeatingTokenSettlement() {
+        ReserveModelRequest request = request("turn", "main");
+        billingService.reserveRequest(request);
+        billingService.settleRequest(searchUsage(request, "finished", true, 1000, null));
+        assertNull(searchRecords.selectById("native:" + request.requestId()));
+        billingService.settleRequest(searchUsage(request, "finished", true, 1000, 2L));
+        billingService.settleRequest(searchUsage(request, "finished", true, 1000, null));
+        billingService.settleRequest(searchUsage(request, "finished", true, 1000, 2L));
+        BigDecimal expected = new BigDecimal("9.99")
+                .subtract(settings.getSearchPoints("native").multiply(BigDecimal.valueOf(2)));
+        assertEquals(0, expected.compareTo(billingService.balanceOf(userId)));
+        assertEquals(1, usageCount());
+        assertEquals(2L, searchRecords.selectById("native:" + request.requestId()).getSearches());
+    }
+
+    @Test
+    void unknownTokensStillChargeReportedSearchAndLaterReconcileTokens() {
+        ReserveModelRequest request = request("turn", "main");
+        billingService.reserveRequest(request);
+        billingService.settleRequest(searchUsage(request, "error", false, 0, 3L));
+        BigDecimal searchCost = settings.getSearchPoints("native").multiply(BigDecimal.valueOf(3));
+        assertEquals(0, new BigDecimal("9.21").subtract(searchCost)
+                .compareTo(billingService.balanceOf(userId)));
+        assertEquals(PointsHold.STATUS_UNKNOWN, holdMapper.selectById(request.requestId()).getStatus());
+        billingService.settleRequest(searchUsage(request, "finished", true, 1000, 3L));
+        assertEquals(0, new BigDecimal("9.99").subtract(searchCost)
+                .compareTo(billingService.balanceOf(userId)));
+        assertEquals(1, usageCount());
+    }
+
+    @Test
+    void repeatedUnknownTokensDoNotSkipNewSearchInformation() {
+        ReserveModelRequest request = request("turn", "main");
+        billingService.reserveRequest(request);
+        billingService.settleRequest(searchUsage(request, "error", false, 0, null));
+        billingService.settleRequest(searchUsage(request, "error", false, 0, 2L));
+        billingService.settleRequest(searchUsage(request, "error", false, 0, 2L));
+        BigDecimal expected = new BigDecimal("9.21")
+                .subtract(settings.getSearchPoints("native").multiply(BigDecimal.valueOf(2)));
+        assertEquals(0, expected.compareTo(billingService.balanceOf(userId)));
+        assertEquals(2L, searchRecords.selectById("native:" + request.requestId()).getSearches());
+    }
+
+    @Test
+    void errorAndCancellationStillChargeReportedSearches() {
+        ReserveModelRequest failure = request("turn", "main");
+        ReserveModelRequest cancelled = request("turn", "reviewer");
+        billingService.reserveRequest(failure);
+        billingService.reserveRequest(cancelled);
+        billingService.settleRequest(searchUsage(failure, "error", true, 0, 2L));
+        billingService.settleRequest(searchUsage(cancelled, "cancelled", true, 1000, 2L));
+        BigDecimal expected = new BigDecimal("9.99")
+                .subtract(settings.getSearchPoints("native").multiply(BigDecimal.valueOf(4)));
+        assertEquals(0, expected.compareTo(billingService.balanceOf(userId)));
+        assertEquals(2, searchRecords.selectCount(new LambdaQueryWrapper<SearchUsageRecord>()
+                .eq(SearchUsageRecord::getUserId, userId)));
+    }
+
+    @Test
+    void knownZeroSearchCountCannotBeChangedOnReplay() {
+        ReserveModelRequest request = request("turn", "main");
+        billingService.reserveRequest(request);
+        billingService.settleRequest(searchUsage(request, "finished", true, 1000, 0L));
+        billingService.settleRequest(searchUsage(request, "finished", true, 1000, 0L));
+        assertEquals(0L, searchRecords.selectById("native:" + request.requestId()).getSearches());
+        assertEquals(0, ledgerMapper.selectCount(new LambdaQueryWrapper<PointsLedger>()
+                .eq(PointsLedger::getUserId, userId).eq(PointsLedger::getType, PointsLedger.TYPE_SEARCH)));
+        assertEquals(409, assertThrows(BizException.class,
+                () -> billingService.settleRequest(searchUsage(request, "finished", true, 1000, 1L))).getStatus());
+        amount("9.99");
     }
 
     @Test

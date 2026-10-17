@@ -20,6 +20,7 @@ public record SettleModelRequest(
         @NotNull @PositiveOrZero Long inputTokens,
         @NotNull @PositiveOrZero Long cacheReadTokens,
         @NotNull @PositiveOrZero Long cacheWriteTokens,
-        @NotNull @PositiveOrZero Long outputTokens
+        @NotNull @PositiveOrZero Long outputTokens,
+        @PositiveOrZero Long webSearches
 ) {
 }
