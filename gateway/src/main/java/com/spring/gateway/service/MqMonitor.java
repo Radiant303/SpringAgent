@@ -23,10 +23,11 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class MqMonitor {
 
-    /** 监控的全部队列：三个业务队列 + 三个死信队列 */
     private static final List<String> QUEUES = List.of(
             RabbitConfig.QUEUE_DISPATCH, RabbitConfig.QUEUE_CANCEL, RabbitConfig.QUEUE_LIFECYCLE,
-            RabbitConfig.QUEUE_DISPATCH_DLQ, RabbitConfig.QUEUE_CANCEL_DLQ, RabbitConfig.QUEUE_LIFECYCLE_DLQ);
+            RabbitConfig.QUEUE_DISPATCH_DLQ, RabbitConfig.QUEUE_CANCEL_DLQ, RabbitConfig.QUEUE_LIFECYCLE_DLQ,
+            com.spring.gateway.config.SearchRabbitConfig.SEARCH_QUEUE,
+            com.spring.gateway.config.SearchRabbitConfig.SEARCH_DLQ);
 
     private final RabbitAdmin rabbitAdmin;
 

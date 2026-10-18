@@ -7,7 +7,6 @@ import org.springframework.amqp.core.Queue;
 import org.springframework.amqp.core.QueueBuilder;
 import org.springframework.amqp.rabbit.config.SimpleRabbitListenerContainerFactory;
 import org.springframework.amqp.rabbit.connection.ConnectionFactory;
-import org.springframework.amqp.support.converter.JacksonJsonMessageConverter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import tools.jackson.databind.json.JsonMapper;
@@ -65,8 +64,19 @@ public class SearchRabbitConfig {
             ConnectionFactory connectionFactory, JsonMapper objectMapper) {
         SimpleRabbitListenerContainerFactory factory = new SimpleRabbitListenerContainerFactory();
         factory.setConnectionFactory(connectionFactory);
-        factory.setMessageConverter(new JacksonJsonMessageConverter(objectMapper));
+        factory.setMessageConverter(new SearchRawMessageConverter());
         factory.setDefaultRequeueRejected(false);
+        return factory;
+    }
+
+    @Bean
+    public SimpleRabbitListenerContainerFactory searchDlqListenerContainerFactory(ConnectionFactory connectionFactory) {
+        SimpleRabbitListenerContainerFactory factory = new SimpleRabbitListenerContainerFactory();
+        factory.setConnectionFactory(connectionFactory);
+        factory.setMessageConverter(new SearchRawMessageConverter());
+        factory.setDefaultRequeueRejected(true);
+        factory.setPrefetchCount(1);
+        factory.setConcurrentConsumers(1);
         return factory;
     }
 }

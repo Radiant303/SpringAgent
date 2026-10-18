@@ -719,6 +719,42 @@ input.switch:focus-visible { outline: 2px solid rgba(23, 131, 255, 0.4); outline
   color: var(--text-dim, rgba(0, 0, 0, 0.6));
 }
 
+#failure-filter .settings-number { width: min(220px, 100%); }
+#failure-table { width: 100%; min-width: 0; table-layout: fixed; }
+.failure-col-time, .failure-col-user { width: 18%; }
+.failure-col-points, .failure-col-status { width: 12%; }
+.failure-col-actions { width: 130px; }
+#failure-table .failure-time { font-variant-numeric: tabular-nums; }
+#failure-table .admin-btn { height: 28px; }
+#failure-table .admin-btn + .admin-btn { margin-left: 10px; }
+#failure-table .admin-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+#failure-pager { flex-wrap: wrap; gap: 8px; }
+.admin-page[data-page="failure-events"] .admin-btn:focus-visible { outline: 2px solid rgba(23, 131, 255, 0.4); outline-offset: 1px; }
+.failure-detail { position: fixed; inset: 0; box-sizing: border-box; width: min(860px, calc(100vw - 32px)); max-width: none; max-height: min(84vh, 900px); margin: auto; padding: 0; border: 0; border-radius: 16px; background: #fff; color: var(--text); box-shadow: 0 16px 48px rgba(0, 0, 0, 0.14); outline: none; overflow: hidden; }
+.failure-detail[open] { display: flex; flex-direction: column; }
+.failure-detail::backdrop { background: rgba(0, 0, 0, 0.32); }
+.failure-detail-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex: none; padding: 20px 24px; border-bottom: 1px solid var(--admin-border, rgba(0, 0, 0, 0.08)); }
+#failure-detail-body { min-height: 0; padding: 24px; overflow-y: auto; overscroll-behavior: contain; }
+@media (max-width: 820px) {
+  #failure-table { min-width: 700px; }
+  #failure-table th:last-child, #failure-table .failure-actions { position: sticky; right: 0; background: var(--bg, #fff); }
+}
+@media (max-width: 480px) {
+  .failure-detail { width: calc(100vw - 16px); max-height: calc(100dvh - 24px); border-radius: 12px; }
+  .failure-detail-head { padding: 14px 16px; }
+  #failure-detail-body { padding: 16px; }
+}
+.failure-meta { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr)); gap: 16px 24px; margin: 0; padding: 20px; background: var(--admin-card, #f7f7f7); border-radius: 12px; }
+.failure-meta > div { min-width: 0; }
+.failure-meta dt { font-size: 12px; color: var(--text-faint); }
+.failure-meta dd { margin: 5px 0 0; font-size: 14px; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.failure-text, .failure-payload pre { margin: 0; padding: 14px 16px; border-radius: 10px; background: var(--admin-card, #f7f7f7); font-size: 13px; line-height: 1.7; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
+.failure-payload { min-width: 0; margin-top: 18px; }
+.failure-payload summary { padding: 8px 4px; font-size: 13px; color: var(--text-dim); cursor: pointer; }
+.failure-payload pre { max-height: 420px; overflow-y: auto; }
+.failure-detail-sk { display: block; width: 100%; height: 48px; margin: 12px 0; border-radius: 10px; }
+.failure-error { font-size: 14px; color: var(--danger); overflow-wrap: anywhere; }
+
 /* 系统设置加载中：输入框呈骨架态（无文字、脉动、不可编辑） */
 .admin-page.is-loading .settings-number,
 .admin-page.is-loading .settings-text,

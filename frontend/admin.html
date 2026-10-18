@@ -62,6 +62,10 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1" fill="currentColor" stroke="none"/><circle cx="4.5" cy="12" r="1" fill="currentColor" stroke="none"/><circle cx="4.5" cy="18" r="1" fill="currentColor" stroke="none"/></svg>
           积分流水
         </div>
+        <div class="nav-item hidden" id="nav-failure-events" data-page="failure-events">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 2 21h20L12 3z"/><path d="M12 9v5M12 17h.01"/></svg>
+          失败事件
+        </div>
         <div class="nav-item" data-page="models">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M20.6 13.4L13.4 20.6a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8z"/><circle cx="7.5" cy="7.5" r="1.4"/></svg>
           模型资费
@@ -653,6 +657,48 @@
           <button id="storage-save" class="wide-btn primary">保存设置</button>
           <span id="storage-tip" class="settings-tip"></span>
         </div>
+      </section>
+
+      <section class="admin-page wide" data-page="failure-events">
+        <h1 class="page-title">失败事件</h1>
+        <form id="failure-filter" class="usage-filter">
+          <select id="failure-status" title="按状态筛选" aria-label="按状态筛选">
+            <option value="">全部状态</option>
+            <option value="PENDING">待处理</option>
+            <option value="RETRYING">自动重试中</option>
+            <option value="SUCCEEDED">重试成功</option>
+            <option value="RESOLVED">已处理</option>
+            <option value="IGNORED">已忽略</option>
+          </select>
+          <input type="text" id="failure-user" class="settings-number" placeholder="用户 ID" aria-label="用户 ID" autocomplete="off" spellcheck="false">
+          <input type="text" id="failure-event" class="settings-number" placeholder="事件 ID" aria-label="事件 ID" autocomplete="off" spellcheck="false">
+          <button type="submit" class="admin-btn primary">查询</button>
+          <button type="button" id="failure-refresh" class="admin-btn">刷新</button>
+        </form>
+        <div class="table-card" data-slot="card" data-card-hover="false">
+          <table class="admin-table" id="failure-table" data-slot="table">
+            <colgroup>
+              <col class="failure-col-time">
+              <col class="failure-col-user">
+              <col class="failure-col-event">
+              <col class="failure-col-points">
+              <col class="failure-col-status">
+              <col class="failure-col-actions">
+            </colgroup>
+            <thead>
+              <tr><th>时间</th><th>用户</th><th>事件</th><th class="num" title="参考积分，实际扣款以计费记录为准">积分</th><th>状态</th><th>操作</th></tr>
+            </thead>
+            <tbody id="failure-tbody"></tbody>
+          </table>
+          <div class="table-pager" id="failure-pager"></div>
+        </div>
+        <dialog id="failure-detail" class="failure-detail" aria-labelledby="failure-detail-title">
+          <div class="failure-detail-head">
+            <h2 id="failure-detail-title" class="ui-dialog-title">事件详情</h2>
+            <button type="button" id="failure-detail-close" class="ui-btn" autofocus>关闭</button>
+          </div>
+          <div id="failure-detail-body"></div>
+        </dialog>
       </section>
 
       <section class="admin-page" data-page="search">

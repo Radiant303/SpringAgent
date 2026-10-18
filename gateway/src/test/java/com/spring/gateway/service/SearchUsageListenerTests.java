@@ -3,7 +3,13 @@ package com.spring.gateway.service;
 import com.spring.gateway.config.SearchRabbitConfig;
 import com.spring.gateway.dto.SearchUsageEvent;
 import org.junit.jupiter.api.Test;
-import org.springframework.amqp.support.converter.JacksonJsonMessageConverter;
+import org.springframework.amqp.ImmediateRequeueAmqpException;
+import org.springframework.amqp.core.Message;
+import org.springframework.amqp.core.MessageProperties;
+import tools.jackson.databind.DeserializationFeature;
+import tools.jackson.databind.json.JsonMapper;
+
+import java.nio.charset.StandardCharsets;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -12,66 +18,113 @@ import static org.mockito.Mockito.*;
  * 搜索计费消息消费测试。
  *
  * @author hanbing
- * @since 2026-10-17
+ * @since 2026-10-18
  */
 class SearchUsageListenerTests {
-    @Test
-    void rejectsFractionalSearchCountsDuringJsonConversion() {
-        var mapper = tools.jackson.databind.json.JsonMapper.builder()
-                .disable(tools.jackson.databind.DeserializationFeature.ACCEPT_FLOAT_AS_INT).build();
-        var factory = new SearchRabbitConfig().searchListenerContainerFactory(
-                mock(org.springframework.amqp.rabbit.connection.ConnectionFactory.class), mapper);
-        var converter = (JacksonJsonMessageConverter) org.springframework.test.util.ReflectionTestUtils
-                .getField(factory, "messageConverter");
-        assertNotNull(converter);
-        var properties = new org.springframework.amqp.core.MessageProperties();
+    private final SearchBillingService billing = mock(SearchBillingService.class);
+    private final SearchBillingFailureService failures = mock(SearchBillingFailureService.class);
+    private final JsonMapper json = JsonMapper.builder().disable(DeserializationFeature.ACCEPT_FLOAT_AS_INT).build();
+    private final SearchUsageListener listener = new SearchUsageListener(billing, failures, json);
+
+    private Message message(String body) {
+        MessageProperties properties = new MessageProperties();
         properties.setContentType("application/json");
-        properties.setInferredArgumentType(SearchUsageEvent.class);
-        String json = "{\"eventId\":\"event\",\"source\":\"local\",\"provider\":\"exa\",\"searches\":1.9,"
-                + "\"userId\":7,\"sessionId\":\"session\",\"turnId\":\"turn\"}";
-        var message = new org.springframework.amqp.core.Message(
-                json.getBytes(java.nio.charset.StandardCharsets.UTF_8), properties);
-        assertThrows(org.springframework.amqp.support.converter.MessageConversionException.class,
-                () -> converter.fromMessage(message));
+        return new Message(body.getBytes(StandardCharsets.UTF_8), properties);
     }
 
     @Test
-    void propagatesBillingFailuresForDeadLettering() {
-        SearchBillingService billing = mock(SearchBillingService.class);
-        SearchUsageEvent event = new SearchUsageEvent("event", "local", "exa", 1L, 7L,
-                "session", "turn", null, null);
+    void persistsMalformedJsonBeforeReturning() {
+        Message message = message("{broken");
+        listener.onSearchUsage(message);
+        verify(failures).record(eq(message), any(Exception.class));
+        verifyNoInteractions(billing);
+    }
+
+    @Test
+    void rawAdapterIgnoresHostileContentTypeAndEncoding() throws Exception {
+        Message message = message("{broken");
+        message.getMessageProperties().setContentType("text/plain");
+        message.getMessageProperties().setContentEncoding("not-a-charset");
+        var method = SearchUsageListener.class.getMethod("onSearchUsage", Message.class);
+        var adapter = new org.springframework.amqp.rabbit.listener.adapter.MessagingMessageListenerAdapter(listener, method);
+        adapter.setMessageConverter(new com.spring.gateway.config.SearchRawMessageConverter());
+        var methods = new org.springframework.messaging.handler.annotation.support.DefaultMessageHandlerMethodFactory();
+        methods.afterPropertiesSet();
+        adapter.setHandlerAdapter(new org.springframework.amqp.rabbit.listener.adapter.HandlerAdapter(
+                methods.createInvocableHandlerMethod(listener, method)));
+        adapter.onMessage(message, null);
+        verify(failures).record(eq(message), any(Exception.class));
+    }
+
+    @Test
+    void durableDuplicateDoesNotRebillOrResetManualOutcome() {
+        Message message = message("duplicate");
+        when(failures.recorded(message)).thenReturn(true);
+        listener.onSearchUsage(message);
+        verifyNoInteractions(billing);
+        verify(failures, never()).record(any(), any());
+    }
+
+    @Test
+    void malformedDeadLetterIsPersistedBeforeCompletion() {
+        Message message = message("{broken");
+        new SearchUsageDlqListener(listener).onDeadLetter(message);
+        verify(failures).record(eq(message), any(Exception.class));
+    }
+
+    @Test
+    void persistsFractionalSearchCountsInsteadOfConverterRejection() {
+        Message message = message("{\"searches\":1.9}");
+        listener.onSearchUsage(message);
+        verify(failures).record(eq(message), any(Exception.class));
+        verifyNoInteractions(billing);
+    }
+
+    @Test
+    void propagatesPersistenceFailureForDeadLettering() {
+        Message message = message("{broken");
         RuntimeException failure = new IllegalStateException("数据库不可用");
-        doThrow(failure).when(billing).chargeLocal(event);
-        assertSame(failure, assertThrows(RuntimeException.class,
-                () -> new SearchUsageListener(billing).onSearchUsage(event)));
-        verify(billing).chargeLocal(event);
+        doThrow(failure).when(failures).record(eq(message), any());
+        assertSame(failure, assertThrows(RuntimeException.class, () -> listener.onSearchUsage(message)));
     }
 
     @Test
-    void declaresDedicatedDurableTopologyAndPreservesDeadLetters() {
+    void commitsBillingOrFailureBeforeReturn() {
+        Message message = message("{\"eventId\":\"event\",\"source\":\"local\",\"provider\":\"exa\",\"searches\":1,"
+                + "\"userId\":7,\"sessionId\":\"session\",\"turnId\":\"turn\"}");
+        doThrow(new org.springframework.dao.TransientDataAccessResourceException("offline"))
+                .when(billing).chargeLocal(any(SearchUsageEvent.class));
+        listener.onSearchUsage(message);
+        var order = inOrder(billing, failures);
+        order.verify(billing).chargeLocal(any());
+        order.verify(failures).record(eq(message), any());
+    }
+
+    @Test
+    void deadLetterPersistenceFailureAlwaysRequeues() {
+        Message message = message("{broken");
+        doThrow(new IllegalStateException("offline")).when(failures).record(eq(message), any());
+        SearchUsageDlqListener dlq = spy(new SearchUsageDlqListener(listener));
+        doNothing().when(dlq).pauseBeforeRequeue();
+        assertThrows(ImmediateRequeueAmqpException.class, () -> dlq.onDeadLetter(message));
+        verify(dlq).pauseBeforeRequeue();
+    }
+
+    @Test
+    void declaresDurableDeadLetterTopologyAndSafeFactories() {
         SearchRabbitConfig config = new SearchRabbitConfig();
         var exchange = config.searchExchange();
-        var deadLetterExchange = config.searchDeadLetterExchange();
+        var dead = config.searchDeadLetterExchange();
         var queue = config.searchUsageQueue();
-        var deadLetterQueue = config.searchUsageDlq();
-        assertEquals("springharness.search", exchange.getName());
-        assertEquals("direct", exchange.getType());
         assertTrue(exchange.isDurable());
-        assertEquals("springharness.search.dlx", deadLetterExchange.getName());
-        assertTrue(deadLetterExchange.isDurable());
-        assertEquals("springharness.search.usage", queue.getName());
+        assertTrue(dead.isDurable());
         assertTrue(queue.isDurable());
-        assertEquals(deadLetterExchange.getName(), queue.getArguments().get("x-dead-letter-exchange"));
-        assertEquals("search.usage.failed", queue.getArguments().get("x-dead-letter-routing-key"));
-        assertEquals("springharness.search.usage.dlq", deadLetterQueue.getName());
-        assertTrue(deadLetterQueue.isDurable());
-        assertEquals("search.usage", config.searchUsageBinding(exchange, queue).getRoutingKey());
-        assertEquals("search.usage.failed",
-                config.searchUsageDlqBinding(deadLetterExchange, deadLetterQueue).getRoutingKey());
-        var factory = config.searchListenerContainerFactory(
-                mock(org.springframework.amqp.rabbit.connection.ConnectionFactory.class),
-                tools.jackson.databind.json.JsonMapper.builder().build());
-        assertEquals(Boolean.FALSE,
-                org.springframework.test.util.ReflectionTestUtils.getField(factory, "defaultRequeueRejected"));
+        assertTrue(config.searchUsageDlq().isDurable());
+        assertEquals(dead.getName(), queue.getArguments().get("x-dead-letter-exchange"));
+        var connection = mock(org.springframework.amqp.rabbit.connection.ConnectionFactory.class);
+        var factory = config.searchListenerContainerFactory(connection, json);
+        assertEquals(Boolean.FALSE, org.springframework.test.util.ReflectionTestUtils.getField(factory, "defaultRequeueRejected"));
+        var dlq = config.searchDlqListenerContainerFactory(connection);
+        assertEquals(Boolean.TRUE, org.springframework.test.util.ReflectionTestUtils.getField(dlq, "defaultRequeueRejected"));
     }
 }

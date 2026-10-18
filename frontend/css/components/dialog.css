@@ -87,6 +87,13 @@
   font-size: 14px;
   transition: border-color 0.15s, background-color 0.15s;
 }
+textarea.ui-input {
+  height: auto;
+  min-height: 112px;
+  padding: 10px 12px;
+  line-height: 1.6;
+  resize: vertical;
+}
 .ui-input::placeholder {
   color: var(--text-faint, rgba(0, 0, 0, 0.45));
 }

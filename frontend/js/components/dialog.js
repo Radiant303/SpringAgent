@@ -42,8 +42,9 @@ export function dialog(opts) {
         }
         if (f.value != null) input.value = String(f.value);
       } else {
-        input = h("input", "ui-input");
-        input.type = f.type || "text";
+        input = h(f.type === "textarea" ? "textarea" : "input", "ui-input");
+        if (f.type === "textarea") input.rows = f.rows || 4;
+        else input.type = f.type || "text";
         input.spellcheck = false;
         if (f.placeholder) input.placeholder = f.placeholder;
         if (f.autocomplete) input.autocomplete = f.autocomplete;
@@ -117,7 +118,7 @@ export function dialog(opts) {
         e.preventDefault();
         if (!busy) close(null);
       } else if (e.key === "Tab") {
-        const items = [...box.querySelectorAll("input, select, button")].filter((el) => !el.disabled && el.tabIndex >= 0);
+        const items = [...box.querySelectorAll("input, select, textarea, button")].filter((el) => !el.disabled && el.tabIndex >= 0);
         if (!items.length) return;
         const first = items[0];
         const last = items[items.length - 1];
@@ -169,8 +170,9 @@ export function dialog(opts) {
     const firstField = fields.find((f) => !f.disabled);
     const firstInput = firstField ? inputs[firstField.name] : null;
     if (firstInput) {
-      firstInput.focus();
-      if (firstInput.value) firstInput.select?.();
+      const focusTarget = firstInput.closest(".ui-select")?.querySelector(".ui-select-btn") || firstInput;
+      focusTarget.focus();
+      if (focusTarget === firstInput && firstInput.value) firstInput.select?.();
     } else {
       okBtn.focus();
     }

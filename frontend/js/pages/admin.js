@@ -14,6 +14,7 @@ import { loadUsageRecords, loadMyUsage, renderUsageRecordsUserOptions } from "./
 import { loadLedger, renderLedgerUserOptions } from "./admin/ledger.js";
 import { loadModels, onModelAction, onModelFormSubmit, fillModelForm } from "./admin/models.js";
 import { loadModelConfig, bindModelConfig } from "./admin/modelConfig.js";
+import { loadFailureEvents, bindFailureEvents } from "./admin/failureEvents.js";
 import { loadRedeemCodes, openRedeemGen, onRedeemAction } from "./admin/redeem.js";
 import {
   loadRegistration, saveRegistration,
@@ -41,6 +42,7 @@ registerPageLoader("platform", () => loadPlatform());
 registerPageLoader("billing", () => loadBilling());
 registerPageLoader("community", () => loadCommunity());
 registerPageLoader("search", loadSearch);
+registerPageLoader("failure-events", loadFailureEvents);
 
 // 用户列表加载或刷新后，同步用量统计和积分流水页的用户筛选下拉框
 onUsersUpdated((list) => {
@@ -61,7 +63,10 @@ export function init() {
 
   // 分组显隐：管理组对站长/管理员开放，系统组仅站长
   if (staff) $("nav-group-admin")?.classList.remove("hidden");
-  if (role === "owner") $("nav-group-system")?.classList.remove("hidden");
+  if (role === "owner") {
+    $("nav-group-system")?.classList.remove("hidden");
+    $("nav-failure-events")?.classList.remove("hidden");
+  }
 
   document.querySelectorAll("#admin-nav .nav-item").forEach((el) => {
     el.onclick = () => switchPage(el.dataset.page);
@@ -115,6 +120,7 @@ export function init() {
       if ($("search-save")) $("search-save").onclick = saveSearch;
       bindSearchSettings();
       bindStorageSettings();
+      bindFailureEvents();
       if ($("redeem-open-gen")) $("redeem-open-gen").onclick = () => openRedeemGen().catch((e) => UI.toast(e.message, { type: "error" }));
 
       // 模型配置页（默认/子代理模型 + Provider 两级管理）

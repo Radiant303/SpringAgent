@@ -14,10 +14,13 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
+    LargeBinary,
     String,
+    Text,
     UniqueConstraint,
     create_engine,
 )
+from sqlalchemy.dialects.mysql import LONGBLOB, LONGTEXT
 from sqlalchemy.engine import Engine
 from sqlalchemy.ext.compiler import compiles
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, sessionmaker
@@ -195,6 +198,48 @@ class SearchUsageRecordRow(Base):
     created_at: Mapped[datetime.datetime] = mapped_column(
         MicrosecondDateTime, nullable=False, default=utc_now,
     )
+
+
+class SearchBillingFailureRow(Base):
+    """搜索计费失败事件。
+
+    @author hanbing
+    @since 2026-10-18
+    """
+
+    __tablename__ = "search_billing_failures"
+    __table_args__ = (
+        UniqueConstraint("dedup_key", name="uq_search_failure_dedup"),
+        Index("ix_search_failure_retry", "status", "next_retry_at", "lease_until"),
+        Index("ix_search_failure_user", "user_id", "id"),
+        Index("ix_search_failure_event", "event_id"),
+    )
+
+    id: Mapped[int] = mapped_column(_BigInt, primary_key=True, autoincrement=False)
+    dedup_key: Mapped[str] = mapped_column(String(64), nullable=False)
+    raw_body: Mapped[bytes] = mapped_column(LargeBinary().with_variant(LONGBLOB(), "mysql"), nullable=False)
+    headers: Mapped[str] = mapped_column(Text().with_variant(LONGTEXT(), "mysql"), nullable=False)
+    event_id: Mapped[str | None] = mapped_column(String(64))
+    provider: Mapped[str | None] = mapped_column(String(32))
+    user_id: Mapped[int | None] = mapped_column(_BigInt)
+    session_id: Mapped[str | None] = mapped_column(String(36))
+    turn_id: Mapped[str | None] = mapped_column(String(64))
+    searches: Mapped[int | None] = mapped_column(_BigInt)
+    unit_points: Mapped[Decimal | None] = mapped_column(DECIMAL(20, 6))
+    cost_points: Mapped[Decimal | None] = mapped_column(DECIMAL(20, 6))
+    status: Mapped[str] = mapped_column(String(16), nullable=False, default="PENDING")
+    retry_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    max_retries: Mapped[int] = mapped_column(Integer, nullable=False, default=3)
+    next_retry_at: Mapped[datetime.datetime | None] = mapped_column(MicrosecondDateTime)
+    lease_token: Mapped[str | None] = mapped_column(String(36))
+    lease_until: Mapped[datetime.datetime | None] = mapped_column(MicrosecondDateTime)
+    error_type: Mapped[str] = mapped_column(String(256), nullable=False)
+    error_message: Mapped[str] = mapped_column(Text().with_variant(LONGTEXT(), "mysql"), nullable=False)
+    created_at: Mapped[datetime.datetime] = mapped_column(MicrosecondDateTime, nullable=False, default=utc_now)
+    updated_at: Mapped[datetime.datetime] = mapped_column(MicrosecondDateTime, nullable=False, default=utc_now)
+    handled_by: Mapped[int | None] = mapped_column(_BigInt)
+    handled_at: Mapped[datetime.datetime | None] = mapped_column(MicrosecondDateTime)
+    remark: Mapped[str | None] = mapped_column(Text().with_variant(LONGTEXT(), "mysql"))
 
 
 class ModelRateRow(Base):

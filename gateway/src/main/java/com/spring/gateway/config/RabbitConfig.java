@@ -132,16 +132,14 @@ public class RabbitConfig {
         return new RabbitAdmin(connectionFactory);
     }
 
-    /**
-     * DLQ 监听专用容器工厂：DLQ 中可能积压无法反序列化的坏消息，
-     * 必须改用不会转换失败的 SimpleMessageConverter
-     */
+    /** 对话死信日志消费者。 */
     @Bean
     public SimpleRabbitListenerContainerFactory dlqListenerContainerFactory(
             ConnectionFactory connectionFactory) {
         SimpleRabbitListenerContainerFactory factory = new SimpleRabbitListenerContainerFactory();
         factory.setConnectionFactory(connectionFactory);
         factory.setMessageConverter(new SimpleMessageConverter());
+        factory.setAcknowledgeMode(org.springframework.amqp.core.AcknowledgeMode.AUTO);
         return factory;
     }
 }

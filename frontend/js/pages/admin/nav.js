@@ -23,12 +23,13 @@ export const PAGE_TITLES = {
   billing: "计费设置",
   community: "社群设置",
   search: "搜索服务",
+  "failure-events": "失败事件",
 };
 
 export const pageLoaders = {};
 
 /** 仅站长的页面 */
-const OWNER_PAGES = new Set(["model-config", "registration", "storage", "platform", "billing", "community", "search"]);
+const OWNER_PAGES = new Set(["model-config", "registration", "storage", "platform", "billing", "community", "search", "failure-events"]);
 /** 站长/管理员的页面 */
 const STAFF_PAGES = new Set(["users", "usage", "usage-records", "ledger", "models", "redeem"]);
 

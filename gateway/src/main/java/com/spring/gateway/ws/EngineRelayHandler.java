@@ -270,9 +270,13 @@ public class EngineRelayHandler extends TextWebSocketHandler {
             return true;
         }
         JsonNode lastSeqNode = params.get("lastSeq");
+        if (lastSeqNode != null && !lastSeqNode.isNull() && !lastSeqNode.isTextual()) {
+            sendRpcError(session, idNode, INVALID_PARAMS, "无效的续读游标");
+            return true;
+        }
         String lastSeq = lastSeqNode == null || lastSeqNode.isNull() ? null : lastSeqNode.asText();
         if (lastSeq != null) {
-            if (!lastSeqNode.isTextual() || !lastSeq.matches("[0-9]+-[0-9]+")) {
+            if (!lastSeq.matches("[0-9]+-[0-9]+")) {
                 sendRpcError(session, idNode, INVALID_PARAMS, "无效的续读游标");
                 return true;
             }
