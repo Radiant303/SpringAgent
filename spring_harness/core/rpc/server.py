@@ -103,7 +103,7 @@ class AppServer:
     async def _session_plan(self, p: SessionParams) -> PlanResult:
         # 只读已挂载的会话：归属校验由 attach 负责，这里不能绕过
         session = self._require(p.session_id)
-        items = await load_plan_items(session.session_id)
+        items = await load_plan_items(session.session_id, root=session.workspace)
         return PlanResult(items=[i.model_dump() for i in items])
 
     async def post_session_request(self, session: HarnessSession, event: ServerEvent) -> None:

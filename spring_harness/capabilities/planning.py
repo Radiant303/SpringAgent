@@ -14,9 +14,9 @@ from spring_harness.core.config.settings import STATE_DIR
 PLAN_DB = "plan.db"
 
 
-def _db_path() -> str:
-    """plan.db 落在启动目录的 .springharness/ 下（跟随进程 cwd，与工作区一致）。"""
-    directory = Path.cwd() / STATE_DIR
+def _db_path(workspace: Path) -> str:
+    """plan.db 落在工作区的 .springharness/ 下。"""
+    directory = workspace / STATE_DIR
     directory.mkdir(parents=True, exist_ok=True)
     return str(directory / PLAN_DB)
 
@@ -87,9 +87,9 @@ class _ProjectPlanning(Planning):
         return toolset.prepared(_prepare_descriptions) if isinstance(toolset, AbstractToolset) else toolset
 
 
-def planning(session: str, on_change: OnPlanChange | None = None) -> Planning:
+def planning(session: str, on_change: OnPlanChange | None = None, *, root: Path) -> Planning:
     """加载Plan；on_change 在每次计划变更后收到最新全量 items。"""
-    store: PlanStore = SqlitePlanStore(_db_path(), session=session)
+    store: PlanStore = SqlitePlanStore(_db_path(root), session=session)
     if on_change is not None:
         store = _ObservableStore(store, on_change)
     return _ProjectPlanning(
@@ -121,12 +121,12 @@ def planning(session: str, on_change: OnPlanChange | None = None) -> Planning:
     )
 
 
-async def load_plan_items(session: str) -> list[PlanItem]:
+async def load_plan_items(session: str, *, root: Path) -> list[PlanItem]:
     """读某会话已持久化的计划（恢复会话时重建 PlanMessage 用）。"""
-    return await SqlitePlanStore(_db_path(), session=session).get_items()
+    return await SqlitePlanStore(_db_path(root), session=session).get_items()
 
 
-async def delete_plan(session: str) -> None:
-    database = Path(_db_path())
+async def delete_plan(session: str, *, root: Path) -> None:
+    database = Path(_db_path(root))
     if database.exists():
         await SqlitePlanStore(str(database), session=session).set_items([])

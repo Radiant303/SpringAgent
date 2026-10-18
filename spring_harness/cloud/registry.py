@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from spring_harness.cloud.storage import CloudStorageGuard
@@ -22,8 +23,6 @@ from spring_harness.core.stream.events import (
 )
 
 if TYPE_CHECKING:
-    from pathlib import Path
-
     import redis.asyncio as aioredis
 
     from spring_harness.core.store.base import SessionStore
@@ -277,14 +276,28 @@ class CloudSessionRegistry:
                     raise JsonRpcError(SESSION_NOT_FOUND, "未知会话")
                 if handle.busy:
                     raise JsonRpcError(BUSY, "会话正在运行，请结束当前任务后删除")
+                workspace = handle.file_access.workspace_root
+            else:
+                workspace = await asyncio.to_thread(self._workspace_for, session_id, user_id)
             owner = existing[2] if existing is not None else CloudAppServer.unmount_session(session_id)
             self._deletions[session_id] = (user_id, token, owner)
             self._handles.pop(session_id, None)
             if handle is not None:
                 await handle.close()
-            await delete_plan(session_id)
+            await delete_plan(session_id, root=workspace)
             if self._redis is not None:
                 await self._redis.delete(STREAM_KEY_PREFIX + session_id)
+
+    @staticmethod
+    def _workspace_for(session_id: str, user_id: int) -> Path:
+        from spring_harness.cloud.db import SessionRow, get_sessionmaker
+        from spring_harness.core.config.settings import config
+
+        with get_sessionmaker()() as database:
+            row = database.get(SessionRow, session_id)
+        if row is None or row.user_id != user_id:
+            raise JsonRpcError(SESSION_NOT_FOUND, "未知会话")
+        return Path(config.cloud.data_root).expanduser() / "works" / row.work_id
 
     async def finish_deletion(self, session_id: str, user_id: int, token: str, committed: bool) -> None:
         async with self._create_lock:

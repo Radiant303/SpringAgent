@@ -88,7 +88,7 @@ def create_agent(
             hooks,
             request_hooks(model_id),
             skills(),
-            planning(session_id, on_change=plan_on_change),
+            planning(session_id, on_change=plan_on_change, root=root),
             code_mode(),
             subagents(str(root), model_id, effort, file_access=file_access),
             researcher(),
