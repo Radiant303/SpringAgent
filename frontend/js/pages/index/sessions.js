@@ -5,9 +5,12 @@
 import { $, el } from "../../utils/dom.js";
 import { formatTime } from "../../utils/format.js";
 import { rpc } from "../../api/rpc.js";
+import { api } from "../../api/client.js";
 import { UI } from "../../components/ui.js";
+import { notifyStorageChanged } from "../../utils/storage.js";
 import { state, runs, runOf, isBusy, applyServerBusy } from "./state.js";
-import { drainPendingFor } from "./modals.js";
+import { drainPendingFor, clearPendingFor } from "./modals.js";
+import { discardSessionAttachments } from "./upload.js";
 import { addSystem, userNode } from "./chatView.js";
 import { clearMessages, loadHistory } from "./history.js";
 import { loadPlan } from "./stream.js";
@@ -28,7 +31,8 @@ function viewContext(sid = state.sessionId) {
 }
 
 function isConnectionCurrent(view) {
-  return rpc.ws === view.socket && state.connected && state.workspace === view.workspace;
+  return rpc.ws === view.socket && state.connected && state.workspace === view.workspace
+    && !state.deletedSessions.has(view.sid);
 }
 
 function isScopeCurrent(view) {
@@ -90,6 +94,7 @@ export async function attachSession(sid, view = viewContext(sid)) {
 }
 
 export function subscribeStream(sid, refreshStatus = false) {
+  if (state.deletedSessions.has(sid)) return Promise.resolve();
   const view = viewContext(sid);
   return rpc.request("stream/subscribe", { sessionId: sid, lastSeq: state.lastSeq[sid] || null })
     .then(async () => {
@@ -180,7 +185,7 @@ export async function refreshSessionList() {
   let sessions;
   try {
     const r = await rpc.request("session/list", { workspace: state.workspace, workId });
-    sessions = r.sessions || [];
+    sessions = (r.sessions || []).filter((session) => !state.deletedSessions.has(session.sessionId));
   } catch {
     if (generation === listGeneration && state.workId === workId) UI.clearSkeleton("session-list");
     return;
@@ -230,13 +235,62 @@ function renderSessionList(sessions) {
     if (run.unread) badge("session-unread", "已完成，尚未查看");
     if (status.children.length) item.appendChild(status);
     item.appendChild(el("span", "session-time", formatTime(s.updatedAt || s.createdAt)));
+    const remove = el("button", "work-del session-del");
+    remove.type = "button";
+    remove.title = run.busy ? "请结束当前任务后删除" : "删除会话";
+    remove.setAttribute("aria-label", "删除会话");
+    remove.disabled = run.busy;
+    remove.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 7l10 10M17 7L7 17"/></svg>';
+    remove.onclick = (event) => {
+      event.stopPropagation();
+      deleteSession(s);
+    };
+    item.appendChild(remove);
     item.title = s.sessionId;
     item.onclick = () => switchSession(s.sessionId);
     list.appendChild(item);
   }
 }
 
+export async function deleteSession(session) {
+  const sid = session.sessionId;
+  const ok = await UI.confirm({
+    title: "删除会话",
+    message: `确定删除「${session.title || "空会话"}」吗？\n会话消息、附件和专属目录将被清理，计费记录保留。此操作不可恢复。`,
+    okText: "删除",
+    danger: true,
+    submit: () => api(`/api/sessions/${encodeURIComponent(sid)}`, { method: "DELETE" }),
+  });
+  if (!ok) return;
+  onSessionInvalidated({ sessionId: sid, deleted: true });
+  UI.toast("会话已删除");
+}
+
+export function onSessionInvalidated({ sessionId: sid, deleted }) {
+  clearPendingFor(sid);
+  delete runs[sid];
+  delete state.lastSeq[sid];
+  if (!deleted) {
+    if (state.sessionId === sid) {
+      state.sessionReady = false;
+      loadingView = null;
+      switchSession(sid);
+    }
+    return;
+  }
+  if (state.deletedSessions.has(sid)) return;
+  state.deletedSessions.add(sid);
+  sessionTitles.delete(sid);
+  discardSessionAttachments(sid);
+  listGeneration++;
+  if (localStorage.getItem("sh.sessionId") === sid) localStorage.removeItem("sh.sessionId");
+  if (state.sessionId === sid) newSession();
+  else refreshSessionList();
+  notifyStorageChanged();
+}
+
 export function switchSession(sid) {
+  if (state.deletedSessions.has(sid)) return;
   if (sid === state.sessionId && state.sessionReady) return;
   if (!state.connected) {
     UI.toast("请先重新连接", { type: "error" });
@@ -270,7 +324,7 @@ export async function openWorkSession(preferredSid = null) {
   let sessions;
   try {
     const r = await rpc.request("session/list", { workspace: view.workspace, workId: view.workId });
-    sessions = r.sessions || [];
+    sessions = (r.sessions || []).filter((session) => !state.deletedSessions.has(session.sessionId));
   } catch (e) {
     if (!isScopeCurrent(view)) return;
     UI.clearSkeleton("session-list");

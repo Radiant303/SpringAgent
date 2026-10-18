@@ -207,8 +207,22 @@
   background: transparent;
   color: var(--text-faint, rgba(0, 0, 0, 0.45));
 }
-.work-item:hover .work-del {
+.work-item:hover .work-del,
+.work-item:focus-within .work-del,
+.session-item:hover .work-del,
+.session-item:focus-within .work-del {
   display: inline-flex;
+}
+.session-del {
+  display: inline-flex;
+  opacity: 0;
+}
+.session-item:hover .session-del,
+.session-item:focus-within .session-del {
+  opacity: 1;
+}
+@media (hover: none) {
+  .session-del { opacity: 1; }
 }
 .work-del:hover {
   background: rgba(0, 0, 0, 0.06);

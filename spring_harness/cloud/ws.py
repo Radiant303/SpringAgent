@@ -129,9 +129,19 @@ class CloudAppServer(AppServer):
         except Exception:
             logger.debug("被接管连接无法接收通知: {}", session_id)
 
+    @classmethod
+    def unmount_session(cls, session_id: str) -> CloudAppServer | None:
+        owner = cls._active_owners.get(session_id)
+        if owner is not None:
+            owner._unmount(session_id)
+        return owner
+
     def _adopt(self, handle: CloudSessionHandle, model: str | None, effort: str | None = None,
                *, takeover: bool = False) -> None:
         self._check_connection()
+        registry = get_registry()
+        if registry is None or registry.get(handle.session_id) is not handle:
+            raise JsonRpcError(SESSION_NOT_FOUND, "会话已释放，请重新选择会话")
         if handle.user_id != self._user_id:
             raise JsonRpcError(SESSION_NOT_FOUND, "未知会话")
         session_id = handle.session_id

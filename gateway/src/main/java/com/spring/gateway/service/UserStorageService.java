@@ -140,6 +140,34 @@ public class UserStorageService {
         workMapper.updateStorage(workId, size, work.getInternalBytes());
     }
 
+    public void deleteSessionDirectory(Long userId, String workId, String sessionId) {
+        User user = userMapper.selectForUpdate(userId);
+        Work work = workMapper.selectForUpdate(workId);
+        if (user == null || work == null || !userId.equals(work.getUserId())) {
+            throw new StorageException("会话文件资源归属无效");
+        }
+        if (!UUID.fromString(workId).toString().equals(workId)
+                || !UUID.fromString(sessionId).toString().equals(sessionId)) {
+            throw new StorageException("会话目录标识无效");
+        }
+        Path directory = root().resolve("works").resolve(workId).resolve(sessionId);
+        BasicFileAttributes attributes = checkedAttributes(directory);
+        if (attributes == null) return;
+        if (!attributes.isDirectory()) throw new StorageException("会话资源需要为普通目录");
+        long size = treeBytes(directory, directory.resolve(".springharness")).totalBytes();
+        beginChange(userId);
+        try (var entries = Files.walk(directory)) {
+            List<Path> paths = entries.sorted(java.util.Comparator.reverseOrder()).toList();
+            for (Path path : paths) {
+                checkedAttributes(path);
+                Files.delete(path);
+            }
+        } catch (IOException e) {
+            throw new StorageException("会话目录删除失败，请稍后重试", e);
+        }
+        addWorkBytes(userId, workId, -size);
+    }
+
     public void releaseWork(User user, String workId) {
         ensureCurrent(user);
         Work work = workMapper.selectForUpdate(workId);

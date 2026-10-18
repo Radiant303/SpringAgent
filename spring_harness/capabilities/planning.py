@@ -124,3 +124,9 @@ def planning(session: str, on_change: OnPlanChange | None = None) -> Planning:
 async def load_plan_items(session: str) -> list[PlanItem]:
     """读某会话已持久化的计划（恢复会话时重建 PlanMessage 用）。"""
     return await SqlitePlanStore(_db_path(), session=session).get_items()
+
+
+async def delete_plan(session: str) -> None:
+    database = Path(_db_path())
+    if database.exists():
+        await SqlitePlanStore(str(database), session=session).set_items([])

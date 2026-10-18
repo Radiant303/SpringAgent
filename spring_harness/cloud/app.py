@@ -43,6 +43,12 @@ class BusySessionsRequest(BaseModel):
     session_ids: list[str]
 
 
+class SessionDeletionRequest(BaseModel):
+    user_id: int
+    token: str
+    committed: bool = False
+
+
 def _initialize_works(data_root: Path) -> None:
     works = data_root / "works"
     try:
@@ -145,6 +151,36 @@ def create_app() -> FastAPI:
             raise HTTPException(status_code=401, detail="未认证")
         token = CloudAppServer.control_token(session_id, body.user_id, body.connection_id)
         return {"authorized": token is not None, "controlToken": token}
+
+    @app.post("/internal/sessions/{session_id}/deletion/prepare")
+    async def prepare_session_deletion(
+        session_id: str, body: SessionDeletionRequest, x_internal_token: str | None = Header(default=None),
+    ) -> dict:
+        if x_internal_token != config.cloud.internal_token:
+            raise HTTPException(status_code=401, detail="未认证")
+        registry = get_registry()
+        if registry is None:
+            raise HTTPException(status_code=503, detail="会话服务暂不可用")
+        from spring_harness.core.rpc.connection import JsonRpcError
+        from spring_harness.core.rpc.server import BUSY
+
+        try:
+            await registry.prepare_deletion(session_id, body.user_id, body.token)
+        except JsonRpcError as error:
+            raise HTTPException(status_code=409 if error.code == BUSY else 404, detail=str(error)) from error
+        return {}
+
+    @app.post("/internal/sessions/{session_id}/deletion/finish")
+    async def finish_session_deletion(
+        session_id: str, body: SessionDeletionRequest, x_internal_token: str | None = Header(default=None),
+    ) -> dict:
+        if x_internal_token != config.cloud.internal_token:
+            raise HTTPException(status_code=401, detail="未认证")
+        registry = get_registry()
+        if registry is None:
+            raise HTTPException(status_code=503, detail="会话服务暂不可用")
+        await registry.finish_deletion(session_id, body.user_id, body.token, body.committed)
+        return {}
 
     @app.post("/internal/sessions/busy")
     async def busy_sessions(

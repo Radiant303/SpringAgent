@@ -69,7 +69,7 @@ public class SessionController {
     }
 
     /**
-     * 删除会话（网关本地软删除）
+     * 删除会话、消息及专属目录，保留计费记录。
      *
      * @param sessionId 会话 ID
      * @param userId    当前用户 ID

@@ -220,6 +220,18 @@ public class FileStorageService {
         }
     }
 
+    @Transactional
+    public void deleteBySession(Long userId, String workId, String sessionId) {
+        List<FileRecord> rows = fileRecordMapper.selectList(new LambdaQueryWrapper<FileRecord>()
+                .eq(FileRecord::getUserId, userId).eq(FileRecord::getSessionId, sessionId).last("FOR UPDATE"));
+        for (FileRecord row : rows) {
+            if (fileRecordMapper.deleteById(row.getId()) > 0 && !"local".equals(row.getStorageType())) {
+                userStorageService.addWorkBytes(userId, workId, -row.getSizeBytes());
+                deleteAfterCommit(row);
+            }
+        }
+    }
+
     private void deleteAfterCommit(FileRecord row) {
         Path marker = "local".equals(row.getStorageType())
                 ? userStorageService.beginDeferredChange(row.getUserId()) : null;

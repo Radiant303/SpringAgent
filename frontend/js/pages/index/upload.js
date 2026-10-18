@@ -21,6 +21,19 @@ import { notifyStorageChanged } from "../../utils/storage.js";
 /* 待发送附件登记：fileId → {name, url}（chip DOM 之外的备份，供删除失败重建） */
 const pendingAtts = new Map();
 
+export function discardSessionAttachments(sessionId) {
+  for (const [fileId, attachment] of pendingAtts) {
+    if (attachment.sessionId !== sessionId) continue;
+    markKeepOnRemove(fileId);
+    for (const chip of editorEl()?.querySelectorAll("[data-attach-id]") || []) {
+      if (chip.dataset.attachId === String(fileId)) chip.remove();
+    }
+    pendingAtts.delete(fileId);
+  }
+  hideFloatPreview();
+  syncPlaceholder();
+}
+
 /** 单文件大小上限（字节） */
 const MAX_FILE_BYTES = 100 * 1024 * 1024;
 /** 输入框内待发送附件数量上限 */
@@ -49,8 +62,9 @@ export async function deleteAttachment(fileId, node = null) {
   try {
     await api(`/api/files/${fileId}`, { method: "DELETE" });
   } catch (e) {
-    UI.toast(e.message || "移除失败", { type: "error" });
     const att = pendingAtts.get(fileId);
+    if (!att || state.deletedSessions.has(att.sessionId)) return;
+    UI.toast(e.message || "移除失败", { type: "error" });
     if (!node && att && editorEl()) {
       const chip = editorChipNode(att, { onRemove: () => deleteAttachment(att.id, chip) });
       insertNodeAtCaret(chip);
@@ -126,7 +140,7 @@ export async function uploadFiles(files) {
       throw new Error("会话已切换，请重新上传");
     }
     for (const item of uploaded) {
-      const att = { id: item.id, url: item.url, name: files[item.index].name, mimeType: item.mimeType };
+      const att = { id: item.id, url: item.url, name: files[item.index].name, mimeType: item.mimeType, sessionId };
       pendingAtts.set(att.id, att);
       const chip = editorChipNode(att, { onRemove: () => deleteAttachment(att.id, chip) });
       insertNodeAtCaret(chip);

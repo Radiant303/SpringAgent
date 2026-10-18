@@ -92,6 +92,17 @@ public class EngineClient {
         return busy;
     }
 
+    public void prepareSessionDeletion(String sessionId, long userId, String token) {
+        restClient.post().uri("/internal/sessions/{sessionId}/deletion/prepare", sessionId)
+                .body(Map.of("user_id", userId, "token", token)).retrieve().toBodilessEntity();
+    }
+
+    public void finishSessionDeletion(String sessionId, long userId, String token, boolean committed) {
+        restClient.post().uri("/internal/sessions/{sessionId}/deletion/finish", sessionId)
+                .body(Map.of("user_id", userId, "token", token, "committed", committed))
+                .retrieve().toBodilessEntity();
+    }
+
     public JsonNode testModel(String modelId) {
         return restClient.post()
                 .uri("/internal/models/test")

@@ -125,8 +125,9 @@ public class InternalStoreService {
     @Transactional
     public InternalAppendResult appendMessages(String sessionId, boolean newSegment, String title,
                                               List<JsonNode> messages) {
-        Session row = sessionMapper.selectById(sessionId);
-        if (row == null) {
+        Session row = sessionMapper.selectOne(new LambdaQueryWrapper<Session>()
+                .eq(Session::getId, sessionId).last("FOR UPDATE"));
+        if (row == null || !Session.STATUS_ACTIVE.equals(row.getStatus())) {
             throw new BizException(404, "会话不存在: " + sessionId);
         }
         int segmentNo = newSegment ? row.getCurrentSegment() + 1 : row.getCurrentSegment();
@@ -148,24 +149,6 @@ public class InternalStoreService {
         }
         sessionMapper.updateById(row);
         return new InternalAppendResult(rows.size(), segmentNo);
-    }
-
-    /**
-     * 软删除会话：status 置 deleted 并推进 updated_at
-     *
-     * @param sessionId 会话 ID
-     * @param userId    发起删除的用户 ID
-     * @return 行不存在 / 不属于该用户 / 已删除时返回 false，否则 true
-     */
-    public boolean softDeleteSession(String sessionId, Long userId) {
-        Session row = sessionMapper.selectById(sessionId);
-        if (row == null || !userId.equals(row.getUserId()) || Session.STATUS_DELETED.equals(row.getStatus())) {
-            return false;
-        }
-        row.setStatus(Session.STATUS_DELETED);
-        row.setUpdatedAt(LocalDateTime.now(ZoneOffset.UTC));
-        sessionMapper.updateById(row);
-        return true;
     }
 
     /**

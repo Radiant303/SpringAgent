@@ -4,7 +4,6 @@ import com.spring.gateway.common.BizException;
 import com.spring.gateway.dto.InternalAppendMessagesRequest;
 import com.spring.gateway.dto.InternalAppendResult;
 import com.spring.gateway.dto.InternalCreateSessionRequest;
-import com.spring.gateway.dto.InternalDeleteSessionRequest;
 import com.spring.gateway.dto.InternalEnsureDefaultWorkRequest;
 import com.spring.gateway.dto.InternalMessagePage;
 import com.spring.gateway.dto.InternalSessionSummary;
@@ -104,20 +103,6 @@ public class InternalStoreController {
                                                @Valid @RequestBody InternalAppendMessagesRequest request) {
         return internalStoreService.appendMessages(
                 sessionId, Boolean.TRUE.equals(request.newSegment()), request.title(), request.messages());
-    }
-
-    /**
-     * 软删除会话（带归属校验）
-     *
-     * @param sessionId 会话 ID
-     * @param request   发起删除的用户 ID
-     */
-    @PostMapping("/sessions/{sessionId}/delete")
-    public void deleteSession(@PathVariable String sessionId,
-                              @Valid @RequestBody InternalDeleteSessionRequest request) {
-        if (!internalStoreService.softDeleteSession(sessionId, request.userId())) {
-            throw new BizException(404, "会话不存在: " + sessionId);
-        }
     }
 
     /**

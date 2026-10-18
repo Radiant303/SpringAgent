@@ -48,6 +48,7 @@ export const state = {
   effort: null,
   modelChanging: false,
   sessionId: null,
+  deletedSessions: new Set(),
   workId: localStorage.getItem("sh.workId") || null,
   works: [],
   connected: false,

@@ -9,7 +9,6 @@
 - GET  /internal/sessions/{id}/messages           全量消息（段内按 id 升序，payload 为原始消息 JSON）
 - POST /internal/sessions/{id}/messages           追加（newSegment 控制开新段；段自增、title IS NULL
                                                    时写入、updated_at 推进在服务端单事务内完成）
-- POST /internal/sessions/{id}/delete             软删除（404 → False）
 - GET  /internal/works/{workId}                   work 详情（含派生 workspacePath 与生效上限 workMaxBytes）
 - POST /internal/works/default                    ensure-default（幂等，返回默认 work）
 """
@@ -250,17 +249,6 @@ def find_active_session(session_id: str, user_id: int) -> GatewaySessionRow | No
     if row.user_id != user_id or row.status != STATUS_ACTIVE:
         return None
     return row
-
-
-def soft_delete_session(session_id: str, user_id: int) -> bool:
-    """软删除：服务端置 status=deleted 并推进 updated_at；行不存在（404）时返回 False。"""
-    response = _get_client().post(
-        f"/internal/sessions/{session_id}/delete", json={"userId": user_id},
-    )
-    if response.status_code == 404:
-        return False
-    response.raise_for_status()
-    return True
 
 
 # ---- work 查询与维护 ----

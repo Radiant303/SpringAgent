@@ -9,7 +9,7 @@ import { UI } from "../../components/ui.js";
 import { state, runs, resetFlow, setStickToBottom, smoothScrollToBottom, updateStick } from "./state.js";
 import { addSystem } from "./chatView.js";
 import { loadWorks, createWork } from "./works.js";
-import { openSession, newSession, refreshSessionList } from "./sessions.js";
+import { openSession, newSession, refreshSessionList, onSessionInvalidated } from "./sessions.js";
 import { onSessionEvent, refreshPoints } from "./stream.js";
 import {
   handleApprovalRequest,
@@ -118,6 +118,10 @@ rpc.onServerRequest = (method, params) => {
 };
 
 rpc.onNotification = (method, params) => {
+  if (method === "session/invalidated") {
+    onSessionInvalidated(params);
+    return;
+  }
   if (method === "session/replaced") {
     const sid = params.sessionId;
     clearPendingFor(sid);

@@ -139,7 +139,7 @@ export function seqAfter(a, b) {
 }
 
 export function onSessionEvent(sid, event, seq) {
-  if (!sid) return;
+  if (!sid || state.deletedSessions.has(sid)) return;
   if (seq) {
     const last = state.lastSeq[sid];
     if (last && !seqAfter(seq, last)) return;

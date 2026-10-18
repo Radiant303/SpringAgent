@@ -95,6 +95,16 @@ public class TurnStreamReader {
         });
     }
 
+    public void closeSession(String sessionId) {
+        for (String connectionId : readers.keySet()) {
+            readers.computeIfPresent(connectionId, (key, bySession) -> {
+                Future<?> previous = bySession.remove(sessionId);
+                if (previous != null) previous.cancel(true);
+                return bySession.isEmpty() ? null : bySession;
+            });
+        }
+    }
+
     /** 连接关闭时取消它的全部读取任务 */
     public void closeFor(WebSocketSession browserSession) {
         Map<String, Future<?>> bySession = readers.remove(browserSession.getId());

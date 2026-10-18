@@ -212,6 +212,7 @@ class CloudSessionRegistry:
     def __init__(self, redis: aioredis.Redis | None) -> None:
         self._redis = redis
         self._handles: dict[str, CloudSessionHandle] = {}
+        self._deletions: dict[str, tuple[int, str, AppServer | None]] = {}
         self._create_lock = asyncio.Lock()
 
     def get(self, session_id: str) -> CloudSessionHandle | None:
@@ -224,6 +225,18 @@ class CloudSessionRegistry:
         if session_id != store.session_id:
             raise JsonRpcError(SESSION_NOT_FOUND, "未知会话")
         async with self._create_lock:
+            if session_id in self._deletions:
+                raise JsonRpcError(BUSY, "会话正在删除，请稍后重试")
+            from spring_harness.cloud.db import SessionRow, get_sessionmaker
+
+            def exists() -> bool:
+                with get_sessionmaker()() as database:
+                    row = database.get(SessionRow, session_id)
+                    return bool(row is not None and row.user_id == access.user_id
+                                and row.work_id == access.work_id and row.status == "active")
+
+            if not await asyncio.to_thread(exists):
+                raise JsonRpcError(SESSION_NOT_FOUND, "未知会话")
             handle = self._handles.get(session_id)
             if handle is not None:
                 if handle.file_access != access:
@@ -249,6 +262,44 @@ class CloudSessionRegistry:
             self._handles[session_id] = handle
             logger.info("云端会话已注册: {}", session_id)
             return handle
+
+    async def prepare_deletion(self, session_id: str, user_id: int, token: str) -> None:
+        from spring_harness.capabilities.planning import delete_plan
+        from spring_harness.cloud.ws import CloudAppServer
+
+        async with self._create_lock:
+            existing = self._deletions.get(session_id)
+            if existing is not None and existing[0] != user_id:
+                raise JsonRpcError(SESSION_NOT_FOUND, "未知会话")
+            handle = self._handles.get(session_id)
+            if handle is not None:
+                if handle.user_id != user_id:
+                    raise JsonRpcError(SESSION_NOT_FOUND, "未知会话")
+                if handle.busy:
+                    raise JsonRpcError(BUSY, "会话正在运行，请结束当前任务后删除")
+            owner = existing[2] if existing is not None else CloudAppServer.unmount_session(session_id)
+            self._deletions[session_id] = (user_id, token, owner)
+            self._handles.pop(session_id, None)
+            if handle is not None:
+                await handle.close()
+            await delete_plan(session_id)
+            if self._redis is not None:
+                await self._redis.delete(STREAM_KEY_PREFIX + session_id)
+
+    async def finish_deletion(self, session_id: str, user_id: int, token: str, committed: bool) -> None:
+        async with self._create_lock:
+            existing = self._deletions.get(session_id)
+            if existing is None or existing[:2] != (user_id, token):
+                return
+            self._deletions.pop(session_id)
+            owner = existing[2]
+        if owner is not None:
+            try:
+                await owner._connection.send_notification("session/invalidated", {
+                    "sessionId": session_id, "deleted": committed,
+                })
+            except Exception:
+                logger.debug("会话释放通知发送失败: {}", session_id)
 
     def active_count_in_work(self, work_id: str) -> int:
         """进程内该 work 下"活跃"的会话数：有连接挂载或 turn 在跑即活跃，
