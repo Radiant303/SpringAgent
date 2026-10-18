@@ -22,7 +22,8 @@ export async function loadModels() {
       loadResourceLimits(),
     ]);
     for (const id of ["model-input", "model-cache-read", "model-cache-write", "model-output"]) {
-      $(id).title = pointsHint(limits);
+      const input = $(id);
+      if (input) input.title = pointsHint(limits);
     }
     modelDefinitions = config?.models || [];
     return cards;
