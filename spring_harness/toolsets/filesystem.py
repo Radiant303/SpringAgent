@@ -20,7 +20,8 @@ def _recoverable(function):
         except ValueError as error:
             raise ModelRetry(str(error)) from error
         except OSError as error:
-            raise ModelRetry("文件操作需要有效的文件状态、文本编码和存储权限，请核对后重试。") from error
+            detail = error.strerror or str(error)
+            raise ModelRetry(f"文件操作失败：{detail}。请核对路径、权限与存储状态后重试。") from error
     return wrapped
 
 
@@ -86,7 +87,7 @@ def filesystem(root_dir: str, read_only: bool = False, *, access: FileAccessCont
     @_recoverable
     async def write_file(ctx: RunContext[CodingAgentDeps], path: str, content: str, *,
                          expected_hash: str | None = None, scope: FileScope = FileScope.WORKSPACE) -> str:
-        """新建或覆盖所选工作区的文本文件；覆盖时提供读取所得的 expected_hash。"""
+        """新建或覆盖所选工作区的文本文件；父目录不存在时自动创建；覆盖时提供读取所得的 expected_hash。"""
         return await change(ctx, scope, "write_file", path, content=content, expected_hash=expected_hash)
 
     @_recoverable

@@ -254,8 +254,8 @@ class WorkspaceFiles:
             change.check_write()
             _check_cancel(cancelled)
             change.prepare()
-            if self.resource.allowed_files:
-                self.resource.root.mkdir(parents=True, exist_ok=True)
+            check_path(target.parent, directory=True)
+            target.parent.mkdir(parents=True, exist_ok=True)
             check_path(target.parent, directory=True)
             _replace_file(target, encoded, cancelled)
             change.record(_relative_path(path), len(old_bytes), len(encoded))
