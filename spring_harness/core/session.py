@@ -27,6 +27,7 @@ from spring_harness.core.stream.adapter import AgentEventAdapter
 from spring_harness.core.stream.emit import EventEmitter, PendingRequests
 from spring_harness.core.stream.events import (
     CompactionNotice,
+    CompactionStarted,
     ModelUsage,
     PlanUpdated,
     ServerEvent,
@@ -341,6 +342,8 @@ class HarnessSession:
                 TeachingUpdated(unit=unit.model_dump())),
             compact_on_change=lambda dropped, before, after: self._emit(
                 CompactionNotice(dropped=dropped, before=before, after=after)),
+            compact_on_start=lambda before: self._emit(
+                CompactionStarted(before=before)),
         )
 
     def _persist(self, messages: list[ModelMessage], *, allow_rewrite: bool = False) -> None:

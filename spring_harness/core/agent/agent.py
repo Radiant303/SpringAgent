@@ -7,7 +7,7 @@ from pydantic_ai.tools import DeferredToolRequests
 from pydantic_ai_harness import Shell
 from spring_harness.capabilities.research import researcher
 from spring_harness.capabilities.code_mode import code_mode
-from spring_harness.capabilities.compaction import NotifyingCompaction, OnCompaction
+from spring_harness.capabilities.compaction import NotifyingCompaction, OnCompaction, OnCompactionStart
 from spring_harness.capabilities.planning import OnPlanChange, planning
 from spring_harness.capabilities.repo_context import repo_context
 from spring_harness.capabilities.skills import skills
@@ -51,6 +51,7 @@ def create_agent(
     plan_on_change: OnPlanChange | None = None,
     teach_on_change: OnTeachingChange | None = None,
     compact_on_change: OnCompaction | None = None,
+    compact_on_start: OnCompactionStart | None = None,
     effort: str | None = None,
     page_id: int | None = None,
     file_access: FileAccessContext | None = None,
@@ -96,6 +97,7 @@ def create_agent(
                 keep_messages=4,
                 context_window=model_config.max_context_size,
                 on_compaction=compact_on_change,
+                on_compaction_start=compact_on_start,
             )
         ],
         retries=20

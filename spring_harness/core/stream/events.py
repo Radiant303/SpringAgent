@@ -72,6 +72,10 @@ class StorageUpdated(BaseModel):
     kind: Literal["storage_updated"] = "storage_updated"
 
 
+class CompactionStarted(BaseModel):
+    kind: Literal["compaction_started"] = "compaction_started"
+    before: int
+
 class CompactionNotice(BaseModel):
     kind: Literal["compaction"] = "compaction"
     dropped: int; before: int; after: int
@@ -100,4 +104,4 @@ class QuestionRequest(BaseModel):
     allow_custom: bool = True
 
 
-ServerEvent = TextDelta | ThinkingDelta | ToolCallStarted | ToolArgsDelta | ToolDiff | ToolPending | ToolFinished | UsageUpdated | PlanUpdated | TeachingUpdated | StorageUpdated | CompactionNotice | TurnFinished | ApprovalRequest | QuestionRequest
+ServerEvent = TextDelta | ThinkingDelta | ToolCallStarted | ToolArgsDelta | ToolDiff | ToolPending | ToolFinished | UsageUpdated | PlanUpdated | TeachingUpdated | StorageUpdated | CompactionStarted | CompactionNotice | TurnFinished | ApprovalRequest | QuestionRequest

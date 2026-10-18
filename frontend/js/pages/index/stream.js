@@ -53,9 +53,31 @@ const FLUSH_INTERVAL_MS = 40;
 
 let flushTimer = null;
 let pendingScroll = false;
+let compactionHideTimer = null;
 const pendingAnswers = new Map();
 const pendingThinking = new Map();
 const pendingArgs = new Map();
+
+function showCompactionStatus(text, done = false) {
+  const box = $("context-status");
+  const label = $("context-status-text");
+  if (!box || !label) return;
+  if (compactionHideTimer) {
+    clearTimeout(compactionHideTimer);
+    compactionHideTimer = null;
+  }
+  label.textContent = text;
+  box.classList.toggle("done", done);
+  box.classList.remove("hidden");
+}
+
+function hideCompactionStatus() {
+  if (compactionHideTimer) {
+    clearTimeout(compactionHideTimer);
+    compactionHideTimer = null;
+  }
+  $("context-status")?.classList.add("hidden");
+}
 
 function scheduleFlush() {
   if (flushTimer !== null) return;
@@ -347,8 +369,13 @@ export function onSessionEvent(sid, event, seq) {
       addSystem(`📘 教学单元更新：${unit.title || unit.slug || ""}（${unit.status || ""}）`);
       break;
     }
+    case "compaction_started": {
+      showCompactionStatus("正在压缩上下文…");
+      break;
+    }
     case "compaction": {
-      addSystem(`上下文已压缩：折叠 ${event.dropped} 条旧消息（约 ${Math.round(event.before / 1000)}k → ${Math.round(event.after / 1000)}k tokens）`);
+      showCompactionStatus("上下文已压缩", true);
+      compactionHideTimer = setTimeout(hideCompactionStatus, 1500);
       break;
     }
     case "turn_finished": {
@@ -360,6 +387,7 @@ export function onSessionEvent(sid, event, seq) {
 }
 
 export function finishTurn(event) {
+  hideCompactionStatus();
   const groups = new Set();
   for (const card of state.tools.values()) {
     card.pending.classList.add("hidden");
