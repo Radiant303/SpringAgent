@@ -70,10 +70,11 @@ class PendingRequests:
         request_id = uuid4().hex
         future = asyncio.get_running_loop().create_future()
         self._pending[request_id] = future
+        diff = await asyncio.to_thread(make_diff, call.tool_name, call.args)
         await self._emit(ApprovalRequest(
             request_id=request_id, tool_call_id=call.tool_call_id,
             tool_name=call.tool_name, args=call.args_as_dict(),
-            diff=make_diff(call.tool_name, call.args),
+            diff=diff,
         ))
         return await future
 

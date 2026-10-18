@@ -9,8 +9,8 @@ import { UI } from "../../components/ui.js";
 import { state, runs, resetFlow, setStickToBottom, smoothScrollToBottom, updateStick } from "./state.js";
 import { addSystem } from "./chatView.js";
 import { loadWorks, createWork } from "./works.js";
-import { openSession, newSession, refreshSessionList, onSessionInvalidated } from "./sessions.js";
-import { onSessionEvent, refreshPoints } from "./stream.js";
+import { openSession, newSession, resumeSession, refreshSessionList, onSessionInvalidated } from "./sessions.js";
+import { discardPending, flushPending, onSessionEvent, refreshPoints } from "./stream.js";
 import {
   handleApprovalRequest,
   settleApproval,
@@ -49,6 +49,7 @@ UI.saveSkeleton("session-list");
 
 let reconnectTimer = null;
 let reconnectDelay = 1000;
+let resumePending = false;
 
 export function setConnected(ok) {
   state.connected = ok;
@@ -64,11 +65,14 @@ export function setConnected(ok) {
 
 export async function connectAndSetup() {
   const generation = ++state.viewGeneration;
+  const resuming = resumePending && !!state.sessionId;
   state.sessionReady = false;
   hideApproval();
   hideQuestion();
-  for (const sid of Object.keys(runs)) delete runs[sid];
-  state.lastSeq = {};
+  if (!resuming) {
+    for (const sid of Object.keys(runs)) delete runs[sid];
+    state.lastSeq = {};
+  }
   setConnected(false);
   const connection = rpc.connect(`${WS_BASE}/ws?token=${encodeURIComponent(getToken())}`);
   const socket = rpc.ws;
@@ -91,7 +95,20 @@ export async function connectAndSetup() {
   setConnected(true);
   await loadWorks();
   if (generation !== state.viewGeneration || rpc.ws !== socket || !state.connected) return;
-  await openSession();
+  if (resuming) {
+    resumePending = false;
+    let resumed = false;
+    try {
+      resumed = await resumeSession();
+    } catch {
+      resumed = false;
+    }
+    if (!resumed && generation === state.viewGeneration && rpc.ws === socket && state.connected) {
+      await openSession();
+    }
+  } else {
+    await openSession();
+  }
   await loadWorks();
   reconnectDelay = 1000;
 }
@@ -130,6 +147,7 @@ rpc.onNotification = (method, params) => {
       state.viewGeneration++;
       state.sessionReady = false;
       UI.clearSkeleton("messages");
+      discardPending();
       resetFlow();
       state.tools.clear();
       addSystem("该会话已被其他页面或设备接管，点击会话可重新接管");
@@ -142,22 +160,30 @@ rpc.onNotification = (method, params) => {
 
 rpc.onClose = (code) => {
   state.viewGeneration++;
+  const wasReady = state.sessionReady;
+  flushPending();
   state.sessionReady = false;
   UI.clearSkeleton("messages");
   hideApproval();
   hideQuestion();
-  for (const sid of Object.keys(runs)) delete runs[sid];
-  state.lastSeq = {};
   setConnected(false);
-  resetFlow();
-  state.tools.clear();
-  if (code === 4401) {
-    goLogin("expired");
+  if (code === 4401 || code === 4403) {
+    resumePending = false;
+    for (const sid of Object.keys(runs)) delete runs[sid];
+    state.lastSeq = {};
+    resetFlow();
+    state.tools.clear();
+    goLogin(code === 4401 ? "expired" : "disabled");
     return;
   }
-  if (code === 4403) {
-    goLogin("disabled");
-    return;
+  if (wasReady && state.sessionId && !state.deletedSessions.has(state.sessionId)) {
+    resumePending = true;
+  } else {
+    resumePending = false;
+    for (const sid of Object.keys(runs)) delete runs[sid];
+    state.lastSeq = {};
+    resetFlow();
+    state.tools.clear();
   }
   if (!reconnectTimer) {
     addSystem("连接已断开，正在重连…");

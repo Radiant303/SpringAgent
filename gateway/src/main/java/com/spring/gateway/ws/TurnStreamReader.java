@@ -37,7 +37,12 @@ public class TurnStreamReader {
 
     private static final String KEY_PREFIX = "stream:session:";
     private static final int READ_BATCH = 500;
-    private static final Duration READ_BLOCK = Duration.ofSeconds(2);
+    /** 阻塞读等待上限 */
+    private static final Duration READ_BLOCK = Duration.ofMillis(50);
+    private static final long MERGE_WINDOW_MS = 30;
+    /** 单帧合并字符数上限 */
+    private static final int MERGE_MAX_CHARS = 32 * 1024;
+    private static final int MERGE_MAX_EVENTS = 500;
     private static final long ERROR_BACKOFF_MS = 1000;
     /** 反向扫描每页条目数（找最近一条 turn_finished） */
     private static final int SCAN_PAGE = 500;
@@ -118,37 +123,191 @@ public class TurnStreamReader {
         executor.shutdownNow();
     }
 
+    public boolean canResume(String sessionId, String lastSeq) {
+        List<MapRecord<String, Object, Object>> records = redisTemplate.opsForStream().range(
+                KEY_PREFIX + sessionId, Range.closed(lastSeq, lastSeq), Limit.limit().count(1));
+        return records != null && !records.isEmpty();
+    }
+
     private void readLoop(WebSocketSession browserSession, String sessionId, String lastSeq) {
         String key = KEY_PREFIX + sessionId;
         String offset = lastSeq != null ? lastSeq : findTurnStartOffset(key);
-        while (browserSession.isOpen() && !Thread.currentThread().isInterrupted()) {
-            List<MapRecord<String, Object, Object>> records;
-            try {
-                records = redisTemplate.opsForStream().read(
-                        StreamReadOptions.empty().count(READ_BATCH).block(READ_BLOCK),
-                        StreamOffset.create(key,
-                                offset == null ? ReadOffset.latest() : ReadOffset.from(offset)));
-            } catch (Exception e) {
-                if (Thread.currentThread().isInterrupted() || !browserSession.isOpen()) {
-                    break;
+        ReplayPacer replayPacer = offset != null ? new ReplayPacer() : null;
+        PendingDelta pending = null;
+        try {
+            while (browserSession.isOpen() && !Thread.currentThread().isInterrupted()) {
+                if (pending != null && replayPacer == null) {
+                    long wait = pending.flushAt - System.currentTimeMillis();
+                    if (wait > 0) {
+                        try {
+                            Thread.sleep(wait);
+                        } catch (InterruptedException e) {
+                            Thread.currentThread().interrupt();
+                            return;
+                        }
+                    }
+                    if (!browserSession.isOpen()) {
+                        return;
+                    }
                 }
-                log.warn("stream 读取异常: session={} error={}", sessionId, e.getMessage());
-                sleepQuietly();
-                continue;
-            }
-            if (records == null) {
-                continue;  // 阻塞读超时，无新事件
-            }
-            for (MapRecord<String, Object, Object> record : records) {
-                if (Thread.currentThread().isInterrupted()) {
-                    return;
+                List<MapRecord<String, Object, Object>> records;
+                try {
+                    StreamReadOptions options = StreamReadOptions.empty().count(READ_BATCH);
+                    if (replayPacer == null) options = options.block(READ_BLOCK);
+                    records = redisTemplate.opsForStream().read(options,
+                            StreamOffset.create(key,
+                                    offset == null ? ReadOffset.latest() : ReadOffset.from(offset)));
+                } catch (Exception e) {
+                    if (Thread.currentThread().isInterrupted() || !browserSession.isOpen()) {
+                        break;
+                    }
+                    log.warn("stream 读取异常: session={} error={}", sessionId, e.getMessage());
+                    sleepQuietly();
+                    continue;
                 }
-                offset = record.getId().getValue();
-                Object eventJson = record.getValue().get("event");
-                if (eventJson != null) {
-                    push(browserSession, sessionId, offset, eventJson.toString());
+                if (records == null || records.isEmpty()) {
+                    if (pending != null) {
+                        pushMerged(browserSession, sessionId, pending, replayPacer);
+                        pending = null;
+                    }
+                    replayPacer = null;
+                    continue;
+                }
+                for (MapRecord<String, Object, Object> record : records) {
+                    if (Thread.currentThread().isInterrupted() || !browserSession.isOpen()) {
+                        return;
+                    }
+                    offset = record.getId().getValue();
+                    Object eventJson = record.getValue().get("event");
+                    if (eventJson == null) {
+                        continue;
+                    }
+                    JsonNode event;
+                    try {
+                        event = objectMapper.readTree(eventJson.toString());
+                    } catch (Exception e) {
+                        log.warn("stream 事件解析失败: session={} seq={}", sessionId, offset);
+                        continue;
+                    }
+                    String kind = textOf(event, "kind");
+                    if (!isDelta(kind)) {
+                        if (pending != null) {
+                            pushMerged(browserSession, sessionId, pending, replayPacer);
+                            pending = null;
+                        }
+                        push(browserSession, sessionId, offset, event, replayPacer);
+                        continue;
+                    }
+                    String toolCallId = textOf(event, "tool_call_id");
+                    if (pending == null || !pending.canMerge(kind, toolCallId)) {
+                        if (pending != null) {
+                            pushMerged(browserSession, sessionId, pending, replayPacer);
+                        }
+                        pending = new PendingDelta(kind, toolCallId);
+                    }
+                    pending.add(event, offset);
+                    if (pending.chars() >= MERGE_MAX_CHARS || pending.count >= MERGE_MAX_EVENTS) {
+                        pushMerged(browserSession, sessionId, pending, replayPacer);
+                        pending = null;
+                    }
+                }
+                if (pending != null && System.currentTimeMillis() >= pending.flushAt) {
+                    pushMerged(browserSession, sessionId, pending, replayPacer);
+                    pending = null;
                 }
             }
+        } finally {
+            if (pending != null) {
+                pushMerged(browserSession, sessionId, pending, replayPacer);
+            }
+        }
+    }
+
+    private static boolean isDelta(String kind) {
+        return "text_delta".equals(kind) || "thinking_delta".equals(kind)
+                || "tool_args_delta".equals(kind);
+    }
+
+    private static String textOf(JsonNode node, String field) {
+        JsonNode value = node.get(field);
+        return value == null ? "" : value.asText();
+    }
+
+    private void pushMerged(WebSocketSession browserSession, String sessionId, PendingDelta pending,
+                            ReplayPacer replayPacer) {
+        ObjectNode event = objectMapper.createObjectNode();
+        event.put("kind", pending.kind);
+        if ("tool_args_delta".equals(pending.kind)) {
+            event.put("tool_call_id", pending.toolCallId);
+            event.put("args_chunk", pending.text.toString());
+        } else {
+            event.put("text", pending.text.toString());
+        }
+        push(browserSession, sessionId, pending.seq, event, replayPacer);
+    }
+
+    private void push(WebSocketSession browserSession, String sessionId, String seq, JsonNode event,
+                      ReplayPacer replayPacer) {
+        if (replayPacer != null && !replayPacer.awaitNext(browserSession)) return;
+        push(browserSession, sessionId, seq, event);
+        if (replayPacer != null) replayPacer.sent();
+    }
+
+    /**
+     * 重放帧发送节奏。
+     *
+     * @author hanbing
+     * @since 2026-10-18
+     */
+    private static final class ReplayPacer {
+        /** 重放帧最小发送间隔。 */
+        private static final long FRAME_INTERVAL_NANOS = Duration.ofMillis(30).toNanos();
+        private long nextSendAt = System.nanoTime();
+
+        private boolean awaitNext(WebSocketSession browserSession) {
+            if (Thread.currentThread().isInterrupted() || !browserSession.isOpen()) return false;
+            long wait;
+            while ((wait = nextSendAt - System.nanoTime()) > 0) {
+                try {
+                    java.util.concurrent.TimeUnit.NANOSECONDS.sleep(wait);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    return false;
+                }
+            }
+            return !Thread.currentThread().isInterrupted() && browserSession.isOpen();
+        }
+
+        private void sent() {
+            nextSendAt = System.nanoTime() + FRAME_INTERVAL_NANOS;
+        }
+    }
+
+    private static final class PendingDelta {
+        private final String kind;
+        private final String toolCallId;
+        private final StringBuilder text = new StringBuilder();
+        private final long flushAt = System.currentTimeMillis() + MERGE_WINDOW_MS;
+        private String seq;
+        private int count;
+
+        private PendingDelta(String kind, String toolCallId) {
+            this.kind = kind;
+            this.toolCallId = toolCallId;
+        }
+
+        private boolean canMerge(String kind, String toolCallId) {
+            return this.kind.equals(kind) && this.toolCallId.equals(toolCallId);
+        }
+
+        private void add(JsonNode event, String seq) {
+            this.seq = seq;
+            this.count++;
+            text.append(textOf(event, "tool_args_delta".equals(kind) ? "args_chunk" : "text"));
+        }
+
+        private int chars() {
+            return text.length();
         }
     }
 
@@ -195,7 +354,7 @@ public class TurnStreamReader {
         }
     }
 
-    private void push(WebSocketSession browserSession, String sessionId, String seq, String eventJson) {
+    private void push(WebSocketSession browserSession, String sessionId, String seq, JsonNode event) {
         if (Thread.currentThread().isInterrupted()) {
             return;
         }
@@ -203,7 +362,7 @@ public class TurnStreamReader {
             ObjectNode params = objectMapper.createObjectNode();
             params.put("sessionId", sessionId);
             params.put("seq", seq);
-            params.set("event", objectMapper.readTree(eventJson));
+            params.set("event", event);
             ObjectNode frame = objectMapper.createObjectNode();
             frame.put("jsonrpc", "2.0");
             frame.put("method", "session/event");

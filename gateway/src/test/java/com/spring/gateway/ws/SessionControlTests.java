@@ -118,6 +118,64 @@ class SessionControlTests {
     }
 
     @Test
+    void validCursorResumesWithoutReset() throws Exception {
+        var browser = browser();
+        when(engineClient.sessionControlToken("session-1", 123L, "browser-id")).thenReturn("control-token");
+        when(streams.canResume("session-1", "1-0")).thenReturn(true);
+
+        relay.handleTextMessage(browser, new TextMessage(
+                "{\"id\":1,\"method\":\"stream/subscribe\",\"params\":{\"sessionId\":\"session-1\",\"lastSeq\":\"1-0\"}}"));
+
+        verify(streams).subscribe(browser, "session-1", "1-0");
+        verify(streams, never()).unsubscribe(any(), anyString());
+        assertTrue(mapper.readTree(responses.getFirst()).path("result").isEmpty());
+    }
+
+    @Test
+    void expiredCursorRequiresHistoryReloadWithoutStartingReader() throws Exception {
+        var browser = browser();
+        when(engineClient.sessionControlToken("session-1", 123L, "browser-id")).thenReturn("control-token");
+        when(streams.canResume("session-1", "1-0")).thenReturn(false);
+
+        relay.handleTextMessage(browser, new TextMessage(
+                "{\"id\":1,\"method\":\"stream/subscribe\",\"params\":{\"sessionId\":\"session-1\",\"lastSeq\":\"1-0\"}}"));
+
+        verify(streams, never()).subscribe(any(), anyString(), any());
+        verify(streams).unsubscribe(browser, "session-1");
+        assertTrue(mapper.readTree(responses.getFirst()).path("result").path("resetRequired").asBoolean());
+    }
+
+    @Test
+    void cursorValidationFailureReturnsErrorWithoutStartingReader() throws Exception {
+        var browser = browser();
+        when(engineClient.sessionControlToken("session-1", 123L, "browser-id")).thenReturn("control-token");
+        when(streams.canResume("session-1", "1-0")).thenThrow(new IllegalStateException("Redis 不可用"));
+
+        relay.handleTextMessage(browser, new TextMessage(
+                "{\"id\":1,\"method\":\"stream/subscribe\",\"params\":{\"sessionId\":\"session-1\",\"lastSeq\":\"1-0\"}}"));
+
+        verify(streams, never()).subscribe(any(), anyString(), any());
+        assertEquals(-32603, mapper.readTree(responses.getFirst()).path("error").path("code").asInt());
+    }
+
+    @Test
+    void malformedCursorIsRejectedBeforeReadingRedis() throws Exception {
+        var browser = browser();
+        when(engineClient.sessionControlToken("session-1", 123L, "browser-id")).thenReturn("control-token");
+        for (String cursor : List.of("\"\"", "\"$\"", "\"1\"", "123", "{}")) {
+            relay.handleTextMessage(browser, new TextMessage(
+                    "{\"id\":1,\"method\":\"stream/subscribe\",\"params\":{\"sessionId\":\"session-1\",\"lastSeq\":"
+                            + cursor + "}}"));
+        }
+
+        verifyNoInteractions(streams);
+        assertEquals(5, responses.size());
+        for (String response : responses) {
+            assertEquals(-32602, mapper.readTree(response).path("error").path("code").asInt());
+        }
+    }
+
+    @Test
     void subscriptionsCoexistAndUnsubscribeOnlyCancelsTarget() throws Exception {
         var browser = browser();
         var executor = mock(ExecutorService.class);
@@ -134,7 +192,7 @@ class SessionControlTests {
 
         handler.handleTextMessage(browser, frame("stream/subscribe"));
         handler.handleTextMessage(browser, new TextMessage(
-                "{\"id\":2,\"method\":\"stream/subscribe\",\"params\":{\"sessionId\":\"session-2\",\"lastSeq\":\"1-0\"}}"));
+                "{\"id\":2,\"method\":\"stream/subscribe\",\"params\":{\"sessionId\":\"session-2\"}}"));
 
         var readers = (Map<?, ?>) ReflectionTestUtils.getField(reader, "readers");
         assertEquals(2, ((Map<?, ?>) readers.get("browser-id")).size());

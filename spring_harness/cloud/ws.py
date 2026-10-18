@@ -326,8 +326,9 @@ async def ws_endpoint(websocket: WebSocket) -> None:
 
     trusted = secrets.compare_digest(websocket.headers.get("x-internal-token", ""), config.cloud.internal_token)
     connection_id = websocket.headers.get("x-connection-id") if trusted else None
+    chunk_large = trusted and websocket.headers.get("x-relay-chunking") == "1"
     assert user_id is not None
-    connection = JsonRpcConnection(read_line, write_line)
+    connection = JsonRpcConnection(read_line, write_line, chunk_large=chunk_large)
     server = CloudAppServer(
         connection, user_id=user_id, data_root=Path(config.cloud.data_root).expanduser(),
         connection_id=connection_id,

@@ -41,7 +41,9 @@ export function markScrolling(element) {
 
 export function appendKeepingBottom(element, text, threshold = 40) {
   const atBottom = element.scrollHeight - element.scrollTop - element.clientHeight < threshold;
-  element.textContent += text;
+  const node = element.firstChild;
+  if (node && node.nodeType === 3) node.appendData(text);
+  else element.appendChild(document.createTextNode(text));
   if (atBottom) {
     element.scrollTop = element.scrollHeight;
     markScrolling(element);

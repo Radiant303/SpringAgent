@@ -13,7 +13,7 @@ import { drainPendingFor, clearPendingFor } from "./modals.js";
 import { discardSessionAttachments } from "./upload.js";
 import { addSystem, userNode } from "./chatView.js";
 import { clearMessages, loadHistory } from "./history.js";
-import { loadPlan } from "./stream.js";
+import { discardPending, loadPlan } from "./stream.js";
 import { applyModelSelection, updateInputState } from "./input.js";
 
 let listGeneration = 0;
@@ -56,6 +56,7 @@ function selectSessionView(sid) {
   state.sessionReady = false;
   syncSessionSelection();
   drainPendingFor(null);
+  discardPending();
   clearMessages(true);
   updateInputState();
 }
@@ -97,8 +98,19 @@ export function subscribeStream(sid, refreshStatus = false) {
   if (state.deletedSessions.has(sid)) return Promise.resolve();
   const view = viewContext(sid);
   return rpc.request("stream/subscribe", { sessionId: sid, lastSeq: state.lastSeq[sid] || null })
-    .then(async () => {
-      if (!refreshStatus || !isConnectionCurrent(view)) return;
+    .then(async (subscription) => {
+      if (!isConnectionCurrent(view)) return;
+      if (subscription?.resetRequired) {
+        if (isViewCurrent(view)) {
+          selectSessionView(sid);
+          return queueSessionLoad(view);
+        }
+        delete state.lastSeq[sid];
+        runOf(sid).unread = true;
+        refreshSessionList();
+        return;
+      }
+      if (!refreshStatus) return;
       const seq = state.lastSeq[sid];
       const result = await rpc.request("session/status", { sessionId: sid });
       if (!isConnectionCurrent(view) || state.lastSeq[sid] !== seq) return;
@@ -117,6 +129,42 @@ export function subscribeStream(sid, refreshStatus = false) {
       refreshSessionList();
     })
     .catch((e) => { if (isViewCurrent(view)) UI.toast(e.message, { type: "error" }); });
+}
+
+/** 原地续上当前会话 */
+export async function resumeSession() {
+  const sid = state.sessionId;
+  if (!sid || state.deletedSessions.has(sid)) return false;
+  const view = viewContext(sid);
+  if (!isViewCurrent(view)) return false;
+  let result;
+  try {
+    result = await attachSession(sid, view);
+  } catch {
+    return false;
+  }
+  if (!isViewCurrent(view)) return false;
+  if (!result) {
+    addSystem("此会话仍由其他连接控制。点击会话可再次选择接管，或选择其他会话。");
+    updateInputState();
+    refreshSessionList();
+    return true;
+  }
+  if (!state.lastSeq[sid]) {
+    selectSessionView(sid);
+    await queueSessionLoad(view, result);
+    return true;
+  }
+  state.sessionReady = true;
+  applyServerBusy(sid, !!result.busy);
+  drainPendingFor(sid);
+  updateInputState();
+  await subscribeStream(sid, true);
+  if (isViewCurrent(view)) {
+    loadPlan(view.generation);
+    refreshSessionList();
+  }
+  return true;
 }
 
 function queueSessionLoad(view, attachedResult) {
@@ -308,6 +356,7 @@ export function newSession() {
   state.sessionReady = false;
   syncSessionSelection();
   drainPendingFor(null);
+  discardPending();
   localStorage.removeItem("sh.sessionId");
   clearMessages();
   updateInputState();

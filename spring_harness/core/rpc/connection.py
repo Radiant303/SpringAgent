@@ -2,10 +2,13 @@ import asyncio
 import json
 from collections.abc import Awaitable, Callable
 from typing import Any, Literal
+from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, TypeAdapter, ValidationError
 
 PARSE_ERROR = -32700
+CHUNK_METHOD = "__ws_chunk"
+CHUNK_MAX_CHARS = 8 * 1024
 INVALID_REQUEST = -32600
 INVALID_PARAMS = -32602
 METHOD_NOT_FOUND = -32601
@@ -75,9 +78,12 @@ class JsonRpcConnection:
         self,
         read_line: Callable[[], Awaitable[str | None]],   # None = 对端关闭
         write_line: Callable[[str], Awaitable[None]],
+        *,
+        chunk_large: bool = False,
     ) -> None:
         self._read_line = read_line
         self._write_line = write_line
+        self._chunk_large = chunk_large
         self._send_lock = asyncio.Lock()
         self._pending: dict[str | int, asyncio.Future] = {}
 
@@ -111,8 +117,24 @@ class JsonRpcConnection:
         await self._send(JsonRpcNotification(method=method, params=_params_dict(params)))
 
     async def _send(self, message: BaseModel) -> None:
+        line = message.model_dump_json()
         async with self._send_lock:
-            await self._write_line(message.model_dump_json())
+            if not self._chunk_large or len(line) <= CHUNK_MAX_CHARS:
+                await self._write_line(line)
+                return
+            chunk_id = uuid4().hex
+            total = (len(line) + CHUNK_MAX_CHARS - 1) // CHUNK_MAX_CHARS
+            for index, start in enumerate(range(0, len(line), CHUNK_MAX_CHARS)):
+                await self._write_line(json.dumps({
+                    "jsonrpc": "2.0",
+                    "method": CHUNK_METHOD,
+                    "params": {
+                        "id": chunk_id,
+                        "index": index,
+                        "total": total,
+                        "data": line[start:start + CHUNK_MAX_CHARS],
+                    },
+                }, ensure_ascii=False))
 
     # ---- 接收循环 ----
 

@@ -49,6 +49,71 @@ import { notifyStorageChanged } from "../../utils/storage.js";
 
 export const USAGE_RING_LEN = 56.5;
 
+const FLUSH_INTERVAL_MS = 40;
+
+let flushTimer = null;
+let pendingScroll = false;
+const pendingAnswers = new Map();
+const pendingThinking = new Map();
+const pendingArgs = new Map();
+
+function scheduleFlush() {
+  if (flushTimer !== null) return;
+  flushTimer = setTimeout(flushPending, FLUSH_INTERVAL_MS);
+}
+
+/** 把缓冲的增量一次性写入 DOM */
+export function flushPending() {
+  if (flushTimer !== null) {
+    clearTimeout(flushTimer);
+    flushTimer = null;
+  }
+  for (const [body, text] of pendingThinking) appendKeepingBottom(body, text);
+  pendingThinking.clear();
+  for (const [toolCallId, chunk] of pendingArgs) {
+    const card = state.tools.get(toolCallId);
+    if (!card) continue;
+    appendKeepingBottom(card.args, chunk);
+    applyToolArgs(card);
+  }
+  pendingArgs.clear();
+  for (const [assistant, text] of pendingAnswers) {
+    assistant.text += text;
+    setMarkdown(assistant.answer, assistant.text);
+  }
+  pendingAnswers.clear();
+  if (pendingScroll) {
+    pendingScroll = false;
+    maybeScroll();
+  }
+}
+
+export function discardPending() {
+  if (flushTimer !== null) {
+    clearTimeout(flushTimer);
+    flushTimer = null;
+  }
+  pendingThinking.clear();
+  pendingArgs.clear();
+  pendingAnswers.clear();
+  pendingScroll = false;
+}
+
+function applyToolArgs(card) {
+  const text = card.args.textContent;
+  const args = parseArgs(text);
+  const target = args ? targetFromArgs(args, card.name) : targetFromPartial(text, card.name);
+  if (target !== card.target) {
+    setToolTarget(card, target);
+    if (state.work) refreshWorkSummary(state.work);
+  }
+  if (args && !card.hasDiff) {
+    setToolStats(card, statsFromArgs(card.name, args));
+    const rows = fileRowsFromArgs(card.name, args);
+    if (rows) renderFileView(card, rows);
+  }
+}
+
 function settleFinishedTools() {
   for (const card of state.tools.values()) {
     if (!card.finishDeferred) continue;
@@ -183,10 +248,10 @@ export function onSessionEvent(sid, event, seq) {
     case "text_delta": {
       settleFinishedTools();
       const a = ensureAssistant();
-      if (!a.text) setActive(null);
-      a.text += event.text;
-      setMarkdown(a.answer, a.text);
-      maybeScroll();
+      if (!a.text && !pendingAnswers.has(a)) setActive(null);
+      pendingAnswers.set(a, (pendingAnswers.get(a) || "") + event.text);
+      pendingScroll = true;
+      scheduleFlush();
       break;
     }
     case "thinking_delta": {
@@ -198,11 +263,13 @@ export function onSessionEvent(sid, event, seq) {
         setActive(state.thinking);
       }
       const body = state.thinking.querySelector(".thinking-body");
-      appendKeepingBottom(body, event.text);
-      maybeScroll();
+      pendingThinking.set(body, (pendingThinking.get(body) || "") + event.text);
+      pendingScroll = true;
+      scheduleFlush();
       break;
     }
     case "tool_started": {
+      flushPending();
       settleFinishedTools();
       const group = ensureWork();
       state.thinking = null;
@@ -216,23 +283,14 @@ export function onSessionEvent(sid, event, seq) {
     case "tool_args_delta": {
       const card = state.tools.get(event.tool_call_id);
       if (card) {
-        appendKeepingBottom(card.args, event.args_chunk);
-        const args = parseArgs(card.args.textContent);
-        const target = args ? targetFromArgs(args, card.name) : targetFromPartial(card.args.textContent, card.name);
-        if (target !== card.target) {
-          setToolTarget(card, target);
-          if (state.work) refreshWorkSummary(state.work);
-        }
-        if (args && !card.hasDiff) {
-          setToolStats(card, statsFromArgs(card.name, args));
-          const rows = fileRowsFromArgs(card.name, args);
-          if (rows) renderFileView(card, rows);
-        }
-        maybeScroll();
+        pendingArgs.set(event.tool_call_id, (pendingArgs.get(event.tool_call_id) || "") + event.args_chunk);
+        pendingScroll = true;
+        scheduleFlush();
       }
       break;
     }
     case "tool_diff": {
+      flushPending();
       const card = state.tools.get(event.tool_call_id);
       if (card) {
         card.hasDiff = true;
@@ -245,6 +303,7 @@ export function onSessionEvent(sid, event, seq) {
       break;
     }
     case "tool_pending": {
+      flushPending();
       const card = state.tools.get(event.tool_call_id);
       if (card) {
         card.pending.textContent = event.label || "等待批准";
@@ -253,6 +312,7 @@ export function onSessionEvent(sid, event, seq) {
       break;
     }
     case "tool_finished": {
+      flushPending();
       const card = state.tools.get(event.tool_call_id);
       if (card) {
         card.pending.classList.add("hidden");
@@ -292,6 +352,7 @@ export function onSessionEvent(sid, event, seq) {
       break;
     }
     case "turn_finished": {
+      flushPending();
       finishTurn(event);
       break;
     }

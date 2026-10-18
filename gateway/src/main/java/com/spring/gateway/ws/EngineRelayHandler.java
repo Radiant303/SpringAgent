@@ -27,9 +27,12 @@ import java.io.IOException;
 import java.net.URI;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -46,6 +49,10 @@ public class EngineRelayHandler extends TextWebSocketHandler {
     private static final String ATTR_ENGINE_SESSION = "engineSession";
 
     private static final long ENGINE_CONNECT_TIMEOUT_SECONDS = 10;
+
+    private static final String CHUNK_METHOD = "__ws_chunk";
+    /** 单个大帧最多允许的分片数 */
+    private static final int CHUNK_MAX_PARTS = 8192;
 
     /** JSON-RPC 标准错误码：参数不合法 */
     private static final int INVALID_PARAMS = -32602;
@@ -132,13 +139,14 @@ public class EngineRelayHandler extends TextWebSocketHandler {
         StandardWebSocketClient client = new StandardWebSocketClient(webSocketContainer);
         WebSocketHttpHeaders headers = new WebSocketHttpHeaders();
         headers.set("X-Internal-Token", internalToken);
+        headers.set("X-Relay-Chunking", "1");
         String connectionId = java.util.UUID.randomUUID().toString();
         browserSession.getAttributes().put("controlConnectionId", connectionId);
         headers.set("X-Connection-Id", connectionId);
         WebSocketSession engineSession;
         try {
             engineSession = client
-                    .execute(new EngineToBrowserHandler(browserSession), headers, engineUri)
+                    .execute(new EngineToBrowserHandler(browserSession, objectMapper), headers, engineUri)
                     .get(ENGINE_CONNECT_TIMEOUT_SECONDS, TimeUnit.SECONDS);
         } catch (Exception e) {
             log.warn("连接引擎 WS 失败: userId={} uri={} error={}", userId, engineWsBase, e.getMessage());
@@ -263,6 +271,27 @@ public class EngineRelayHandler extends TextWebSocketHandler {
         }
         JsonNode lastSeqNode = params.get("lastSeq");
         String lastSeq = lastSeqNode == null || lastSeqNode.isNull() ? null : lastSeqNode.asText();
+        if (lastSeq != null) {
+            if (!lastSeqNode.isTextual() || !lastSeq.matches("[0-9]+-[0-9]+")) {
+                sendRpcError(session, idNode, INVALID_PARAMS, "无效的续读游标");
+                return true;
+            }
+            boolean resumable;
+            try {
+                resumable = turnStreamReader.canResume(sessionId, lastSeq);
+            } catch (Exception e) {
+                log.warn("stream 游标校验失败: session={} error={}", sessionId, e.getMessage());
+                sendRpcError(session, idNode, INTERNAL_ERROR, "续读游标校验失败，请稍后重试");
+                return true;
+            }
+            if (!resumable) {
+                turnStreamReader.unsubscribe(session, sessionId);
+                ObjectNode result = objectMapper.createObjectNode();
+                result.put("resetRequired", true);
+                sendRpcResult(session, idNode, result);
+                return true;
+            }
+        }
         turnStreamReader.subscribe(session, sessionId, lastSeq);
         sendRpcResult(session, idNode);
         return true;
@@ -479,21 +508,84 @@ public class EngineRelayHandler extends TextWebSocketHandler {
     /**
      * 引擎方向的处理者：把引擎下发的帧转发回浏览器；引擎断开则联动断开浏览器连接
      */
-    private static class EngineToBrowserHandler extends TextWebSocketHandler {
+    static class EngineToBrowserHandler extends TextWebSocketHandler {
 
         private final WebSocketSession browserSession;
+        private final ObjectMapper objectMapper;
+        /** 分片 ID → 已收到的分片 */
+        private final Map<String, List<String>> chunks = new ConcurrentHashMap<>();
 
-        EngineToBrowserHandler(WebSocketSession browserSession) {
+        EngineToBrowserHandler(WebSocketSession browserSession, ObjectMapper objectMapper) {
             this.browserSession = browserSession;
+            this.objectMapper = objectMapper;
         }
 
         @Override
         protected void handleTextMessage(WebSocketSession engineSession, TextMessage message) throws Exception {
-            sendSafely(browserSession, message.getPayload());
+            String payload = message.getPayload();
+            JsonNode frame;
+            try {
+                frame = objectMapper.readTree(payload);
+            } catch (Exception e) {
+                sendSafely(browserSession, payload);
+                return;
+            }
+            JsonNode method = frame.get("method");
+            if (method != null && CHUNK_METHOD.equals(method.asText())) {
+                acceptChunk(frame.get("params"));
+                return;
+            }
+            sendSafely(browserSession, payload);
+        }
+
+        private void acceptChunk(JsonNode params) throws IOException {
+            if (params == null) {
+                return;
+            }
+            JsonNode idNode = params.get("id");
+            JsonNode indexNode = params.get("index");
+            JsonNode totalNode = params.get("total");
+            JsonNode dataNode = params.get("data");
+            if (idNode == null || !idNode.isTextual() || dataNode == null || !dataNode.isTextual()
+                    || indexNode == null || !indexNode.isIntegralNumber()
+                    || totalNode == null || !totalNode.isIntegralNumber()) {
+                log.warn("非法分片帧: browser={}", browserSession.getId());
+                return;
+            }
+            String id = idNode.asText();
+            int index = indexNode.asInt();
+            int total = totalNode.asInt();
+            if (id.isBlank() || total <= 0 || total > CHUNK_MAX_PARTS || index < 0 || index >= total) {
+                log.warn("非法分片范围: browser={} id={} index={} total={}",
+                        browserSession.getId(), id, index, total);
+                return;
+            }
+            List<String> parts = chunks.get(id);
+            if (parts == null) {
+                parts = new ArrayList<>(Collections.nCopies(total, (String) null));
+                chunks.put(id, parts);
+            } else if (parts.size() != total) {
+                chunks.remove(id);
+                log.warn("分片总数不一致: browser={} id={}", browserSession.getId(), id);
+                return;
+            }
+            parts.set(index, dataNode.asText());
+            for (String part : parts) {
+                if (part == null) {
+                    return;
+                }
+            }
+            chunks.remove(id);
+            StringBuilder joined = new StringBuilder();
+            for (String part : parts) {
+                joined.append(part);
+            }
+            sendSafely(browserSession, joined.toString());
         }
 
         @Override
         public void afterConnectionClosed(WebSocketSession engineSession, CloseStatus status) throws Exception {
+            chunks.clear();
             if (browserSession.isOpen()) {
                 browserSession.close(status);
             }
