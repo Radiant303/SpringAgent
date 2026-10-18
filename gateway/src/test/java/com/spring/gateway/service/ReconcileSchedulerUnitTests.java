@@ -3,6 +3,7 @@ package com.spring.gateway.service;
 import com.spring.gateway.controller.AdminSettingsController;
 import com.spring.gateway.dto.AdminStorageSettingsRequest;
 import com.spring.gateway.entity.SystemSetting;
+import com.spring.gateway.mapper.UserMapper;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -70,7 +71,8 @@ class ReconcileSchedulerUnitTests {
         }).when(executor).execute(any(Runnable.class));
         AtomicReference<String> committed = new AtomicReference<>();
         when(settings.loadStorageReconcileCron()).thenAnswer(invocation -> committed.get());
-        AdminSettingsController controller = new AdminSettingsController(settings, scheduler);
+        AdminSettingsController controller = new AdminSettingsController(
+                settings, scheduler, mock(MailCodeService.class), mock(UserMapper.class));
         TransactionSynchronization callbackA = save(controller, CRON_A);
         committed.set(CRON_A);
         CountDownLatch delayed = new CountDownLatch(1);
@@ -176,7 +178,8 @@ class ReconcileSchedulerUnitTests {
             assertNotSame(callbackThread, Thread.currentThread());
             return CRON_B;
         });
-        TransactionSynchronization callback = save(new AdminSettingsController(settings, scheduler), CRON_A);
+        TransactionSynchronization callback = save(new AdminSettingsController(
+                settings, scheduler, mock(MailCodeService.class), mock(UserMapper.class)), CRON_A);
         clearInvocations(settings);
         callback.afterCommit();
         verifyNoInteractions(settings);

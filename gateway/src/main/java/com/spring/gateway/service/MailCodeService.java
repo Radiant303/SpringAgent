@@ -11,7 +11,7 @@ import java.time.Duration;
 import java.util.regex.Pattern;
 
 /**
- * 注册邮箱验证码：生成、发送与校验。
+ * 邮箱验证码：生成、发送与校验。
  *
  * @author hanbing
  * @since 2026-10-09
@@ -102,7 +102,9 @@ public class MailCodeService {
         /** 重置密码 */
         RESET("reset", "重置密码"),
         /** 绑定邮箱 */
-        BIND("bind", "绑定邮箱");
+        BIND("bind", "绑定邮箱"),
+        /** 关闭邮箱功能 */
+        MAIL_DISABLE("mail-disable", "关闭邮箱功能");
 
         /** Redis key 片段与文案用词。 */
         private final String keySegment;
@@ -118,7 +120,7 @@ public class MailCodeService {
      * 发送验证码到指定邮箱；同一邮箱在重发间隔内只能发一次（跨用途共享限流锁）
      *
      * @param email 收件邮箱（会被 trim + 转小写归一化）
-     * @param scene 用途（注册 / 重置密码）
+     * @param scene 用途
      * @return 重发间隔秒数（前端据此倒计时）
      * @throws BizException 未开启邮箱验证码功能（403）；邮箱服务未配置（500）；
      *                      发送过于频繁（429）；邮件发送失败（500，此时锁与验证码一并清除，可立即重试）

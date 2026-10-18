@@ -1,5 +1,6 @@
 package com.spring.gateway.controller;
 
+import com.spring.gateway.common.AuthInterceptor;
 import com.spring.gateway.common.BizException;
 import com.spring.gateway.common.RequiresOwner;
 import com.spring.gateway.common.ResourceLimits;
@@ -14,6 +15,8 @@ import com.spring.gateway.dto.AdminSearchSettingsRequest;
 import com.spring.gateway.dto.AdminStorageSettingsRequest;
 import com.spring.gateway.dto.AdminWorkMaxBytesRequest;
 import com.spring.gateway.entity.SystemSetting;
+import com.spring.gateway.entity.User;
+import com.spring.gateway.mapper.UserMapper;
 import com.spring.gateway.service.MailCodeService;
 import com.spring.gateway.service.ReconcileScheduler;
 import com.spring.gateway.service.SystemSettingService;
@@ -26,6 +29,7 @@ import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestAttribute;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -47,6 +51,8 @@ public class AdminSettingsController {
 
     private final SystemSettingService systemSettingService;
     private final ReconcileScheduler reconcileScheduler;
+    private final MailCodeService mailCodeService;
+    private final UserMapper userMapper;
 
     /**
      * 当前系统设置
@@ -139,16 +145,36 @@ public class AdminSettingsController {
     }
 
     /**
-     * 配置邮箱验证码注册。username/authCode 留空表示保持不变；
+     * 给当前站长的绑定邮箱发送关闭功能验证码。
+     *
+     * @param userId 当前站长 ID
+     * @return 重发间隔秒数
+     */
+    @RequiresOwner(message = "仅站长可修改系统设置")
+    @PostMapping("/mail/send-disable-code")
+    public Result<Map<String, Long>> sendMailDisableCode(
+            @RequestAttribute(AuthInterceptor.ATTR_USER_ID) Long userId) {
+        String email = boundEmail(userId);
+        if (email.isBlank()) {
+            throw new BizException(400, "当前账号未绑定邮箱");
+        }
+        return Result.ok(Map.of("resendAfterSeconds",
+                mailCodeService.sendCode(email, MailCodeService.Scene.MAIL_DISABLE)));
+    }
+
+    /**
+     * 配置邮箱功能。username/authCode 留空表示保持不变；
      * 开启时要求最终生效的发件邮箱与授权码都已就绪。
      *
-     * @param req 邮箱设置
+     * @param userId 当前站长 ID
+     * @param req    邮箱设置
      * @return 空数据返回体
      */
     @RequiresOwner(message = "仅站长可修改系统设置")
     @PostMapping("/mail")
     @Transactional
-    public Result<Void> setMail(@Valid @RequestBody AdminMailSettingsRequest req) {
+    public Result<Void> setMail(@RequestAttribute(AuthInterceptor.ATTR_USER_ID) Long userId,
+                                @Valid @RequestBody AdminMailSettingsRequest req) {
         String username = req.username() == null ? "" : req.username().trim();
         if (!username.isEmpty() && !MailCodeService.isValidEmail(username)) {
             throw new BizException(400, "发件邮箱格式不正确");
@@ -159,6 +185,15 @@ public class AdminSettingsController {
         boolean authReady = !authCode.isEmpty() || !current.authCode().isBlank();
         if (Boolean.TRUE.equals(req.enabled()) && (effectiveUsername.isBlank() || !authReady)) {
             throw new BizException(400, "开启前请先配置发件 QQ 邮箱与 SMTP 授权码");
+        }
+        if (Boolean.FALSE.equals(req.enabled()) && systemSettingService.isMailRegisterEnabled()) {
+            String email = boundEmail(userId);
+            if (!email.isBlank()) {
+                if (req.code() == null) {
+                    throw new BizException(400, "关闭邮箱功能前请输入绑定邮箱收到的验证码");
+                }
+                mailCodeService.verifyCode(email, req.code(), MailCodeService.Scene.MAIL_DISABLE);
+            }
         }
         systemSettingService.set(SystemSetting.KEY_MAIL_REGISTER_ENABLED, String.valueOf(req.enabled()));
         if (!username.isEmpty()) {
@@ -171,6 +206,14 @@ public class AdminSettingsController {
                 String.valueOf(req.resendIntervalSeconds()));
         systemSettingService.set(SystemSetting.KEY_MAIL_CODE_TTL_SECONDS, String.valueOf(req.codeTtlSeconds()));
         return Result.ok(null);
+    }
+
+    private String boundEmail(Long userId) {
+        User user = userMapper.selectById(userId);
+        if (user == null) {
+            throw new BizException(404, "用户不存在");
+        }
+        return user.getEmail() == null ? "" : user.getEmail();
     }
 
     /**

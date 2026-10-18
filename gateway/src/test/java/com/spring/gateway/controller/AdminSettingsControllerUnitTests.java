@@ -5,13 +5,19 @@ import com.spring.gateway.common.BizException;
 import com.spring.gateway.dto.AdminMailSettingsRequest;
 import com.spring.gateway.dto.AdminStorageSettingsRequest;
 import com.spring.gateway.entity.SystemSetting;
+import com.spring.gateway.entity.User;
 import com.spring.gateway.mapper.SystemSettingMapper;
+import com.spring.gateway.mapper.UserMapper;
+import com.spring.gateway.service.MailCodeService;
 import com.spring.gateway.service.ReconcileScheduler;
 import com.spring.gateway.service.SystemSettingCache;
 import com.spring.gateway.service.SystemSettingService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.NullAndEmptySource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.aop.framework.ProxyFactory;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
@@ -40,8 +46,12 @@ import static org.mockito.Mockito.*;
  * @since 2026-10-17
  */
 class AdminSettingsControllerUnitTests {
+    private static final Long USER_ID = 1L;
+    private static final String BOUND_EMAIL = "owner@example.test";
     private final SystemSettingMapper mapper = mock(SystemSettingMapper.class);
     private final ReconcileScheduler scheduler = mock(ReconcileScheduler.class);
+    private final MailCodeService mailCodes = mock(MailCodeService.class);
+    private final UserMapper users = mock(UserMapper.class);
     private final StringRedisTemplate redis = mock(StringRedisTemplate.class);
     private final SystemSettingCache cache = mock(SystemSettingCache.class);
     private final Map<String, String> committed = new HashMap<>();
@@ -90,7 +100,7 @@ class AdminSettingsControllerUnitTests {
         SystemSettingService service = new SystemSettingService(mapper, cache, redis, new ObjectMapper(),
                 com.spring.gateway.common.CacheSecretCipher.load(java.nio.file.Path.of("unused"),
                         java.util.Base64.getEncoder().encodeToString(new byte[32])));
-        ProxyFactory proxy = new ProxyFactory(new AdminSettingsController(service, scheduler));
+        ProxyFactory proxy = new ProxyFactory(new AdminSettingsController(service, scheduler, mailCodes, users));
         proxy.setProxyTargetClass(true);
         proxy.addAdvice(new TransactionInterceptor(transactions, new AnnotationTransactionAttributeSource()));
         controller = (AdminSettingsController) proxy.getProxy();
@@ -128,7 +138,8 @@ class AdminSettingsControllerUnitTests {
 
     @Test
     void mailCredentialsAndTimingCommitTogether() {
-        controller.setMail(new AdminMailSettingsRequest(true, " SENDER@example.test ", " fakeSecret ", 60, 300));
+        controller.setMail(USER_ID,
+                new AdminMailSettingsRequest(true, " SENDER@example.test ", " fakeSecret ", 60, 300, null));
         assertEquals("true", committed.get(SystemSetting.KEY_MAIL_REGISTER_ENABLED));
         assertEquals("sender@example.test", committed.get(SystemSetting.KEY_MAIL_USERNAME));
         assertEquals("fakeSecret", committed.get(SystemSetting.KEY_MAIL_AUTH_CODE));
@@ -137,7 +148,7 @@ class AdminSettingsControllerUnitTests {
         assertEquals(1, transactions.commits);
         assertEquals(0, transactions.rollbacks);
         assertEquals(1, reads.size());
-        verifyNoInteractions(scheduler);
+        verifyNoInteractions(scheduler, mailCodes, users);
     }
 
     @Test
@@ -146,8 +157,8 @@ class AdminSettingsControllerUnitTests {
         committed.put(SystemSetting.KEY_MAIL_AUTH_CODE, "oldSecret");
         Map<String, String> original = Map.copyOf(committed);
         failureKey = SystemSetting.KEY_MAIL_AUTH_CODE;
-        assertThrows(IllegalStateException.class, () -> controller.setMail(
-                new AdminMailSettingsRequest(true, "new@example.test", "newSecret", 60, 300)));
+        assertThrows(IllegalStateException.class, () -> controller.setMail(USER_ID,
+                new AdminMailSettingsRequest(true, "new@example.test", "newSecret", 60, 300, null)));
         assertEquals(original, committed);
         assertEquals(0, transactions.commits);
         assertEquals(1, transactions.rollbacks);
@@ -156,14 +167,163 @@ class AdminSettingsControllerUnitTests {
 
     @Test
     void enabledMailStillRequiresCompleteCredentialsAndBlankPreservesThem() {
-        assertThrows(BizException.class, () -> controller.setMail(
-                new AdminMailSettingsRequest(true, null, null, 60, 300)));
+        assertThrows(BizException.class, () -> controller.setMail(USER_ID,
+                new AdminMailSettingsRequest(true, null, null, 60, 300, null)));
         assertTrue(committed.isEmpty());
         committed.put(SystemSetting.KEY_MAIL_USERNAME, "old@example.test");
         committed.put(SystemSetting.KEY_MAIL_AUTH_CODE, "oldSecret");
-        controller.setMail(new AdminMailSettingsRequest(true, " ", " ", 60, 300));
+        controller.setMail(USER_ID, new AdminMailSettingsRequest(true, " ", " ", 60, 300, null));
         assertEquals("old@example.test", committed.get(SystemSetting.KEY_MAIL_USERNAME));
         assertEquals("oldSecret", committed.get(SystemSetting.KEY_MAIL_AUTH_CODE));
+        verifyNoInteractions(mailCodes, users);
+    }
+
+    @Test
+    void boundEnabledMailRejectsMissingCodeBeforeAnyWrite() {
+        seedEnabledMail();
+        bindEmail(BOUND_EMAIL);
+        Map<String, String> original = Map.copyOf(committed);
+        assertThrows(BizException.class, () -> controller.setMail(USER_ID,
+                new AdminMailSettingsRequest(false, "new@example.test", "newSecret", 90, 600, null)));
+        assertEquals(original, committed);
+        assertNull(pending);
+        assertEquals(0, transactions.commits);
+        assertEquals(1, transactions.rollbacks);
+        verify(mapper, never()).upsert(any(SystemSetting.class));
+        verify(users).selectById(USER_ID);
+        verifyNoMoreInteractions(users);
+        verifyNoInteractions(mailCodes, scheduler, cache);
+    }
+
+    @Test
+    void disableCodeVerificationFailureRollsBackBeforeAnyWrite() {
+        seedEnabledMail();
+        bindEmail(BOUND_EMAIL);
+        Map<String, String> original = Map.copyOf(committed);
+        BizException failure = new BizException(400, "验证码错误或已过期");
+        doAnswer(invocation -> {
+            assertTrue(TransactionSynchronizationManager.isActualTransactionActive());
+            assertEquals(original, pending);
+            verify(mapper, never()).upsert(any(SystemSetting.class));
+            throw failure;
+        }).when(mailCodes).verifyCode(BOUND_EMAIL, "123456", MailCodeService.Scene.MAIL_DISABLE);
+        assertSame(failure, assertThrows(BizException.class, () -> controller.setMail(USER_ID,
+                new AdminMailSettingsRequest(false, "new@example.test", "newSecret", 90, 600, "123456"))));
+        assertEquals(original, committed);
+        assertNull(pending);
+        assertEquals(0, transactions.commits);
+        assertEquals(1, transactions.rollbacks);
+        verify(mapper, never()).upsert(any(SystemSetting.class));
+        verify(mailCodes).verifyCode(BOUND_EMAIL, "123456", MailCodeService.Scene.MAIL_DISABLE);
+        verifyNoMoreInteractions(mailCodes);
+        verifyNoInteractions(scheduler, cache);
+    }
+
+    @Test
+    void dedicatedDisableCodeIsVerifiedBeforeAllSettingsCommit() {
+        seedEnabledMail();
+        bindEmail(BOUND_EMAIL);
+        Map<String, String> original = Map.copyOf(committed);
+        doAnswer(invocation -> {
+            assertTrue(TransactionSynchronizationManager.isActualTransactionActive());
+            assertEquals(original, committed);
+            assertEquals(original, pending);
+            verify(mapper, never()).upsert(any(SystemSetting.class));
+            return null;
+        }).when(mailCodes).verifyCode(BOUND_EMAIL, "123456", MailCodeService.Scene.MAIL_DISABLE);
+        controller.setMail(USER_ID,
+                new AdminMailSettingsRequest(false, "new@example.test", "newSecret", 90, 600, "123456"));
+        assertEquals(Map.of(
+                SystemSetting.KEY_MAIL_REGISTER_ENABLED, "false",
+                SystemSetting.KEY_MAIL_USERNAME, "new@example.test",
+                SystemSetting.KEY_MAIL_AUTH_CODE, "newSecret",
+                SystemSetting.KEY_MAIL_RESEND_INTERVAL_SECONDS, "90",
+                SystemSetting.KEY_MAIL_CODE_TTL_SECONDS, "600"), committed);
+        assertNull(pending);
+        assertEquals(1, transactions.commits);
+        assertEquals(0, transactions.rollbacks);
+        var order = inOrder(users, mailCodes, mapper);
+        order.verify(users).selectById(USER_ID);
+        order.verify(mailCodes).verifyCode(BOUND_EMAIL, "123456", MailCodeService.Scene.MAIL_DISABLE);
+        order.verify(mapper, times(5)).upsert(any(SystemSetting.class));
+        verifyNoMoreInteractions(users, mailCodes);
+        verifyNoInteractions(scheduler);
+    }
+
+    @ParameterizedTest
+    @NullAndEmptySource
+    @ValueSource(strings = {" ", " \t \n"})
+    void unboundEnabledMailCanBeDisabledWithoutCode(String email) {
+        seedEnabledMail();
+        bindEmail(email);
+        Map<String, String> expected = new HashMap<>(committed);
+        expected.put(SystemSetting.KEY_MAIL_REGISTER_ENABLED, "false");
+        controller.setMail(USER_ID, new AdminMailSettingsRequest(false, null, null, 60, 300, null));
+        assertEquals(expected, committed);
+        assertEquals(1, transactions.commits);
+        assertEquals(0, transactions.rollbacks);
+        verify(users).selectById(USER_ID);
+        verifyNoInteractions(mailCodes, scheduler);
+    }
+
+    @ParameterizedTest
+    @NullAndEmptySource
+    @ValueSource(strings = {"false"})
+    void alreadyDisabledMailDoesNotNeedCodeOrBoundEmailLookup(String enabled) {
+        seedEnabledMail();
+        if (enabled == null) {
+            committed.remove(SystemSetting.KEY_MAIL_REGISTER_ENABLED);
+        } else {
+            committed.put(SystemSetting.KEY_MAIL_REGISTER_ENABLED, enabled);
+        }
+        controller.setMail(USER_ID, new AdminMailSettingsRequest(false, null, null, 60, 300, null));
+        assertEquals("false", committed.get(SystemSetting.KEY_MAIL_REGISTER_ENABLED));
+        assertEquals(1, transactions.commits);
+        assertEquals(0, transactions.rollbacks);
+        verifyNoInteractions(mailCodes, users, scheduler);
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void enablingOrKeepingEnabledMailDoesNotNeedCode(boolean currentlyEnabled) {
+        seedEnabledMail();
+        committed.put(SystemSetting.KEY_MAIL_REGISTER_ENABLED, String.valueOf(currentlyEnabled));
+        controller.setMail(USER_ID, new AdminMailSettingsRequest(true, null, null, 60, 300, null));
+        assertEquals("true", committed.get(SystemSetting.KEY_MAIL_REGISTER_ENABLED));
+        assertEquals(1, transactions.commits);
+        assertEquals(0, transactions.rollbacks);
+        verifyNoInteractions(mailCodes, users, scheduler);
+    }
+
+    @Test
+    void sendDisableCodeUsesOnlyBoundEmailAndDedicatedScene() {
+        bindEmail(BOUND_EMAIL);
+        committed.put(SystemSetting.KEY_MAIL_USERNAME, "sender@example.test");
+        Map<String, String> original = Map.copyOf(committed);
+        when(mailCodes.sendCode(BOUND_EMAIL, MailCodeService.Scene.MAIL_DISABLE)).thenReturn(90L);
+        assertEquals(Map.of("resendAfterSeconds", 90L), controller.sendMailDisableCode(USER_ID).getData());
+        var order = inOrder(users, mailCodes);
+        order.verify(users).selectById(USER_ID);
+        order.verify(mailCodes).sendCode(BOUND_EMAIL, MailCodeService.Scene.MAIL_DISABLE);
+        verifyNoMoreInteractions(users, mailCodes);
+        verifyNoInteractions(mapper, cache, redis, scheduler);
+        assertEquals(original, committed);
+        assertEquals(0, transactions.commits);
+        assertEquals(0, transactions.rollbacks);
+    }
+
+    @ParameterizedTest
+    @NullAndEmptySource
+    @ValueSource(strings = {" ", " \t \n"})
+    void sendDisableCodeRejectsUnboundEmail(String email) {
+        bindEmail(email);
+        committed.put(SystemSetting.KEY_MAIL_USERNAME, "sender@example.test");
+        Map<String, String> original = Map.copyOf(committed);
+        assertThrows(BizException.class, () -> controller.sendMailDisableCode(USER_ID));
+        verify(users).selectById(USER_ID);
+        verifyNoMoreInteractions(users);
+        verifyNoInteractions(mailCodes, mapper, cache, redis, scheduler);
+        assertEquals(original, committed);
     }
 
     @Test
@@ -212,7 +372,7 @@ class AdminSettingsControllerUnitTests {
     @Test
     void directStorageCallWithoutTransactionQueuesRefreshAfterSaving() {
         SystemSettingService service = mock(SystemSettingService.class);
-        AdminSettingsController direct = new AdminSettingsController(service, scheduler);
+        AdminSettingsController direct = new AdminSettingsController(service, scheduler, mailCodes, users);
         direct.setStorage(new AdminStorageSettingsRequest("local", null, null, null, null, ""));
         var order = inOrder(service, scheduler);
         order.verify(service).set(SystemSetting.KEY_STORAGE_TYPE, "local");
@@ -226,6 +386,21 @@ class AdminSettingsControllerUnitTests {
         committed.put(SystemSetting.KEY_OSS_BUCKET, "bucket");
         committed.put(SystemSetting.KEY_OSS_ACCESS_KEY_ID, "fakeId");
         committed.put(SystemSetting.KEY_OSS_ACCESS_KEY_SECRET, "fakeOssSecret");
+    }
+
+    private void seedEnabledMail() {
+        committed.put(SystemSetting.KEY_MAIL_REGISTER_ENABLED, "true");
+        committed.put(SystemSetting.KEY_MAIL_USERNAME, "sender@example.test");
+        committed.put(SystemSetting.KEY_MAIL_AUTH_CODE, "oldSecret");
+        committed.put(SystemSetting.KEY_MAIL_RESEND_INTERVAL_SECONDS, "60");
+        committed.put(SystemSetting.KEY_MAIL_CODE_TTL_SECONDS, "300");
+    }
+
+    private void bindEmail(String email) {
+        User user = new User();
+        user.setId(USER_ID);
+        user.setEmail(email);
+        when(users.selectById(USER_ID)).thenReturn(user);
     }
 
     private class MemoryTransactionManager extends AbstractPlatformTransactionManager {

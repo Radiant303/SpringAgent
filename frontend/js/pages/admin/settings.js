@@ -28,8 +28,8 @@ async function saveWith(saveId, fn) {
   if ($(saveId)?.disabled) return;
   if ($(saveId)) $(saveId).disabled = true;
   try {
-    await fn();
-    UI.toast("设置已保存");
+    const saved = await fn();
+    if (saved !== false) UI.toast("设置已保存");
   } catch (e) {
     UI.toast(e.message, { type: "error" });
   } finally {
@@ -39,41 +39,121 @@ async function saveWith(saveId, fn) {
 
 /* ================= 注册设置 ================= */
 
+let registrationReady = false;
+let savedMailEnabled = false;
+let ownerEmail = "";
+
+function mailDisableCountdown(btn, seconds) {
+  let left = seconds;
+  btn.disabled = true;
+  btn.textContent = left + "s 后重发";
+  const timer = setInterval(() => {
+    left -= 1;
+    if (left <= 0) {
+      clearInterval(timer);
+      btn.disabled = false;
+      btn.textContent = "获取验证码";
+    } else {
+      btn.textContent = left + "s 后重发";
+    }
+  }, 1000);
+}
+
+async function sendMailDisableCode(btn) {
+  if (btn.disabled) return;
+  btn.disabled = true;
+  btn.textContent = "发送中…";
+  try {
+    const data = await api("/api/admin/settings/mail/send-disable-code", { method: "POST" });
+    mailDisableCountdown(btn, (data && data.resendAfterSeconds) || 60);
+    UI.toast("验证码已发送，请查收邮件");
+  } catch (e) {
+    btn.disabled = false;
+    btn.textContent = "获取验证码";
+    UI.toast(e.message, { type: "error" });
+  }
+}
+
+async function saveRegistrationSetting(open) {
+  await api("/api/admin/settings/registration", { method: "POST", body: { open } });
+}
+
+async function saveMailSettings(body, code) {
+  await api("/api/admin/settings/mail", {
+    method: "POST",
+    body: code === undefined ? body : { ...body, code },
+  });
+  savedMailEnabled = body.enabled;
+  if ($("mail-auth-code")) $("mail-auth-code").value = "";
+}
+
 export async function loadRegistration() {
-  const data = await withSkeleton("registration", "registration-save", () => api("/api/admin/settings"));
-  if ($("registration-open")) $("registration-open").checked = !data || data.registrationOpen !== false;
-  if ($("mail-enabled")) $("mail-enabled").checked = !!data && data.mailRegisterEnabled === true;
-  if ($("mail-username")) $("mail-username").value = data?.mailUsername ?? "";
+  registrationReady = false;
+  const result = await withSkeleton("registration", "registration-save", () =>
+    Promise.all([api("/api/admin/settings"), api("/api/account/me")]));
+  if (!result) return;
+  const [data, account] = result;
+  if (!data || !account) throw new Error("注册设置加载失败，请重新进入页面");
+  if ($("registration-open")) $("registration-open").checked = data.registrationOpen !== false;
+  if ($("mail-enabled")) $("mail-enabled").checked = data.mailRegisterEnabled === true;
+  if ($("mail-username")) $("mail-username").value = data.mailUsername ?? "";
   // 授权码只写不读：不回显原值，留空表示保持不变
   if ($("mail-auth-code")) {
     $("mail-auth-code").value = "";
-    $("mail-auth-code").placeholder = data && data.mailAuthCodeConfigured ? "已配置，留空保持不变" : "未配置";
+    $("mail-auth-code").placeholder = data.mailAuthCodeConfigured ? "已配置，留空保持不变" : "未配置";
   }
-  if ($("mail-resend-interval")) $("mail-resend-interval").value = data?.mailResendIntervalSeconds ?? 60;
-  if ($("mail-code-ttl")) $("mail-code-ttl").value = data?.mailCodeTtlSeconds ?? 300;
+  if ($("mail-resend-interval")) $("mail-resend-interval").value = data.mailResendIntervalSeconds ?? 60;
+  if ($("mail-code-ttl")) $("mail-code-ttl").value = data.mailCodeTtlSeconds ?? 300;
+  savedMailEnabled = data.mailRegisterEnabled === true;
+  ownerEmail = typeof account.email === "string" ? account.email : "";
+  registrationReady = true;
 }
 
 export async function saveRegistration() {
+  if (!registrationReady) {
+    UI.toast("设置尚未加载完成，请重新进入页面", { type: "error" });
+    return;
+  }
   await saveWith("registration-save", async () => {
     const mailResend = parseInteger($("mail-resend-interval").value, { min: 10, max: 3600 });
     const mailTtl = parseInteger($("mail-code-ttl").value, { min: 60, max: 3600 });
     if (mailResend === null || mailTtl === null) {
       throw new Error("重发间隔须为 10～3600 秒、验证码有效期须为 60～3600 秒的整数");
     }
-    await api("/api/admin/settings/registration", {
-      method: "POST",
-      body: { open: $("registration-open").checked },
-    });
-    await api("/api/admin/settings/mail", {
-      method: "POST",
-      body: {
-        enabled: $("mail-enabled").checked,
-        username: $("mail-username").value.trim(),
-        authCode: $("mail-auth-code").value.trim(),
-        resendIntervalSeconds: mailResend,
-        codeTtlSeconds: mailTtl,
+    const registrationOpen = $("registration-open").checked;
+    const mail = {
+      enabled: $("mail-enabled").checked,
+      username: $("mail-username").value.trim(),
+      authCode: $("mail-auth-code").value.trim(),
+      resendIntervalSeconds: mailResend,
+      codeTtlSeconds: mailTtl,
+    };
+    if (!(savedMailEnabled && !mail.enabled && ownerEmail)) {
+      await saveRegistrationSetting(registrationOpen);
+      await saveMailSettings(mail);
+      return;
+    }
+    const values = await UI.dialog({
+      title: "关闭邮箱功能",
+      message: `验证码将发送至绑定邮箱 ${ownerEmail}`,
+      fields: [
+        {
+          name: "code", label: "邮箱验证码", placeholder: "6 位数字", inputMode: "numeric", maxLength: 6,
+          suffixBtn: { text: "获取验证码", onClick: (btn) => sendMailDisableCode(btn) },
+        },
+      ],
+      okText: "关闭并保存",
+      validate: (v) => /^\d{6}$/.test(v.code.trim()) ? null : { message: "请输入 6 位数字验证码", name: "code" },
+      submit: async (v) => {
+        await saveMailSettings(mail, v.code.trim());
+        try {
+          await saveRegistrationSetting(registrationOpen);
+        } catch {
+          throw new Error("邮箱设置已保存，但开放注册设置保存失败，请重试");
+        }
       },
     });
+    return values === null ? false : undefined;
   });
 }
 
