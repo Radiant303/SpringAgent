@@ -163,7 +163,7 @@ button.admin-btn:not(.primary):focus {
 }
 .admin-btn.danger,
 button.admin-btn.danger {
-  color: var(--danger, #c0392b);
+  color: var(--danger, #FF3849);
 }
 .admin-btn.danger:hover,
 button.admin-btn.danger:hover,
@@ -175,7 +175,7 @@ button.admin-btn.danger:focus {
   border: none;
   outline: none;
   text-decoration: none;
-  color: var(--danger, #c0392b);
+  color: var(--danger, #FF3849);
 }
 .admin-btn.more-btn,
 button.admin-btn.more-btn {
@@ -290,10 +290,10 @@ button.admin-btn.primary:active {
 
 /* 表格状态文字 */
 .status-active { color: var(--admin-green, #2fb36d); }
-.status-disabled { color: var(--danger, #c0392b); }
+.status-disabled { color: var(--danger, #FF3849); }
 .status-warn { color: var(--warn, #a9610a); }
 .points-in { color: var(--admin-green, #2fb36d); }
-.points-out { color: var(--danger, #c0392b); }
+.points-out { color: var(--danger, #FF3849); }
 
 /* 分页器 */
 .table-pager {

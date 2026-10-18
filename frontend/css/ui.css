@@ -42,7 +42,7 @@
   padding: 0 16px;
   border: none;
   border-radius: var(--radius, 12px);
-  background: var(--danger, #c0392b);
+  background: var(--danger, #FF3849);
   color: #fff;
   font-size: 14px;
   cursor: pointer;
@@ -148,7 +148,7 @@ button.is-loading {
 
 .badge-red {
   background: rgba(192, 57, 43, 0.1);
-  color: var(--danger, #c0392b);
+  color: var(--danger, #FF3849);
 }
 
 /* 键盘按键标识 */

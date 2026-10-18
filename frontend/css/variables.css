@@ -7,7 +7,7 @@
   --color-text-faint: rgba(0, 0, 0, 0.45);
   --color-success: #0e7a38;
   --color-warning: #a9610a;
-  --color-danger: #c0392b;
+  --color-danger: #FF3849;
 
   /* ================= 语义表面与底色 ================= */
   --bg: var(--color-bg);

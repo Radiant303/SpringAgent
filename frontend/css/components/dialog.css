@@ -176,7 +176,7 @@
   margin-top: 12px;
   font-size: 13px;
   line-height: 20px;
-  color: var(--danger, #c0392b);
+  color: var(--danger, #FF3849);
 }
 .ui-dialog-error:empty {
   display: none;
@@ -211,11 +211,11 @@
   background: #000;
 }
 .ui-btn-danger {
-  background: var(--danger, #c0392b);
+  background: var(--danger, #FF3849);
   color: #fff;
 }
 .ui-btn-danger:hover {
-  background: var(--danger, #c0392b);
+  background: var(--danger, #FF3849);
   filter: brightness(0.92);
 }
 .ui-dialog.is-busy .ui-btn:disabled {
@@ -251,7 +251,7 @@
   transition: opacity 0.18s, transform 0.18s;
 }
 .ui-toast.error {
-  color: var(--danger, #c0392b);
+  color: var(--danger, #FF3849);
 }
 .ui-toast.leaving {
   opacity: 0;

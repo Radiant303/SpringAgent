@@ -226,7 +226,7 @@
 }
 .work-del:hover {
   background: rgba(0, 0, 0, 0.06);
-  color: var(--danger, #c0392b);
+  color: var(--danger, #FF3849);
 }
 .work-del svg {
   width: 14px;
@@ -345,7 +345,7 @@
   color: var(--text-faint, rgba(0, 0, 0, 0.45));
 }
 .points-card.negative .pc-title {
-  color: var(--danger, #c0392b);
+  color: var(--danger, #FF3849);
 }
 
 .user-chip {
@@ -620,7 +620,7 @@
   white-space: pre-wrap;
 }
 .msg.system.error {
-  color: var(--danger, #c0392b);
+  color: var(--danger, #FF3849);
 }
 
 .pending-indicator {
@@ -996,7 +996,7 @@
 .work-header:hover { color: var(--text, rgba(0, 0, 0, 0.9)); }
 .work-header:hover .caret { color: var(--text-dim, rgba(0, 0, 0, 0.6)); }
 .work-summary { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.work-group.has-error .work-summary { color: var(--danger, #c0392b); }
+.work-group.has-error .work-summary { color: var(--danger, #FF3849); }
 .work-group.expanded > .work-header .caret { transform: rotate(90deg); }
 .work-group.live .work-icon { animation: spin 2.4s linear infinite; color: var(--text, rgba(0, 0, 0, 0.9)); }
 @keyframes spin { to { transform: rotate(360deg); } }
@@ -1090,7 +1090,7 @@
 }
 .tool-stats:empty { display: none; }
 .stat-add { color: var(--diff-add-text, #0e7a38); }
-.stat-del { color: var(--diff-del-text, #c0392b); }
+.stat-del { color: var(--diff-del-text, #FF3849); }
 .tool-card .caret { opacity: 0; }
 .tool-header:hover .caret, .tool-card.expanded .caret { opacity: 1; }
 .tool-card.expanded .caret { transform: rotate(90deg); }
@@ -1104,8 +1104,8 @@
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
 }
-.tool-status.error { color: var(--danger, #c0392b); }
-.tool-card.error .tool-icon { color: var(--danger, #c0392b); }
+.tool-status.error { color: var(--danger, #FF3849); }
+.tool-card.error .tool-icon { color: var(--danger, #FF3849); }
 .tool-pending-label {
   flex-shrink: 0;
   font-size: var(--fs-sm, 16px);
@@ -1132,10 +1132,10 @@ pre.tool-args, pre.tool-result, pre.tool-diff, .modal-pre {
   overflow-y: auto;
 }
 pre.tool-args:empty { display: none; }
-pre.tool-result.error { background: var(--diff-del-bg, rgba(192, 57, 43, 0.07)); color: var(--danger, #c0392b); }
+pre.tool-result.error { background: var(--diff-del-bg, rgba(192, 57, 43, 0.07)); color: var(--danger, #FF3849); }
 
 .diff .diff-add { background: var(--diff-add-bg, rgba(14, 122, 56, 0.08)); color: var(--diff-add-text, #0e7a38); display: block; }
-.diff .diff-del { background: var(--diff-del-bg, rgba(192, 57, 43, 0.07)); color: var(--diff-del-text, #c0392b); display: block; }
+.diff .diff-del { background: var(--diff-del-bg, rgba(192, 57, 43, 0.07)); color: var(--diff-del-text, #FF3849); display: block; }
 
 .tool-card.has-file pre.tool-args,
 .tool-card.has-file pre.tool-diff,
@@ -1228,7 +1228,7 @@ pre.tool-result.error { background: var(--diff-del-bg, rgba(192, 57, 43, 0.07));
 .fv-row.add { background: rgba(22, 196, 86, 0.1); }
 .fv-row.add .fv-sign { color: var(--success, #0e7a38); }
 .fv-row.del { background: rgba(255, 77, 77, 0.1); }
-.fv-row.del .fv-sign { color: var(--danger, #c0392b); }
+.fv-row.del .fv-sign { color: var(--danger, #FF3849); }
 .fv-row.gap > span { color: var(--text-faint, rgba(0, 0, 0, 0.45)); }
 .fv-note { padding: 0 16px 10px; font-size: var(--fs-sm, 16px); color: var(--text-faint, rgba(0, 0, 0, 0.45)); }
 

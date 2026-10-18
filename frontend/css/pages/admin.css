@@ -241,7 +241,7 @@ button.row-link:hover { text-decoration: none; }
   letter-spacing: -0.02em;
   color: var(--text, rgba(0, 0, 0, 0.9));
 }
-.points-big.negative { color: var(--danger, #c0392b); }
+.points-big.negative { color: var(--danger, #FF3849); }
 
 .ledger-row {
   display: flex;
