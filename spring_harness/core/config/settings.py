@@ -1,3 +1,4 @@
+import os
 import tomllib
 from pathlib import Path
 from typing import Any, Self
@@ -5,7 +6,9 @@ from typing import Any, Self
 from pydantic import BaseModel, ConfigDict
 
 STATE_DIR = ".springharness"
-CONFIG_PATH = Path.home() / ".springharness" / "config.toml"
+CONFIG_PATH = Path(os.environ.get(
+    "SPRINGHARNESS_CONFIG", str(Path.home() / ".springharness" / "config.toml"),
+))
 
 
 def _load_toml_config(config_path: Path) -> dict[str, Any]:
@@ -49,16 +52,16 @@ class Log(ConfigBase):
 
 
 class Cloud(ConfigBase):
-    database_url: str = "mysql+pymysql://root:root@127.0.0.1:3307/springharness?charset=utf8mb4"
+    database_url: str = "mysql+pymysql://root:root@127.0.0.1:18900/springharness?charset=utf8mb4"
     data_root: str = str(Path.home() / ".springharness" / "cloud")
     # HS256 密钥需 ≥32 字节（RFC 7518）。
     jwt_secret: str = "springharness-dev-secret-0123456789abcd"
     jwt_expire_minutes: int = 10080
     host: str = "0.0.0.0"
-    port: int = 8001
-    rabbitmq_url: str = "amqp://guest:guest@127.0.0.1:5672/"
-    redis_url: str = "redis://127.0.0.1:6380/0"
-    gateway_base_url: str = "http://127.0.0.1:8080"
+    port: int = 15900
+    rabbitmq_url: str = "amqp://guest:guest@127.0.0.1:20900/"
+    redis_url: str = "redis://127.0.0.1:19900/0"
+    gateway_base_url: str = "http://127.0.0.1:16900"
     internal_token: str = "springharness-internal-dev-token-0123456789"
 
 
@@ -70,7 +73,14 @@ class Config(ConfigBase):
     @classmethod
     def from_toml(cls, config_path: Path | None = None) -> Self:
         data = _load_toml_config(config_path or CONFIG_PATH)
-        return cls.model_validate({key: data[key] for key in ("loop_control", "log", "cloud") if key in data})
+        cloud = data.setdefault("cloud", {})
+        for field in Cloud.model_fields:
+            name = f"SPRINGHARNESS_CLOUD_{field.upper()}"
+            if name in os.environ:
+                cloud[field] = os.environ[name]
+        return cls.model_validate({
+            key: data[key] for key in ("loop_control", "log", "cloud") if key in data
+        })
 
 
 config = Config.from_toml()

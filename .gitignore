@@ -7,6 +7,7 @@ test*
 !gateway/src/test/**
 config.toml
 logs/app.log
+/backups/
 codex/
 plan.db
 teaching.db

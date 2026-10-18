@@ -1,3 +1,5 @@
+import os
+import sys
 from pathlib import Path
 
 from loguru import logger as _raw_loguru_logger
@@ -9,15 +11,18 @@ LOG_FILE = LOG_DIRECTORY / "app.log"
 
 
 def set_log_level(level: str = "DEBUG") -> None:
-    LOG_DIRECTORY.mkdir(parents=True, exist_ok=True)
     _raw_loguru_logger.remove()
-    _raw_loguru_logger.add(
-        LOG_FILE,
-        rotation="10 MB",
-        retention="10 days",
-        encoding="utf-8",
-        level=level,
-    )
+    if os.environ.get("SPRINGAGENT_LOG_STDOUT") == "1":
+        _raw_loguru_logger.add(sys.stderr, level=level)
+    else:
+        LOG_DIRECTORY.mkdir(parents=True, exist_ok=True)
+        _raw_loguru_logger.add(
+            LOG_FILE,
+            rotation="10 MB",
+            retention="10 days",
+            encoding="utf-8",
+            level=level,
+        )
 
 
 set_log_level(log.log_level)

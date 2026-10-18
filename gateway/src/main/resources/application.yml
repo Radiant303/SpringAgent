@@ -1,5 +1,5 @@
 server:
-  port: 8080
+  port: 16900
   tomcat:
     # part 数上限：批量 50 个文件 + sessionId 字段
     max-part-count: 60
@@ -21,19 +21,19 @@ spring:
       # 请求体上限：批量 50 个文件 + 表单开销
       max-request-size: 5120MB
   datasource:
-    # 宿主 3307 → Docker 容器内 MySQL；serverTimezone=UTC 与库中 naive UTC 时间戳对齐
+    # 宿主 18900 → Docker 容器内 MySQL；serverTimezone=UTC 与库中 naive UTC 时间戳对齐
     # characterEncoding 要填 Java 字符集名 UTF-8，不是 MySQL 的 utf8mb4
-    url: jdbc:mysql://127.0.0.1:3307/springharness?characterEncoding=UTF-8&serverTimezone=UTC
+    url: jdbc:mysql://127.0.0.1:18900/springharness?characterEncoding=UTF-8&serverTimezone=UTC
     username: root
     password: root   # 开发环境本地值；生产用环境变量覆盖
   data:
     redis:
-      # 宿主 6380 → Docker 容器内 Redis 7（避开 Windows 本地 Redis 占用的 6379）
+      # 宿主 19900 → Docker 容器内 Redis 7
       host: 127.0.0.1
-      port: 6380
+      port: 19900
   rabbitmq:
     host: 127.0.0.1
-    port: 5672
+    port: 20900
     # 发布确认：TurnDispatchService 逐条同步等确认；confirm/returns 回调记日志
     publisher-confirm-type: correlated
     publisher-returns: true
@@ -56,7 +56,7 @@ app:
   # 每用户最多可创建的 work 数量
   work-max-works: ${WORK_MAX_WORKS:5}
   # Python 引擎地址，WS 中继（turn/start 回退透传、token 流）仍然需要
-  engine-base-url: ${ENGINE_BASE_URL:http://127.0.0.1:8001}
+  engine-base-url: ${ENGINE_BASE_URL:http://127.0.0.1:15900}
   storage:
     # 孤儿判定宽限期（毫秒）：早于此刻的文件才敢删，排除在途上传
     orphan-grace-ms: ${STORAGE_ORPHAN_GRACE_MS:3600000}

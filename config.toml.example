@@ -7,15 +7,15 @@ request_limit = 120
 log_level = "INFO"
 
 [cloud]
-database_url = "mysql+pymysql://root:root@127.0.0.1:3307/springharness?charset=utf8mb4"
+database_url = "mysql+pymysql://root:root@127.0.0.1:18900/springharness?charset=utf8mb4"
 # 支持 ~ 开头。
 data_root = "~/.springharness/cloud"
 # HS256 密钥需 ≥32 字节；生产环境必须更换。
 jwt_secret = "springharness-dev-secret-0123456789abcd"
 jwt_expire_minutes = 10080
 host = "0.0.0.0"
-port = 8001
-rabbitmq_url = "amqp://guest:guest@127.0.0.1:5672/"
-redis_url = "redis://127.0.0.1:6380/0"
-gateway_base_url = "http://127.0.0.1:8080"
+port = 15900
+rabbitmq_url = "amqp://guest:guest@127.0.0.1:20900/"
+redis_url = "redis://127.0.0.1:19900/0"
+gateway_base_url = "http://127.0.0.1:16900"
 internal_token = "springharness-internal-dev-token-0123456789"
