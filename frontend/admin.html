@@ -38,6 +38,10 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3.5h12a1 1 0 0 1 1 1v16l-3-2-2 2-2-2-2 2-2-2-3 2v-16a1 1 0 0 1 1-1z"/><path d="M9 8.5h6M9 12.5h6"/></svg>
           账单与用量
         </div>
+        <div class="nav-item" data-page="my-usage">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16v16H4z"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>
+          使用日志
+        </div>
       </div>
 
       <div class="nav-group hidden" id="nav-group-admin">
@@ -49,6 +53,10 @@
         <div class="nav-item" data-page="usage">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 20h17"/><path d="M7 20v-6M12 20V6M17 20v-9"/></svg>
           用量统计
+        </div>
+        <div class="nav-item" data-page="usage-records">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16v16H4z"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>
+          使用日志
         </div>
         <div class="nav-item" data-page="ledger">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1" fill="currentColor" stroke="none"/><circle cx="4.5" cy="12" r="1" fill="currentColor" stroke="none"/><circle cx="4.5" cy="18" r="1" fill="currentColor" stroke="none"/></svg>
@@ -211,6 +219,38 @@
         <div class="settings-hint ledger-hint">仅展示最近 10 条。每次模型请求前冻结预估积分，请求结束按实际 tokens 与对应模型费率结算，多退少补。</div>
       </section>
 
+      <!-- 使用日志：所有角色可见 -->
+      <section class="admin-page wide" data-page="my-usage">
+        <h1 class="page-title">使用日志</h1>
+        <div class="usage-filter">
+          <input type="date" id="my-usage-from" title="起始日期（含）" data-placeholder="起始日期">
+          <span class="usage-sep">至</span>
+          <input type="date" id="my-usage-to" title="截止日期（含当天）" data-placeholder="截止日期">
+          <button id="my-usage-query" class="admin-btn primary">查询</button>
+        </div>
+        <div class="table-card" data-slot="card" data-card-hover="false">
+          <table class="admin-table" id="my-usage-table" data-slot="table">
+            <colgroup>
+              <col style="width: 140px">
+              <col style="width: 190px">
+              <col style="width: 80px">
+              <col style="width: 100px">
+              <col style="width: 100px">
+              <col style="width: 100px">
+              <col style="width: 90px">
+              <col style="width: 90px">
+              <col style="width: 120px">
+            </colgroup>
+            <thead>
+              <tr><th>时间</th><th>模型</th><th>代理</th><th class="num">输入</th><th class="num">缓存命中</th><th class="num">缓存写入</th><th class="num">输出</th><th class="num">积分</th><th>状态</th></tr>
+            </thead>
+            <tbody id="my-usage-tbody"></tbody>
+          </table>
+          <div class="table-pager" id="my-usage-pager"></div>
+        </div>
+        <div class="settings-hint ledger-hint">每次模型请求一行；输入包含缓存命中与写入。</div>
+      </section>
+
       <!-- 用户管理 -->
       <section class="admin-page wide" data-page="users">
         <h1 class="page-title">用户管理</h1>
@@ -251,21 +291,57 @@
           <table class="admin-table" id="usage-table" data-slot="table">
             <colgroup>
               <col style="width: 140px">
+              <col style="width: 170px">
               <col style="width: 210px">
               <col style="width: 75px">
               <col style="width: 85px">
-              <col style="width: 125px">
-              <col style="width: 125px">
-              <col style="width: 125px">
-              <col style="width: 125px">
+              <col style="width: 120px">
+              <col style="width: 120px">
+              <col style="width: 120px">
+              <col style="width: 120px">
             </colgroup>
             <thead>
-              <tr><th>用户</th><th>模型</th><th class="num">轮次</th><th class="num">请求数</th><th class="num">总输入</th><th class="num">缓存命中</th><th class="num">缓存写入</th><th class="num">输出</th></tr>
+              <tr><th>用户</th><th>模型</th><th>模型 ID</th><th class="num">轮次</th><th class="num">请求数</th><th class="num">总输入</th><th class="num">缓存命中</th><th class="num">缓存写入</th><th class="num">输出</th></tr>
             </thead>
             <tbody id="usage-tbody"></tbody>
           </table>
           <div class="table-pager" id="usage-pager"></div>
         </div>
+      </section>
+
+      <!-- 使用日志（管理侧全量） -->
+      <section class="admin-page wide" data-page="usage-records">
+        <h1 class="page-title">使用日志</h1>
+        <div class="usage-filter">
+          <select id="usage-records-user" title="按用户筛选"><option value="">全部用户</option></select>
+          <input type="date" id="usage-records-from" title="起始日期（含）" data-placeholder="起始日期">
+          <span class="usage-sep">至</span>
+          <input type="date" id="usage-records-to" title="截止日期（含当天）" data-placeholder="截止日期">
+          <button id="usage-records-query" class="admin-btn primary">查询</button>
+        </div>
+        <div class="table-card" data-slot="card" data-card-hover="false">
+          <table class="admin-table" id="usage-records-table" data-slot="table">
+            <colgroup>
+              <col style="width: 140px">
+              <col style="width: 120px">
+              <col style="width: 160px">
+              <col style="width: 210px">
+              <col style="width: 80px">
+              <col style="width: 100px">
+              <col style="width: 100px">
+              <col style="width: 100px">
+              <col style="width: 90px">
+              <col style="width: 90px">
+              <col style="width: 120px">
+            </colgroup>
+            <thead>
+              <tr><th>时间</th><th>用户</th><th>模型</th><th>模型 ID</th><th>代理</th><th class="num">输入</th><th class="num">缓存命中</th><th class="num">缓存写入</th><th class="num">输出</th><th class="num">积分</th><th>状态</th></tr>
+            </thead>
+            <tbody id="usage-records-tbody"></tbody>
+          </table>
+          <div class="table-pager" id="usage-records-pager"></div>
+        </div>
+        <div class="settings-hint ledger-hint">每次模型请求一行；输入包含缓存命中与写入。</div>
       </section>
 
       <!-- 积分流水（管理侧全量） -->

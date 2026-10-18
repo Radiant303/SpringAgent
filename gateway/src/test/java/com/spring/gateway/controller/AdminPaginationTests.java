@@ -231,4 +231,66 @@ class AdminPaginationTests {
                 .andExpect(jsonPath("$.data.total").value(before + 25))
                 .andExpect(jsonPath("$.data.list.length()").value(10));
     }
+
+    @Test
+    @DisplayName("使用日志：逐请求一行，用户只能查自己")
+    void usageRecords() throws Exception {
+        String adminToken = tokenFor(User.ROLE_ADMIN);
+        User user = new User();
+        user.setId(idGenerator.nextId());
+        user.setUsername("t_" + UUID.randomUUID().toString().substring(0, 8));
+        user.setPasswordHash("test-only");
+        user.setRole(User.ROLE_USER);
+        user.setStatus(User.STATUS_ACTIVE);
+        userMapper.insert(user);
+        Long uid = user.getId();
+        Long otherId = newUserId();
+        String userToken = jwtUtils.createToken(uid, user.getUsername());
+
+        for (int i = 0; i < 3; i++) {
+            UsageRecord row = new UsageRecord();
+            row.setRequestId(UUID.randomUUID().toString().replace("-", ""));
+            row.setAgentName("main");
+            row.setUsageKnown(true);
+            row.setCostPoints(new BigDecimal("1.500000"));
+            row.setTurnId("turn-" + i);
+            row.setSessionId(UUID.randomUUID().toString());
+            row.setUserId(i < 2 ? uid : otherId);
+            row.setModelId("deepseek/deepseek-flash");
+            row.setModelName("DeepSeek Flash");
+            row.setRequests(1);
+            row.setInputTokens(100L + i);
+            row.setCacheReadTokens(40L);
+            row.setCacheWriteTokens(0L);
+            row.setOutputTokens(10L);
+            row.setStatus(UsageRecord.STATUS_FINISHED);
+            row.setCreatedAt(LocalDateTime.now(ZoneOffset.UTC).plusSeconds(i));
+            usageRecordMapper.insert(row);
+        }
+
+        mockMvc.perform(get("/api/admin/usage/records?userId=" + uid + "&page=1&size=1")
+                        .header(HttpHeaders.AUTHORIZATION, bearer(adminToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.total").value(2))
+                .andExpect(jsonPath("$.data.list.length()").value(1))
+                .andExpect(jsonPath("$.data.list[0].userId").value(String.valueOf(uid)))
+                .andExpect(jsonPath("$.data.list[0].modelId").value("deepseek/deepseek-flash"))
+                .andExpect(jsonPath("$.data.list[0].modelName").value("DeepSeek Flash"))
+                .andExpect(jsonPath("$.data.list[0].requestId").isString())
+                .andExpect(jsonPath("$.data.list[0].costPoints").value(1.5));
+
+        mockMvc.perform(get("/api/billing/usage?page=1&size=10")
+                        .header(HttpHeaders.AUTHORIZATION, bearer(userToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.total").value(2))
+                .andExpect(jsonPath("$.data.list.length()").value(2))
+                .andExpect(jsonPath("$.data.list[0].userId").value(String.valueOf(uid)))
+                .andExpect(jsonPath("$.data.list[0].modelName").value("DeepSeek Flash"))
+                .andExpect(jsonPath("$.data.list[0].modelId").doesNotExist())
+                .andExpect(jsonPath("$.data.list[1].userId").value(String.valueOf(uid)));
+
+        mockMvc.perform(get("/api/admin/usage/records")
+                        .header(HttpHeaders.AUTHORIZATION, bearer(userToken)))
+                .andExpect(status().isForbidden());
+    }
 }

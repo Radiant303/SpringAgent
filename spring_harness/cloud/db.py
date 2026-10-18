@@ -158,6 +158,8 @@ class UsageRecordRow(Base):
     session_id: Mapped[str] = mapped_column(CHAR(36), nullable=False)
     user_id: Mapped[int] = mapped_column(_BigInt, ForeignKey("users.id"), nullable=False)
     model_id: Mapped[str] = mapped_column(String(256), nullable=False)
+    # 请求时的模型展示名；空串 = 旧记录
+    model_name: Mapped[str] = mapped_column(String(64), nullable=False, default="")
     requests: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     # 含 cache_read/cache_write（inclusive 桶）
     input_tokens: Mapped[int] = mapped_column(_BigInt, nullable=False, default=0)

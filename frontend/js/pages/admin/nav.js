@@ -9,8 +9,10 @@ import { UI } from "../../components/ui.js";
 export const PAGE_TITLES = {
   account: "账号与安全",
   points: "账单与用量",
+  "my-usage": "使用日志",
   users: "用户管理",
   usage: "用量统计",
+  "usage-records": "使用日志",
   ledger: "积分流水",
   models: "模型资费",
   "model-config": "模型配置",
@@ -28,7 +30,7 @@ export const pageLoaders = {};
 /** 仅站长的页面 */
 const OWNER_PAGES = new Set(["model-config", "registration", "storage", "platform", "billing", "community", "search"]);
 /** 站长/管理员的页面 */
-const STAFF_PAGES = new Set(["users", "usage", "ledger", "models", "redeem"]);
+const STAFF_PAGES = new Set(["users", "usage", "usage-records", "ledger", "models", "redeem"]);
 
 export function registerPageLoader(name, loaderFn) {
   pageLoaders[name] = loaderFn;

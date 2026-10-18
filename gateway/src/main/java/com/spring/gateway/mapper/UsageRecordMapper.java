@@ -27,11 +27,12 @@ public interface UsageRecordMapper extends BaseMapper<UsageRecord> {
      * @param userId 只看该用户；null 为全部
      * @param from   起始时间（含），如 2026-10-01 或 2026-10-01 08:00:00；null 不限
      * @param to     截止时间（不含），格式同上；null 不限
-     * @return 分页结果，每行含 userId/username/modelId/turns/requests/inputTokens/
+     * @return 分页结果，每行含 userId/username/modelId/modelName/turns/requests/inputTokens/
      *         cacheReadTokens/cacheWriteTokens/outputTokens
      */
     @Select("""
             SELECT CAST(u.id AS CHAR) AS userId, u.username AS username, r.model_id AS modelId,
+                   COALESCE(NULLIF(MAX(r.model_name), ''), r.model_id) AS modelName,
                    COUNT(DISTINCT r.turn_id) AS turns, SUM(r.requests) AS requests,
                    SUM(r.input_tokens) AS inputTokens,
                    SUM(r.cache_read_tokens) AS cacheReadTokens,

@@ -1,8 +1,11 @@
 package com.spring.gateway.controller;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.spring.gateway.common.Result;
 import com.spring.gateway.dto.PageQuery;
 import com.spring.gateway.dto.PageResult;
+import com.spring.gateway.dto.UsageRecordView;
+import com.spring.gateway.entity.UsageRecord;
 import com.spring.gateway.mapper.UsageRecordMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -43,5 +46,32 @@ public class AdminUsageController {
                                                          @RequestParam(defaultValue = "10") int size) {
         PageQuery q = new PageQuery(page, size);
         return Result.ok(PageResult.of(usageRecordMapper.sumByUser(q.toPage(), userId, from, to)));
+    }
+
+    /**
+     * 逐次模型请求的用量明细。
+     *
+     * @param userId 只看该用户；缺省为全部
+     * @param from   起始时间（含），如 2026-10-01；缺省不限
+     * @param to     截止时间（不含）；缺省不限
+     * @param page   页码（1 起）
+     * @param size   每页条数（上限 100）
+     * @return 分页明细
+     */
+    @GetMapping("/records")
+    public Result<PageResult<UsageRecordView>> records(@RequestParam(required = false) Long userId,
+                                                       @RequestParam(required = false) String from,
+                                                       @RequestParam(required = false) String to,
+                                                       @RequestParam(defaultValue = "1") int page,
+                                                       @RequestParam(defaultValue = "10") int size) {
+        PageQuery q = new PageQuery(page, size);
+        LambdaQueryWrapper<UsageRecord> query = new LambdaQueryWrapper<UsageRecord>()
+                .eq(userId != null, UsageRecord::getUserId, userId)
+                .ge(from != null && !from.isBlank(), UsageRecord::getCreatedAt, from)
+                .lt(to != null && !to.isBlank(), UsageRecord::getCreatedAt, to)
+                .orderByDesc(UsageRecord::getCreatedAt)
+                .orderByDesc(UsageRecord::getId);
+        return Result.ok(PageResult.of(usageRecordMapper.selectPage(q.toPage(), query))
+                .map(UsageRecordView::of));
     }
 }

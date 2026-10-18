@@ -10,6 +10,7 @@ import { loadAccount, openChangePassword, onBindEmail } from "./admin/account.js
 import { loadMyPoints, onUserRedeem } from "./admin/points.js";
 import { ensureUsers, loadUsers, onUserAction, onUsersUpdated } from "./admin/users.js";
 import { loadUsage, renderUsageUserOptions } from "./admin/usage.js";
+import { loadUsageRecords, loadMyUsage, renderUsageRecordsUserOptions } from "./admin/usageRecords.js";
 import { loadLedger, renderLedgerUserOptions } from "./admin/ledger.js";
 import { loadModels, onModelAction, onModelFormSubmit, fillModelForm } from "./admin/models.js";
 import { loadModelConfig, bindModelConfig } from "./admin/modelConfig.js";
@@ -26,8 +27,10 @@ import {
 // 注册各页数据加载器
 registerPageLoader("account", loadAccount);
 registerPageLoader("points", loadMyPoints);
+registerPageLoader("my-usage", loadMyUsage);
 registerPageLoader("users", () => loadUsers());
 registerPageLoader("usage", () => ensureUsers().then(() => loadUsage()));
+registerPageLoader("usage-records", () => ensureUsers().then(() => loadUsageRecords()));
 registerPageLoader("ledger", () => ensureUsers().then(() => loadLedger()));
 registerPageLoader("models", () => loadModels());
 registerPageLoader("model-config", () => loadModelConfig());
@@ -42,6 +45,7 @@ registerPageLoader("search", loadSearch);
 // 用户列表加载或刷新后，同步用量统计和积分流水页的用户筛选下拉框
 onUsersUpdated((list) => {
   renderUsageUserOptions(list);
+  renderUsageRecordsUserOptions(list);
   renderLedgerUserOptions(list);
 });
 
@@ -96,6 +100,7 @@ export function init() {
       if (btn) onRedeemAction(btn);
     });
     if ($("usage-query")) $("usage-query").onclick = () => loadUsage(1).catch((e) => UI.toast(e.message, { type: "error" }));
+    if ($("usage-records-query")) $("usage-records-query").onclick = () => loadUsageRecords(1).catch((e) => UI.toast(e.message, { type: "error" }));
     if ($("ledger-query")) $("ledger-query").onclick = () => loadLedger(1).catch((e) => UI.toast(e.message, { type: "error" }));
     $("redeem-status")?.addEventListener("change", () => loadRedeemCodes(1).catch((e) => UI.toast(e.message, { type: "error" })));
 
@@ -123,6 +128,7 @@ export function init() {
 
   // 用户侧兑换（账单与用量页，所有角色可用）
   if ($("user-redeem-btn")) $("user-redeem-btn").onclick = onUserRedeem;
+  if ($("my-usage-query")) $("my-usage-query").onclick = () => loadMyUsage(1).catch((e) => UI.toast(e.message, { type: "error" }));
   $("user-redeem-input")?.addEventListener("keydown", (e) => {
     if (e.key === "Enter") onUserRedeem();
   });

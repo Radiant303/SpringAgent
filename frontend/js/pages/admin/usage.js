@@ -49,6 +49,7 @@ export async function loadUsage(p = page) {
     tr.innerHTML = `
       <td></td>
       <td></td>
+      <td></td>
       <td class="num">${fmtNum(r.turns)}</td>
       <td class="num">${fmtNum(r.requests)}</td>
       <td class="num">${fmtNum(r.inputTokens)}</td>
@@ -56,7 +57,7 @@ export async function loadUsage(p = page) {
       <td class="num">${fmtNum(r.cacheWriteTokens)}</td>
       <td class="num">${fmtNum(r.outputTokens)}</td>`;
     tr.cells[0].textContent = r.username || r.userId;
-    tr.cells[1].textContent = r.modelId || "-";
-    tr.cells[1].title = r.modelId || "";
+    tr.cells[1].textContent = r.modelName || r.modelId || "-";
+    tr.cells[2].textContent = r.modelId || "-";
   }, "暂无用量记录");
 }

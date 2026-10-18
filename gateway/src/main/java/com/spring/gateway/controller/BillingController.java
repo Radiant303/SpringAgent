@@ -1,12 +1,18 @@
 package com.spring.gateway.controller;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.spring.gateway.common.AuthInterceptor;
 import com.spring.gateway.common.Result;
 import com.spring.gateway.common.TimeFormat;
 import com.spring.gateway.dto.MyRedemptionView;
+import com.spring.gateway.dto.PageQuery;
+import com.spring.gateway.dto.PageResult;
 import com.spring.gateway.dto.PointsLedgerView;
 import com.spring.gateway.dto.RedeemRequest;
 import com.spring.gateway.dto.RedeemResultView;
+import com.spring.gateway.dto.UsageRecordView;
+import com.spring.gateway.entity.UsageRecord;
+import com.spring.gateway.mapper.UsageRecordMapper;
 import com.spring.gateway.service.BillingService;
 import com.spring.gateway.service.RedeemService;
 import com.spring.gateway.service.WorkService;
@@ -17,6 +23,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestAttribute;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.math.BigDecimal;
@@ -41,6 +48,7 @@ public class BillingController {
     private final BillingService billingService;
     private final RedeemService redeemService;
     private final WorkService workService;
+    private final UsageRecordMapper usageRecordMapper;
 
     /**
      * 当前用户的积分余额、最近 10 条流水与存储概览
@@ -61,6 +69,34 @@ public class BillingController {
         data.put("storage_used_bytes", quota.usedBytes());
         data.put("work_quota_bytes", quota.workMaxBytes());
         return Result.ok(data);
+    }
+
+    /**
+     * 当前用户的逐次模型请求用量明细。
+     *
+     * @param userId 当前用户 ID
+     * @param from   起始时间（含）；缺省不限
+     * @param to     截止时间（不含）；缺省不限
+     * @param page   页码（1 起）
+     * @param size   每页条数（上限 100）
+     * @return 分页明细
+     */
+    @GetMapping("/usage")
+    public Result<PageResult<UsageRecordView>> usage(
+            @RequestAttribute(AuthInterceptor.ATTR_USER_ID) Long userId,
+            @RequestParam(required = false) String from,
+            @RequestParam(required = false) String to,
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "10") int size) {
+        PageQuery q = new PageQuery(page, size);
+        LambdaQueryWrapper<UsageRecord> query = new LambdaQueryWrapper<UsageRecord>()
+                .eq(UsageRecord::getUserId, userId)
+                .ge(from != null && !from.isBlank(), UsageRecord::getCreatedAt, from)
+                .lt(to != null && !to.isBlank(), UsageRecord::getCreatedAt, to)
+                .orderByDesc(UsageRecord::getCreatedAt)
+                .orderByDesc(UsageRecord::getId);
+        return Result.ok(PageResult.of(usageRecordMapper.selectPage(q.toPage(), query))
+                .map(UsageRecordView::forUser));
     }
 
     /**

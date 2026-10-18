@@ -167,6 +167,14 @@ public class BillingService {
         record.setSessionId(hold.getSessionId());
         record.setUserId(hold.getUserId());
         record.setModelId(hold.getModelId());
+        String modelName = hold.getModelId();
+        if (modelName != null) {
+            ModelDefinition model = modelDefinitionMapper.selectById(modelName);
+            if (model != null && model.getDisplayName() != null) {
+                modelName = model.getDisplayName();
+            }
+        }
+        record.setModelName(modelName == null ? "" : modelName);
         record.setAgentName(hold.getAgentName());
         record.setRequests(1);
         record.setInputTokens(request.inputTokens());

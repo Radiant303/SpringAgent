@@ -47,6 +47,9 @@ public class UsageRecord {
     /** 模型配置 ID。 */
     private String modelId;
 
+    /** 请求时的模型展示名。 */
+    private String modelName;
+
     /** 模型请求次数。 */
     private Integer requests;
 
