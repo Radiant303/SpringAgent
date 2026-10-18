@@ -21,7 +21,7 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * 站长搜索计费失败事件接口。
+ * 站长计费失败事件接口。
  *
  * @author hanbing
  * @since 2026-10-18
@@ -38,7 +38,12 @@ public class AdminFailureEventController {
     public Result<PageResult<Map<String, Object>>> list(
             @RequestParam(defaultValue = "1") int page, @RequestParam(defaultValue = "10") int size,
             @RequestParam(required = false) String status, @RequestParam(required = false) Long userId,
-            @RequestParam(required = false) String eventId) {
+            @RequestParam(required = false) String eventId,
+            @RequestParam(required = false) String failureType) {
+        if (failureType != null && !failureType.isBlank()
+                && !Set.of("SEARCH_BILLING", "MODEL_SETTLE").contains(failureType)) {
+            throw new BizException(400, "失败事件类型非法");
+        }
         if (status != null && !status.isBlank()
                 && !Set.of("PENDING", "RETRYING", "SUCCEEDED", "RESOLVED", "IGNORED").contains(status)) {
             throw new BizException(400, "失败事件状态非法");
@@ -49,6 +54,7 @@ public class AdminFailureEventController {
                 .eq(status != null && !status.isBlank(), SearchBillingFailure::getStatus, status)
                 .eq(userId != null, SearchBillingFailure::getUserId, userId)
                 .eq(eventId != null && !eventId.isBlank(), SearchBillingFailure::getEventId, eventId)
+                .eq(failureType != null && !failureType.isBlank(), SearchBillingFailure::getFailureType, failureType)
                 .orderByDesc(SearchBillingFailure::getId);
         return Result.ok(PageResult.of(mapper.selectPage(query.toPage(), filter)).map(row -> view(row, false)));
     }
@@ -73,7 +79,16 @@ public class AdminFailureEventController {
 
     static Map<String, Object> view(SearchBillingFailure row, boolean detail) {
         Map<String, Object> result = new LinkedHashMap<>();
+        boolean model = "MODEL_SETTLE".equals(row.getFailureType());
         result.put("id", String.valueOf(row.getId()));
+        result.put("failureType", row.getFailureType());
+        result.put("requestId", row.getRequestId());
+        result.put("modelId", row.getModelId());
+        result.put("settlementStatus", row.getSettlementStatus());
+        result.put("deliveryStatus", row.getDeliveryStatus());
+        result.put("firstFailedAt", row.getFirstFailedAt() == null ? null : TimeFormat.isoUtc(row.getFirstFailedAt()));
+        result.put("lastFailedAt", row.getLastFailedAt() == null ? null : TimeFormat.isoUtc(row.getLastFailedAt()));
+        result.put("completedAt", row.getCompletedAt() == null ? null : TimeFormat.isoUtc(row.getCompletedAt()));
         result.put("eventId", row.getEventId());
         result.put("provider", row.getProvider());
         result.put("userId", row.getUserId() == null ? null : row.getUserId().toString());
@@ -82,7 +97,9 @@ public class AdminFailureEventController {
         result.put("searches", row.getSearches());
         result.put("unitPoints", row.getUnitPoints());
         result.put("costPoints", row.getCostPoints());
-        result.put("pointsReference", !"SUCCEEDED".equals(row.getStatus()));
+        result.put("pointsReference", model
+                ? !("SETTLED".equals(row.getSettlementStatus()) && "SUCCEEDED".equals(row.getStatus()))
+                : !"SUCCEEDED".equals(row.getStatus()));
         result.put("status", row.getStatus());
         result.put("retryCount", row.getRetryCount());
         result.put("maxRetries", row.getMaxRetries());
@@ -99,6 +116,10 @@ public class AdminFailureEventController {
             result.put("rawBody", new String(row.getRawBody(), StandardCharsets.UTF_8));
             result.put("rawBodyBase64", Base64.getEncoder().encodeToString(row.getRawBody()));
             result.put("headers", row.getHeaders());
+            if (model) {
+                result.put("settlement", tools.jackson.databind.json.JsonMapper.builder().build()
+                        .readValue(row.getRawBody(), com.spring.gateway.dto.SettleModelRequest.class));
+            }
         }
         return result;
     }

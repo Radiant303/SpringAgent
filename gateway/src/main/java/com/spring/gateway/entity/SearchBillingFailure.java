@@ -9,7 +9,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 /**
- * 搜索计费失败事件。
+ * 计费失败事件。
  *
  * @author hanbing
  * @since 2026-10-18
@@ -20,6 +20,14 @@ public class SearchBillingFailure {
     @TableId(type = IdType.INPUT)
     private Long id;
     private String dedupKey;
+    private String failureType;
+    private String requestId;
+    private String modelId;
+    private String settlementStatus;
+    private String deliveryStatus;
+    private LocalDateTime firstFailedAt;
+    private LocalDateTime lastFailedAt;
+    private LocalDateTime completedAt;
     private byte[] rawBody;
     private String headers;
     private String eventId;

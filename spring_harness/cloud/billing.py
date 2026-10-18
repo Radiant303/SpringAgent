@@ -8,6 +8,7 @@ import re
 import sqlite3
 from collections.abc import Awaitable, Callable
 from contextlib import contextmanager
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -18,6 +19,8 @@ from spring_harness.core.log import logger
 
 # 单条搜索事件发布等待上限（秒）。
 _SEARCH_DELIVERY_TIMEOUT = 10
+# 审计补报并发上限。
+_AUDIT_CONCURRENCY = 4
 
 
 class BillingClient:
@@ -31,8 +34,10 @@ class BillingClient:
                                         timeout=10, transport=transport)
         self._worker: asyncio.Task | None = None
         self._search_worker: asyncio.Task | None = None
+        self._audit_worker: asyncio.Task | None = None
         self._delivery_lock = asyncio.Lock()
         self._search_lock = asyncio.Lock()
+        self._audit_lock = asyncio.Lock()
         self._search_publisher = search_publisher or self._publish_search
         with self._connection() as db:
             db.execute("PRAGMA journal_mode=WAL")
@@ -41,6 +46,9 @@ class BillingClient:
                        "payload TEXT NOT NULL, ready INTEGER NOT NULL)")
             db.execute("CREATE TABLE IF NOT EXISTS search_outbox ("
                        "event_id TEXT PRIMARY KEY, payload TEXT NOT NULL)")
+            db.execute("CREATE TABLE IF NOT EXISTS billing_audit_outbox ("
+                       "request_id TEXT PRIMARY KEY, payload TEXT NOT NULL, "
+                       "dirty INTEGER NOT NULL, version INTEGER NOT NULL)")
 
     @contextmanager
     def _connection(self):
@@ -69,6 +77,83 @@ class BillingClient:
                 rows = db.execute("SELECT payload FROM billing_outbox WHERE ready = 1 AND user_id = ? LIMIT 1",
                                   (user_id,)).fetchall()
         return [json.loads(row[0]) for row in rows]
+
+    def _pending_request(self, request_id: str) -> dict | None:
+        with self._connection() as db:
+            row = db.execute("SELECT payload FROM billing_outbox WHERE request_id = ? AND ready = 1",
+                             (request_id,)).fetchone()
+        return json.loads(row[0]) if row else None
+
+    def _error_details(self, error: Exception) -> tuple[str, str]:
+        message = str(error)
+        token = self._client.headers.get("X-Internal-Token")
+        if token:
+            message = message.replace(token, "[REDACTED]")
+        message = re.sub(r"(?im)(?:[\"']?)(?:x-internal-token|authorization|cookie|set-cookie)"
+                         r"[\"']?\s*[:=][^\r\n]*", "[REDACTED]", message)
+        status = getattr(error, "status_code", None)
+        if status is not None:
+            message = f"HTTP {status}: {message}"
+        return type(error).__name__, message
+
+    def _save_delivery(self, payload: dict, delivery_status: str,
+                       error: Exception | None = None, *, unknown: bool = False) -> None:
+        request_id = payload["requestId"]
+        with self._connection() as db:
+            db.execute("BEGIN IMMEDIATE")
+            row = db.execute("SELECT payload, version FROM billing_audit_outbox WHERE request_id = ?",
+                             (request_id,)).fetchone()
+            if row or error is not None or unknown:
+                now = datetime.now(UTC).isoformat()
+                report = json.loads(row[0]) if row else {
+                    "failureCount": 0, "firstFailedAt": now, "lastFailedAt": now,
+                    "errorType": "UnknownUsage", "errorMessage": "实际用量未知，等待核对",
+                }
+                if error is not None:
+                    report["failureCount"] += 1
+                    report["lastFailedAt"] = now
+                    report["errorType"], report["errorMessage"] = self._error_details(error)
+                report.update(requestId=request_id, userId=payload["userId"],
+                              settlement=payload, deliveryStatus=delivery_status)
+                db.execute("INSERT INTO billing_audit_outbox (request_id, payload, dirty, version) "
+                           "VALUES (?, ?, 1, ?) ON CONFLICT(request_id) DO UPDATE SET "
+                           "payload=excluded.payload, dirty=1, version=excluded.version",
+                           (request_id, json.dumps(report), row[1] + 1 if row else 1))
+            if delivery_status != "RETRYING":
+                db.execute("DELETE FROM billing_outbox WHERE request_id = ?", (request_id,))
+
+    def _pending_audits(self) -> list[tuple[str, str, int]]:
+        with self._connection() as db:
+            return db.execute("SELECT request_id, payload, version FROM billing_audit_outbox "
+                              "WHERE dirty = 1 ORDER BY rowid").fetchall()
+
+    def _ack_audit(self, request_id: str, version: int, *, terminal: bool) -> None:
+        with self._connection() as db:
+            if terminal:
+                db.execute("DELETE FROM billing_audit_outbox WHERE request_id = ? AND version = ?",
+                           (request_id, version))
+            else:
+                db.execute("UPDATE billing_audit_outbox SET dirty = 0 WHERE request_id = ? AND version = ?",
+                           (request_id, version))
+
+    async def _retry_audit_pending(self) -> None:
+        async with self._audit_lock:
+            pending = await asyncio.to_thread(self._pending_audits)
+            semaphore = asyncio.Semaphore(_AUDIT_CONCURRENCY)
+
+            async def deliver(request_id: str, encoded: str, version: int) -> None:
+                async with semaphore:
+                    try:
+                        report = json.loads(encoded)
+                        response = await self._post("failure", report)
+                        if not response.get("status"):
+                            raise BillingError("结算审计回执缺少状态")
+                        await asyncio.to_thread(self._ack_audit, request_id, version,
+                                                terminal=report["deliveryStatus"] != "RETRYING")
+                    except Exception:
+                        logger.error("模型请求结算审计待补报: request={}", request_id)
+
+            await asyncio.gather(*(deliver(*row) for row in pending))
 
     def _save_search(self, event_id: str, encoded: str) -> None:
         with self._connection() as db:
@@ -198,17 +283,34 @@ class BillingClient:
             await asyncio.to_thread(self._save, payload, ready=True)
             await self._deliver(payload)
 
+    async def _persist_delivery(self, payload: dict, delivery_status: str,
+                                error: Exception | None = None, *, unknown: bool = False) -> None:
+        task = asyncio.create_task(asyncio.to_thread(self._save_delivery, payload, delivery_status,
+                                                     error, unknown=unknown))
+        try:
+            await asyncio.shield(task)
+        except asyncio.CancelledError:
+            await task
+            raise
+
     async def _deliver(self, payload: dict) -> None:
         try:
-            await self._post("settle", payload)
-        except BillingError as error:
-            if getattr(error, "status_code", None) == 404 and payload["usageKnown"] \
-                    and not (payload["inputTokens"] or payload["outputTokens"]) \
-                    and (payload.get("webSearches") or 0) <= 0:
-                await asyncio.to_thread(self._delete, payload["requestId"])
+            response = await self._post("settle", payload)
+        except Exception as error:
+            discarded = getattr(error, "status_code", None) == 404 and payload["usageKnown"] \
+                and not (payload["inputTokens"] or payload["outputTokens"] \
+                         or payload["cacheReadTokens"] or payload["cacheWriteTokens"]) \
+                and (payload.get("webSearches") or 0) <= 0
+            if discarded:
+                await self._persist_delivery(payload, "DISCARDED", error)
                 return
+            try:
+                await self._persist_delivery(payload, "RETRYING", error)
+            except Exception:
+                logger.error("模型请求结算审计写入失败: request={}", payload["requestId"])
             raise
-        await asyncio.to_thread(self._delete, payload["requestId"])
+        await self._persist_delivery(payload, "DELIVERED",
+                                     unknown=response.get("status") == "UNKNOWN" or not payload["usageKnown"])
 
     async def start(self) -> None:
         def recover():
@@ -216,38 +318,50 @@ class BillingClient:
                 db.execute("UPDATE billing_outbox SET ready = 1 WHERE ready = 0")
         await asyncio.to_thread(recover)
         self._search_worker = asyncio.create_task(self._retry_loop(search=True))
+        self._audit_worker = asyncio.create_task(self._retry_loop(audit=True))
         await self._retry_http_pending()
         self._worker = asyncio.create_task(self._retry_loop())
 
     async def retry_pending(self) -> None:
-        await asyncio.gather(self._retry_http_pending(), self._retry_search_pending())
+        await asyncio.gather(self._retry_http_pending(), self._retry_search_pending(),
+                             self._retry_audit_pending())
 
     async def _retry_http_pending(self) -> None:
-        async with self._delivery_lock:
-            for payload in await asyncio.to_thread(self._pending):
+        for saved in await asyncio.to_thread(self._pending):
+            async with self._delivery_lock:
                 try:
+                    payload = await asyncio.to_thread(self._pending_request, saved["requestId"])
+                    if payload is None:
+                        continue
                     payload.setdefault("webSearches", None)
                     await self._deliver(payload)
-                except BillingError as error:
-                    logger.error("模型请求结算待重试: request={} error={}", payload["requestId"], error)
+                except Exception as error:
+                    _, message = self._error_details(error)
+                    logger.error("模型请求结算待重试: request={} error={}", saved["requestId"], message)
 
-    async def _retry_loop(self, *, search: bool = False) -> None:
+    async def _retry_loop(self, *, search: bool = False, audit: bool = False) -> None:
         while True:
             try:
                 if search:
                     await self._retry_search_pending()
+                elif audit:
+                    await self._retry_audit_pending()
                 else:
                     await self._retry_http_pending()
             except Exception:
-                logger.exception("搜索次数事件重试失败" if search else "模型请求结算重试失败")
+                if audit:
+                    logger.error("模型请求结算审计补报失败")
+                else:
+                    logger.exception("搜索次数事件重试失败" if search else "模型请求结算重试失败")
             await asyncio.sleep(5)
 
     async def close(self) -> None:
-        workers = [worker for worker in (self._worker, self._search_worker) if worker is not None]
+        workers = [worker for worker in (self._worker, self._search_worker, self._audit_worker)
+                   if worker is not None]
         for worker in workers:
             worker.cancel()
         await asyncio.gather(*workers, return_exceptions=True)
-        self._worker = self._search_worker = None
+        self._worker = self._search_worker = self._audit_worker = None
         await self._client.aclose()
 
 

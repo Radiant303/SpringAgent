@@ -46,7 +46,8 @@ class SearchBillingRetryTests {
 
     private SearchBillingFailure row(int attempts) {
         SearchBillingFailure row = new SearchBillingFailure();
-        row.setId(1L); row.setStatus("RETRYING"); row.setLeaseToken("mine");
+        row.setId(1L); row.setFailureType("SEARCH_BILLING");
+        row.setStatus("RETRYING"); row.setLeaseToken("mine");
         row.setRetryCount(attempts); row.setMaxRetries(3);
         row.setRawBody("{\"eventId\":\"event\",\"source\":\"local\",\"provider\":\"exa\",\"searches\":1,\"userId\":7,\"sessionId\":\"session\",\"turnId\":\"turn\"}"
                 .getBytes(StandardCharsets.UTF_8));
@@ -170,5 +171,20 @@ class SearchBillingRetryTests {
                 .getAnnotation(Update.class).value());
         assertTrue(recovery.contains("lease_until <= #{now}"));
         assertFalse(recovery.contains("retry_count = 0"));
+        assertTrue(claim.contains("failure_type = 'SEARCH_BILLING'"));
+        assertTrue(recovery.contains("failure_type = 'SEARCH_BILLING'"));
+        String due = String.join(" ", SearchBillingFailureMapper.class.getMethod("findDue", LocalDateTime.class)
+                .getAnnotation(org.apache.ibatis.annotations.Select.class).value());
+        assertTrue(due.contains("failure_type = 'SEARCH_BILLING'"));
+    }
+
+    @Test
+    void modelEventsNeverEnterSearchBillingWorker() {
+        SearchBillingFailure row = row(1);
+        row.setFailureType("MODEL_SETTLE"); row.setMaxRetries(null);
+        worker.execute(1L, "mine");
+        worker.failed(1L, "mine", new TransientDataAccessResourceException("offline"));
+        verifyNoInteractions(billing, usage);
+        verify(failures, never()).update(any(), any(Wrapper.class));
     }
 }

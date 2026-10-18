@@ -1,8 +1,10 @@
 package com.spring.gateway.controller;
 
+import com.spring.gateway.dto.ModelBillingFailureRequest;
 import com.spring.gateway.dto.ReserveModelRequest;
 import com.spring.gateway.dto.SettleModelRequest;
 import com.spring.gateway.service.BillingService;
+import com.spring.gateway.service.ModelBillingFailureService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -24,6 +26,12 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class InternalBillingController {
     private final BillingService billingService;
+    private final ModelBillingFailureService failures;
+
+    @PostMapping("/failure")
+    public Map<String, String> failure(@Valid @RequestBody ModelBillingFailureRequest request) {
+        return Map.of("status", failures.report(request));
+    }
 
     @PostMapping("/reserve")
     public Map<String, BigDecimal> reserve(@Valid @RequestBody ReserveModelRequest request) {

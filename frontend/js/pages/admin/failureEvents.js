@@ -1,5 +1,5 @@
 /**
- * 搜索计费失败事件管理。
+ * 计费失败事件管理。
  *
  * @author hanbing
  * @since 2026-10-18
@@ -12,6 +12,15 @@ import { getRole } from "../../api/auth.js";
 import { UI } from "../../components/ui.js";
 
 const ENDPOINT = "/api/admin/failure-events";
+const TYPE_LABELS = { SEARCH_BILLING: "搜索计费", MODEL_SETTLE: "模型结账" };
+const SETTLEMENT_LABELS = {
+  SETTLED: "已结算",
+  UNKNOWN: "用量未知，待核对",
+  HELD: "已冻结",
+  STALE: "已过期",
+  DISCARDED: "已丢弃",
+};
+const MODEL_RESULT_LABELS = { finished: "已完成", cancelled: "已取消", error: "出错" };
 const STATUS_LABELS = {
   PENDING: "待处理",
   RETRYING: "自动重试中",
@@ -20,7 +29,7 @@ const STATUS_LABELS = {
   IGNORED: "已忽略",
 };
 const MANUAL_STATUSES = ["PENDING", "RESOLVED", "IGNORED"];
-const MANAGEMENT_NOTICE = "修改状态仅作管理标记，不会扣积分，也不会复位自动重试次数。自动重试中不可人工修改；参考积分不代表实际扣款。";
+const MANAGEMENT_NOTICE = "修改状态仅作管理记事，不会触发扣款，不会复位自动重试次数，也不会停止模型结账的真实自动重试。自动重试中或重试成功不可人工修改；积分口径见详情，实际扣款以账务记录为准。";
 let page = 1;
 let size = 10;
 let filters = {};
@@ -37,8 +46,22 @@ let bound = false;
 const display = (value) => value == null || value === "" ? "—" : String(value);
 const time = (value) => value ? fmtTime(value) : "—";
 const statusLabel = (value) => STATUS_LABELS[value] || display(value);
+const failureType = (event) => event.failureType || "SEARCH_BILLING";
+const isModelSettlement = (event) => failureType(event) === "MODEL_SETTLE";
+const typeLabel = (event) => TYPE_LABELS[failureType(event)] || display(failureType(event));
+const settlementStatus = (event) => event.settlementStatus;
+const settlementLabel = (value) => SETTLEMENT_LABELS[value] || display(value);
+const eventStatusLabel = (event) => isModelSettlement(event) && event.status === "PENDING" && settlementStatus(event) === "UNKNOWN" ? "待核对" : statusLabel(event.status);
+const statusLocked = (event) => ["RETRYING", "SUCCEEDED"].includes(event.status);
+const statusLockMessage = (event) => event.status === "SUCCEEDED" ? "事件已重试成功，不可人工修改" : "事件正在自动重试，请稍后刷新再操作";
 const isOwnerPage = () => getRole() === "owner" && document.querySelector('.admin-page[data-page="failure-events"]')?.classList.contains("active");
 const reportError = (error) => UI.toast(error?.message || "请求失败，请重试", { type: "error" });
+
+function pointsLabel(event) {
+  if (event.pointsReference === true) return "参考积分";
+  if (event.pointsReference === false) return "实扣积分";
+  return "积分（以账务记录为准）";
+}
 
 function points(value) {
   if (value == null || value === "") return "—";
@@ -63,18 +86,24 @@ function renderList(data) {
     tr.replaceChildren();
     cell(tr, time(event.createdAt), "failure-time");
     cell(tr, event.userId, "failure-user");
-    cell(tr, event.eventId, "failure-event");
-    cell(tr, points(event.costPoints), "num failure-points");
-    cell(tr, statusLabel(event.status), "failure-status-cell");
+    const identifiers = ["事件：" + display(event.eventId)];
+    if (isModelSettlement(event)) identifiers.push("请求：" + display(event.requestId));
+    const eventCell = cell(tr, "", "failure-event");
+    eventCell.replaceChildren(h("span", "role-badge", typeLabel(event)));
+    for (const identifier of identifiers) eventCell.appendChild(h("div", "cell-sub mc-row-sub", identifier));
+    eventCell.title = [typeLabel(event), ...identifiers].join("\n");
+    const pointsCell = cell(tr, points(event.costPoints), "num failure-points");
+    pointsCell.title = pointsLabel(event) + "：" + points(event.costPoints);
+    cell(tr, eventStatusLabel(event), "failure-status-cell");
     const actions = h("td", "failure-actions");
     for (const [action, label] of [["detail", "详情"], ["status", "标记状态"]]) {
       const button = h("button", "admin-btn", label);
       button.type = "button";
       button.dataset.action = action;
       button.dataset.id = String(event.id);
-      if (action === "status" && ["RETRYING", "SUCCEEDED"].includes(event.status)) {
+      if (action === "status" && statusLocked(event)) {
         button.disabled = true;
-        button.title = event.status === "SUCCEEDED" ? "已计费成功，不可人工修改" : "自动重试中不可人工修改";
+        button.title = statusLockMessage(event);
       }
       actions.appendChild(button);
     }
@@ -142,27 +171,52 @@ function detailBlock(root, label, value) {
   root.appendChild(section);
 }
 
-function renderDetail(event) {
-  const root = $("failure-detail-body");
-  root.replaceChildren(h("p", "settings-hint", MANAGEMENT_NOTICE));
-  const fields = [
-    ["记录 ID", event.id], ["事件 ID", event.eventId],
-    ["Provider", event.provider], ["用户 ID", event.userId],
-    ["会话 ID", event.sessionId], ["轮次 ID", event.turnId],
-    ["搜索次数", event.searches], ["每次参考积分", points(event.unitPoints)],
-    ["参考总积分（非实扣）", points(event.costPoints)], ["状态", statusLabel(event.status)],
-    ["重试次数 / 上限", display(event.retryCount) + " / " + display(event.maxRetries)],
-    ["下次自动重试", time(event.nextRetryAt)],
-    ["创建时间", time(event.createdAt)], ["更新时间", time(event.updatedAt)],
-    ["处理人 ID", event.handledBy], ["处理时间", time(event.handledAt)],
-  ];
+function detailFields(root, title, fields) {
   const metadata = h("dl", "failure-meta");
   for (const [label, value] of fields) {
     const row = h("div");
     row.append(h("dt", null, label), h("dd", null, display(value)));
     metadata.appendChild(row);
   }
-  root.appendChild(metadata);
+  root.append(h("h3", "section-caption", title), metadata);
+}
+
+function renderDetail(event) {
+  const root = $("failure-detail-body");
+  const model = isModelSettlement(event);
+  root.replaceChildren(h("p", "settings-hint", MANAGEMENT_NOTICE));
+  detailFields(root, "公共信息与归属", [
+    ["记录 ID", event.id], ["事件类型", typeLabel(event)],
+    ["事件 ID", event.eventId], ["用户 ID", event.userId],
+    ["会话 ID", event.sessionId], ["轮次 ID", event.turnId],
+    ["事件状态", eventStatusLabel(event)], [pointsLabel(event), points(event.costPoints)],
+    [model ? "结账失败次数 / 重试上限" : "重试次数 / 上限", display(event.retryCount) + " / " + (model && event.maxRetries == null ? "不限" : display(event.maxRetries))],
+    ["下次自动重试", time(event.nextRetryAt)],
+    ["创建时间", time(event.createdAt)], ["更新时间", time(event.updatedAt)],
+    ["完成时间", time(event.completedAt)],
+    ["处理人 ID", event.handledBy], ["处理时间", time(event.handledAt)],
+  ]);
+  if (model) {
+    const settlement = event.settlement || {};
+    detailFields(root, "模型结账", [
+      ["请求 ID", event.requestId], ["模型 ID", event.modelId],
+      ["结账状态", settlementLabel(settlementStatus(event))],
+      ["模型请求结果", MODEL_RESULT_LABELS[settlement.status] || display(settlement.status)],
+      ["用量是否已知", settlement.usageKnown === true ? "已知" : settlement.usageKnown === false ? "未知，待核对" : "—"],
+      ["输入 Token 数", settlement.inputTokens], ["缓存命中 Token 数", settlement.cacheReadTokens],
+      ["缓存写入 Token 数", settlement.cacheWriteTokens], ["输出 Token 数", settlement.outputTokens],
+      ["联网搜索次数", settlement.webSearches],
+    ]);
+    root.appendChild(h("p", "settings-hint", "系统会自动重试；这里按每轮结账失败计数，不单独统计一轮里的多次尝试。"));
+    if (settlementStatus(event) === "UNKNOWN") {
+      root.appendChild(h("p", "settings-hint", "用量未知，结账待核对，不代表重试成功；人工标记不改变冻结单状态。"));
+    }
+  } else {
+    detailFields(root, "搜索计费", [
+      ["搜索服务商", event.provider], ["搜索次数", event.searches],
+      ["每次参考积分", points(event.unitPoints)],
+    ]);
+  }
   for (const [label, value] of [["错误类型", event.errorType], ["完整错误", event.errorMessage], ["管理备注", event.remark]]) {
     root.append(h("h3", "section-caption", label), h("pre", "failure-text", display(value)));
   }
@@ -201,22 +255,27 @@ async function markStatus(id, trigger) {
   const seq = ++actionSeq;
   actionBusy = true;
   trigger.disabled = true;
-  let retrying = false;
+  let locked = false;
   try {
-    const event = await api(ENDPOINT + "/" + encodeURIComponent(id));
-    if (seq !== actionSeq || !isOwnerPage()) return;
-    if (!event) throw new Error("未找到失败事件");
-    if (event.status === "RETRYING") {
-      retrying = true;
-      await loadFailureEvents();
-      if (detailId === id) await showDetail(id);
-      throw new Error("事件正在自动重试，请稍后刷新再操作");
-    }
+    const readEditableEvent = async () => {
+      if (seq !== actionSeq || !isOwnerPage()) throw new Error("页面已切换，请关闭弹窗后重新操作");
+      const event = await api(ENDPOINT + "/" + encodeURIComponent(id));
+      if (seq !== actionSeq || !isOwnerPage()) throw new Error("页面已切换，请关闭弹窗后重新操作");
+      if (!event) throw new Error("未找到失败事件");
+      locked = statusLocked(event);
+      if (locked) {
+        await loadFailureEvents();
+        if (detailId === id && isOwnerPage()) await showDetail(id);
+        throw new Error(statusLockMessage(event));
+      }
+      return event;
+    };
+    const event = await readEditableEvent();
     const options = MANUAL_STATUSES.map((value) => ({ value, label: STATUS_LABELS[value] }));
     if (!MANUAL_STATUSES.includes(event.status)) options.unshift({ value: "", label: "请选择管理状态" });
     const result = await UI.dialog({
       title: "标记失败事件状态",
-      message: "事件：" + display(event.eventId) + "\n当前状态：" + statusLabel(event.status) + "\n" + MANAGEMENT_NOTICE,
+      message: "类型：" + typeLabel(event) + "\n事件：" + display(event.eventId) + (isModelSettlement(event) ? "\n请求：" + display(event.requestId) : "") + "\n当前状态：" + eventStatusLabel(event) + "\n" + MANAGEMENT_NOTICE,
       okText: "保存标记",
       fields: [
         { name: "status", label: "管理状态", type: "select", value: MANUAL_STATUSES.includes(event.status) ? event.status : "", options },
@@ -224,6 +283,7 @@ async function markStatus(id, trigger) {
       ],
       validate: (values) => MANUAL_STATUSES.includes(values.status) ? null : { name: "status", message: "请选择有效的管理状态" },
       submit: async (values) => {
+        await readEditableEvent();
         if (seq !== actionSeq || !isOwnerPage()) throw new Error("页面已切换，请关闭弹窗后重新操作");
         await api(ENDPOINT + "/" + encodeURIComponent(id) + "/status", {
           method: "POST", body: { status: values.status, remark: values.remark },
@@ -238,7 +298,7 @@ async function markStatus(id, trigger) {
     if (seq === actionSeq && isOwnerPage()) reportError(error);
   } finally {
     actionBusy = false;
-    if (trigger.isConnected) trigger.disabled = retrying;
+    if (trigger.isConnected) trigger.disabled = locked;
   }
 }
 
@@ -248,7 +308,7 @@ export function bindFailureEvents() {
   $("failure-filter")?.addEventListener("submit", (event) => {
     event.preventDefault();
     filters = {};
-    for (const [key, id] of [["status", "failure-status"], ["userId", "failure-user"], ["eventId", "failure-event"]]) {
+    for (const [key, id] of [["failureType", "failure-type"], ["status", "failure-status"], ["userId", "failure-user"], ["eventId", "failure-event"]]) {
       const value = $(id).value.trim();
       if (value) filters[key] = value;
     }

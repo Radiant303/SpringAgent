@@ -201,7 +201,7 @@ class SearchUsageRecordRow(Base):
 
 
 class SearchBillingFailureRow(Base):
-    """搜索计费失败事件。
+    """计费失败事件。
 
     @author hanbing
     @since 2026-10-18
@@ -213,10 +213,21 @@ class SearchBillingFailureRow(Base):
         Index("ix_search_failure_retry", "status", "next_retry_at", "lease_until"),
         Index("ix_search_failure_user", "user_id", "id"),
         Index("ix_search_failure_event", "event_id"),
+        Index("ix_failure_type_request", "failure_type", "request_id"),
     )
 
     id: Mapped[int] = mapped_column(_BigInt, primary_key=True, autoincrement=False)
     dedup_key: Mapped[str] = mapped_column(String(64), nullable=False)
+    failure_type: Mapped[str] = mapped_column(
+        String(32), nullable=False, default="SEARCH_BILLING", server_default="SEARCH_BILLING",
+    )
+    request_id: Mapped[str | None] = mapped_column(String(64))
+    model_id: Mapped[str | None] = mapped_column(String(256))
+    settlement_status: Mapped[str | None] = mapped_column(String(16))
+    delivery_status: Mapped[str | None] = mapped_column(String(16))
+    first_failed_at: Mapped[datetime.datetime | None] = mapped_column(MicrosecondDateTime)
+    last_failed_at: Mapped[datetime.datetime | None] = mapped_column(MicrosecondDateTime)
+    completed_at: Mapped[datetime.datetime | None] = mapped_column(MicrosecondDateTime)
     raw_body: Mapped[bytes] = mapped_column(LargeBinary().with_variant(LONGBLOB(), "mysql"), nullable=False)
     headers: Mapped[str] = mapped_column(Text().with_variant(LONGTEXT(), "mysql"), nullable=False)
     event_id: Mapped[str | None] = mapped_column(String(64))
@@ -229,7 +240,7 @@ class SearchBillingFailureRow(Base):
     cost_points: Mapped[Decimal | None] = mapped_column(DECIMAL(20, 6))
     status: Mapped[str] = mapped_column(String(16), nullable=False, default="PENDING")
     retry_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    max_retries: Mapped[int] = mapped_column(Integer, nullable=False, default=3)
+    max_retries: Mapped[int | None] = mapped_column(Integer().evaluates_none(), nullable=True, server_default="3")
     next_retry_at: Mapped[datetime.datetime | None] = mapped_column(MicrosecondDateTime)
     lease_token: Mapped[str | None] = mapped_column(String(36))
     lease_until: Mapped[datetime.datetime | None] = mapped_column(MicrosecondDateTime)

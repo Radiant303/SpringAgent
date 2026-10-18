@@ -89,6 +89,49 @@ class AdminFailureEventControllerTests {
     }
 
     @Test
+    void modelDetailExposesSettlementAndUnknownIsNotPaid() throws Exception {
+        SearchBillingFailure row = row();
+        row.setFailureType("MODEL_SETTLE"); row.setRequestId("0123456789abcdef0123456789abcdef");
+        row.setModelId("model"); row.setSettlementStatus("UNKNOWN"); row.setDeliveryStatus("DELIVERED");
+        row.setMaxRetries(null); row.setRetryCount(0); row.setHeaders("{}");
+        row.setRawBody(("{\"requestId\":\"" + row.getRequestId() + "\",\"userId\":7,\"status\":\"error\","
+                + "\"usageKnown\":false,\"inputTokens\":0,\"cacheReadTokens\":0,\"cacheWriteTokens\":0,"
+                + "\"outputTokens\":0,\"webSearches\":null}").getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        when(mapper.selectById(1L)).thenReturn(row);
+        mvc.perform(get("/api/admin/failure-events/1").header("Authorization", "Bearer owner"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.failureType").value("MODEL_SETTLE"))
+                .andExpect(jsonPath("$.data.requestId").value(row.getRequestId()))
+                .andExpect(jsonPath("$.data.modelId").value("model"))
+                .andExpect(jsonPath("$.data.settlementStatus").value("UNKNOWN"))
+                .andExpect(jsonPath("$.data.maxRetries").value(org.hamcrest.Matchers.nullValue()))
+                .andExpect(jsonPath("$.data.completedAt").value(org.hamcrest.Matchers.nullValue()))
+                .andExpect(jsonPath("$.data.pointsReference").value(true))
+                .andExpect(jsonPath("$.data.settlement.usageKnown").value(false))
+                .andExpect(jsonPath("$.data.settlement.inputTokens").value(0))
+                .andExpect(jsonPath("$.data.settlement.webSearches").value(org.hamcrest.Matchers.nullValue()));
+        row.setSettlementStatus("SETTLED"); row.setStatus("RESOLVED");
+        assertEquals(true, AdminFailureEventController.view(row, false).get("pointsReference"));
+        row.setStatus("SUCCEEDED");
+        assertEquals(false, AdminFailureEventController.view(row, false).get("pointsReference"));
+        row.setSettlementStatus("DISCARDED");
+        assertEquals(true, AdminFailureEventController.view(row, false).get("pointsReference"));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void optionalFailureTypeFilterUsesTypedColumn() throws Exception {
+        when(mapper.selectPage(any(Page.class), any())).thenAnswer(invocation -> {
+            var filter = (com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<SearchBillingFailure>) invocation.getArgument(1);
+            assertTrue(filter.getSqlSegment().contains("failure_type"));
+            assertTrue(filter.getParamNameValuePairs().containsValue("MODEL_SETTLE"));
+            return invocation.getArgument(0);
+        });
+        mvc.perform(get("/api/admin/failure-events?failureType=MODEL_SETTLE").header("Authorization", "Bearer owner"))
+                .andExpect(status().isOk());
+    }
+
+    @Test
     void actorComesFromAuthenticationNotRequestBody() throws Exception {
         mvc.perform(post("/api/admin/failure-events/1/status").header("Authorization", "Bearer owner")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -96,6 +139,36 @@ class AdminFailureEventControllerTests {
                 .andExpect(status().isOk());
         verify(failures).changeStatus(1L, "IGNORED", "checked", 99L);
         verifyNoInteractions(mapper);
+    }
+
+    @Test
+    void internalFailureReportUsesExistingAuthAndNeverSettles() throws Exception {
+        var billing = mock(com.spring.gateway.service.BillingService.class);
+        var reports = mock(com.spring.gateway.service.ModelBillingFailureService.class);
+        MockMvc internal = MockMvcBuilders.standaloneSetup(new InternalBillingController(billing, reports))
+                .addInterceptors(new com.spring.gateway.common.InternalAuthInterceptor("test-token",
+                        JsonMapper.builder().build())).build();
+        String body = "{\"requestId\":\"0123456789abcdef0123456789abcdef\",\"userId\":7,"
+                + "\"settlement\":{\"requestId\":\"0123456789abcdef0123456789abcdef\",\"userId\":7,"
+                + "\"status\":\"error\",\"usageKnown\":false,\"inputTokens\":0,\"cacheReadTokens\":0,"
+                + "\"cacheWriteTokens\":0,\"outputTokens\":0,\"webSearches\":null},\"deliveryStatus\":\"DELIVERED\","
+                + "\"failureCount\":0,\"firstFailedAt\":\"2026-10-19T00:00:00Z\",\"lastFailedAt\":\"2026-10-19T00:01:00Z\","
+                + "\"errorType\":\"UsageUnknown\",\"errorMessage\":\"unknown\"}";
+        internal.perform(post("/internal/billing/requests/failure").contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isUnauthorized());
+        internal.perform(post("/internal/billing/requests/failure").header("X-Internal-Token", "wrong")
+                        .contentType(MediaType.APPLICATION_JSON).content(body)).andExpect(status().isUnauthorized());
+        when(reports.report(any())).thenReturn("PENDING");
+        internal.perform(post("/internal/billing/requests/failure").header("X-Internal-Token", "test-token")
+                        .contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.status").value("PENDING"));
+        for (String invalid : new String[]{body.replace("\"failureCount\":0", "\"failureCount\":-1"),
+                body.replace("DELIVERED", "SUCCESS"), body.replace("\"inputTokens\":0", "\"inputTokens\":-1")}) {
+            internal.perform(post("/internal/billing/requests/failure").header("X-Internal-Token", "test-token")
+                            .contentType(MediaType.APPLICATION_JSON).content(invalid)).andExpect(status().isBadRequest());
+        }
+        verify(reports).report(argThat(request -> request.failureCount() == 0 && request.settlement().webSearches() == null));
+        verifyNoInteractions(billing);
     }
 
     @Test

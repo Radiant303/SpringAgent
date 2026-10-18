@@ -29,7 +29,7 @@ class InternalBillingControllerTests {
 
     @Test
     void requiresInternalAuthentication() throws Exception {
-        for (String operation : new String[]{"reserve", "settle"}) {
+        for (String operation : new String[]{"reserve", "settle", "failure"}) {
             mvc.perform(post("/internal/billing/requests/" + operation)
                             .contentType(MediaType.APPLICATION_JSON).content(USAGE))
                     .andExpect(status().isUnauthorized());

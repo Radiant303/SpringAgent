@@ -49,6 +49,7 @@ public class SearchBillingFailureService {
         SearchBillingFailure row = new SearchBillingFailure();
         row.setId(ids.nextId());
         row.setDedupKey(hash(message.getBody()));
+        row.setFailureType("SEARCH_BILLING");
         row.setRawBody(message.getBody().clone());
         try {
             row.setHeaders(json.writeValueAsString(message.getMessageProperties().getHeaders()));

@@ -41,6 +41,7 @@ public class SearchBillingRetryWorker {
         SearchUsageRecord charged = usage.selectById(event.eventId());
         LambdaUpdateWrapper<SearchBillingFailure> update = completion(id, token)
                 .set(SearchBillingFailure::getNextRetryAt, null)
+                .set(SearchBillingFailure::getCompletedAt, LocalDateTime.now(ZoneOffset.UTC))
                 .set(SearchBillingFailure::getStatus, "SUCCEEDED");
         if (charged != null) {
             update.set(SearchBillingFailure::getUnitPoints, charged.getUnitPoints())
@@ -67,7 +68,8 @@ public class SearchBillingRetryWorker {
     }
 
     private static boolean owns(SearchBillingFailure row, String token) {
-        return row != null && "RETRYING".equals(row.getStatus()) && Objects.equals(token, row.getLeaseToken());
+        return row != null && "SEARCH_BILLING".equals(row.getFailureType())
+                && "RETRYING".equals(row.getStatus()) && Objects.equals(token, row.getLeaseToken());
     }
 
     private static LambdaUpdateWrapper<SearchBillingFailure> completion(Long id, String token) {

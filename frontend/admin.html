@@ -663,6 +663,11 @@
       <section class="admin-page wide" data-page="failure-events">
         <h1 class="page-title">失败事件</h1>
         <form id="failure-filter" class="usage-filter">
+          <select id="failure-type" title="按事件类型筛选" aria-label="按事件类型筛选">
+            <option value="">全部类型</option>
+            <option value="SEARCH_BILLING">搜索计费</option>
+            <option value="MODEL_SETTLE">模型结账</option>
+          </select>
           <select id="failure-status" title="按状态筛选" aria-label="按状态筛选">
             <option value="">全部状态</option>
             <option value="PENDING">待处理</option>
@@ -687,7 +692,7 @@
               <col class="failure-col-actions">
             </colgroup>
             <thead>
-              <tr><th>时间</th><th>用户</th><th>事件</th><th class="num" title="参考积分，实际扣款以计费记录为准">积分</th><th>状态</th><th>操作</th></tr>
+              <tr><th>时间</th><th>用户</th><th>事件 / 请求</th><th class="num" title="积分口径见详情，实际扣款以账务记录为准">积分</th><th>状态</th><th>操作</th></tr>
             </thead>
             <tbody id="failure-tbody"></tbody>
           </table>
