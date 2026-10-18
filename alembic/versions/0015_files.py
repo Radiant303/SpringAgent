@@ -7,7 +7,7 @@ from collections.abc import Sequence
 import sqlalchemy as sa
 
 from alembic import op
-from spring_harness.cloud.db import MicrosecondDateTime
+from spring_agent.cloud.db import MicrosecondDateTime
 
 revision: str = "0015"
 down_revision: str | None = "0014"

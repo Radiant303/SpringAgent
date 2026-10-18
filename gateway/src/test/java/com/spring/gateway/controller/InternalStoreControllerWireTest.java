@@ -51,7 +51,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @Import(InternalStoreControllerWireTest.WireTestConfig.class)
 class InternalStoreControllerWireTest {
 
-    private static final String TOKEN = "springharness-internal-dev-token-0123456789";
+    private static final String TOKEN = "springagent-internal-dev-token-0123456789";
 
     @Autowired
     private MockMvc mockMvc;
@@ -66,7 +66,7 @@ class InternalStoreControllerWireTest {
     static class WireTestConfig {
         @Bean
         JwtUtils jwtUtils() {
-            return new JwtUtils("springharness-dev-secret-0123456789abcd", 10080);
+            return new JwtUtils("springagent-dev-secret-0123456789abcd", 10080);
         }
 
         @Bean

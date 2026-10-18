@@ -95,7 +95,7 @@ export function initLoginPage() {
     if (inputs.password) {
       inputs.password.autocomplete = mode === "login" ? "current-password" : "new-password";
     }
-    document.title = conf.title + " - Spring Harness";
+    document.title = conf.title + " - SpringAgent";
     if (!noticePinned) showNotice("");
     form.querySelectorAll(".login-eye").forEach((btn) => setRevealed(btn, false));
     showError("");
@@ -268,7 +268,7 @@ export function initLoginPage() {
       localStorage.setItem(TOKEN_KEY, data.token);
       localStorage.setItem(USER_KEY, data.username);
       localStorage.setItem(ROLE_KEY, data.role || "user");
-      localStorage.removeItem("sh.sessionId");
+      localStorage.removeItem("sa.sessionId");
       location.replace(next);
     } catch (err) {
       setBusy(false);

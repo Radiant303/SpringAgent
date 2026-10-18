@@ -49,7 +49,7 @@ export const state = {
   modelChanging: false,
   sessionId: null,
   deletedSessions: new Set(),
-  workId: localStorage.getItem("sh.workId") || null,
+  workId: localStorage.getItem("sa.workId") || null,
   works: [],
   connected: false,
   sessionReady: false,

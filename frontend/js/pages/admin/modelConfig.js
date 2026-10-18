@@ -353,7 +353,7 @@ function enterProvider(name) {
   if (search) search.value = "";
   document.querySelector('.admin-page[data-page="model-config"]')?.classList.remove("active");
   document.querySelector('.admin-page[data-page="mc-provider"]')?.classList.add("active");
-  document.title = `${name} - Spring Harness`;
+  document.title = `${name} - SpringAgent`;
   const main = $("admin-main");
   if (main) main.scrollTop = 0;
   renderDetail();
@@ -364,7 +364,7 @@ function showHome() {
   currentProvider = null;
   document.querySelector('.admin-page[data-page="mc-provider"]')?.classList.remove("active");
   document.querySelector('.admin-page[data-page="model-config"]')?.classList.add("active");
-  document.title = "模型配置 - Spring Harness";
+  document.title = "模型配置 - SpringAgent";
 }
 
 /* ---------- 二级页：渲染 ---------- */

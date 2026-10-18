@@ -83,7 +83,7 @@
 修改表、字段、索引、约束或初始化数据时，必须同次检查以下内容；不涉及的可不改，但不得漏查：
 
 - 在 `alembic/versions/` 新增顺序迁移，处理旧数据和默认值；已发布的迁移不得改写。无法安全降级时，`downgrade()` 要明确抛错。
-- 同步 `spring_harness/cloud/db.py` 的模型，以及网关对应的 `entity`、Mapper、SQL、DTO 和 Service。
+- 同步 `spring_agent/cloud/db.py` 的模型，以及网关对应的 `entity`、Mapper、SQL、DTO 和 Service。
 - 全局搜索表名和字段名，检查原生 SQL、计费、缓存、内部接口、管理页面和前端展示。
 - 迁移与两端模型的类型、长度、可空、默认值、唯一约束和索引保持一致。
 - 验证全新安装执行 `alembic upgrade head`，并从一个旧版本携带旧数据升级，确认数据保留且应用能启动。

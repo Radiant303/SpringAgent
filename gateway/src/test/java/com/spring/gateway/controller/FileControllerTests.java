@@ -47,7 +47,7 @@ import static org.mockito.Mockito.when;
 @SpringBootTest
 @AutoConfigureMockMvc
 @Transactional
-@TestPropertySource(properties = "app.data-root=${java.io.tmpdir}/springharness-test-data")
+@TestPropertySource(properties = "app.data-root=${java.io.tmpdir}/springagent-test-data")
 class FileControllerTests {
 
     @Autowired private MockMvc mvc;

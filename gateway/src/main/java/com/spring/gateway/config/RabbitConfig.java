@@ -24,9 +24,9 @@ import org.springframework.context.annotation.Configuration;
 public class RabbitConfig {
 
     /** 控制面交换机（direct，durable） */
-    public static final String TURN_EXCHANGE = "harness.turn";
+    public static final String TURN_EXCHANGE = "agent.turn";
     /** 死信交换机：三个业务队列共用一个，按原队列名路由 */
-    public static final String TURN_DLX = "harness.turn.dlx";
+    public static final String TURN_DLX = "agent.turn.dlx";
 
     /** turn 派发队列：Python 引擎消费 */
     public static final String QUEUE_DISPATCH = "turn.dispatch";

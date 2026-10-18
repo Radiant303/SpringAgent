@@ -154,7 +154,7 @@ public class UserStorageService {
         BasicFileAttributes attributes = checkedAttributes(directory);
         if (attributes == null) return;
         if (!attributes.isDirectory()) throw new StorageException("会话资源需要为普通目录");
-        long size = treeBytes(directory, directory.resolve(".springharness")).totalBytes();
+        long size = treeBytes(directory, directory.resolve(".springagent")).totalBytes();
         beginChange(userId);
         try (var entries = Files.walk(directory)) {
             List<Path> paths = entries.sorted(java.util.Comparator.reverseOrder()).toList();
@@ -318,7 +318,7 @@ public class UserStorageService {
         BasicFileAttributes attributes = checkedAttributes(directory);
         if (attributes == null) return new TreeUsage(0, 0);
         if (!attributes.isDirectory()) throw new StorageException("工作区需要为普通目录");
-        return treeBytes(directory, directory.resolve(".springharness"));
+        return treeBytes(directory, directory.resolve(".springagent"));
     }
 
     private static TreeUsage treeBytes(Path root, Path internalRoot) {

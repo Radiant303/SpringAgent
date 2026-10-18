@@ -55,7 +55,7 @@ class SessionControllerWireTest {
     static class WireTestConfig {
         @Bean
         JwtUtils jwtUtils() {
-            return new JwtUtils("springharness-dev-secret-0123456789abcd", 10080);
+            return new JwtUtils("springagent-dev-secret-0123456789abcd", 10080);
         }
 
         @Bean
@@ -72,7 +72,7 @@ class SessionControllerWireTest {
     }
 
     private String token() {
-        return "Bearer " + new JwtUtils("springharness-dev-secret-0123456789abcd", 10080)
+        return "Bearer " + new JwtUtils("springagent-dev-secret-0123456789abcd", 10080)
                 .createToken(42L, "tester");
     }
 

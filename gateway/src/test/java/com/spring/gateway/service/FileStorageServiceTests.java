@@ -60,7 +60,7 @@ import static org.mockito.Mockito.when;
  */
 @SpringBootTest
 @Transactional
-@TestPropertySource(properties = "app.data-root=${java.io.tmpdir}/springharness-test-data")
+@TestPropertySource(properties = "app.data-root=${java.io.tmpdir}/springagent-test-data")
 class FileStorageServiceTests {
 
     @Autowired private FileStorageService fileStorageService;

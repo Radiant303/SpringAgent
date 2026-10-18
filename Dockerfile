@@ -4,7 +4,7 @@ ENV UV_COMPILE_BYTECODE=1 \
     UV_PYTHON_DOWNLOADS=never
 WORKDIR /app
 COPY pyproject.toml uv.lock README.md ./
-COPY spring_harness ./spring_harness
+COPY spring_agent ./spring_agent
 RUN pip install --no-cache-dir uv==0.11.11 && uv sync --frozen --no-dev
 
 FROM maven:3.9.11-eclipse-temurin-21 AS java-build
@@ -20,7 +20,7 @@ FROM python:3.14-slim-bookworm
 ENV PATH="/app/.venv/bin:/opt/java/openjdk/bin:${PATH}" \
     JAVA_HOME=/opt/java/openjdk \
     PYTHONUNBUFFERED=1 \
-    SPRINGHARNESS_CONFIG=/app/config.toml \
+    SPRINGAGENT_CONFIG=/app/config.toml \
     SPRINGAGENT_LOG_STDOUT=1
 WORKDIR /app
 RUN apt-get update \
@@ -30,7 +30,7 @@ COPY --from=java-runtime /opt/java/openjdk /opt/java/openjdk
 RUN java -version
 COPY --from=python-build /app/.venv ./.venv
 COPY --from=java-build /build/target/*.jar ./gateway/app.jar
-COPY spring_harness ./spring_harness
+COPY spring_agent ./spring_agent
 COPY alembic ./alembic
 COPY alembic.ini ./
 COPY config.toml.example ./config.toml

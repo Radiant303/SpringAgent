@@ -19,11 +19,11 @@ import tools.jackson.databind.json.JsonMapper;
  */
 @Configuration
 public class SearchRabbitConfig {
-    public static final String SEARCH_EXCHANGE = "springharness.search";
+    public static final String SEARCH_EXCHANGE = "springagent.search";
     public static final String SEARCH_ROUTING_KEY = "search.usage";
-    public static final String SEARCH_QUEUE = "springharness.search.usage";
-    public static final String SEARCH_DLX = "springharness.search.dlx";
-    public static final String SEARCH_DLQ = "springharness.search.usage.dlq";
+    public static final String SEARCH_QUEUE = "springagent.search.usage";
+    public static final String SEARCH_DLX = "springagent.search.dlx";
+    public static final String SEARCH_DLQ = "springagent.search.usage.dlq";
     public static final String SEARCH_DL_ROUTING_KEY = "search.usage.failed";
 
     @Bean

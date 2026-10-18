@@ -47,9 +47,9 @@ class CacheSecretCipherTests {
     void decryptsFixedPythonAesGcmVectors() {
         CacheSecretCipher cipher = new CacheSecretCipher(new byte[32]);
         assertEquals("测试凭证", cipher.decrypt(
-                "enc:v1:AAECAwQFBgcICQoLbn64uq9oan5vkP1k3OcEj/HqIL7vT1UnKlMVVQ==",
+                "enc:v1:AAECAwQFBgcICQoLbn64uq9oan5vkP1kWqabxiNTlroD8kNPPQ7Aaw==",
                 "sysconf:settings", "mail.auth_code"));
-        assertEquals("", cipher.decrypt("enc:v1:AAECAwQFBgcICQoLvQutQmThgLiViLkcpL7xiw==",
+        assertEquals("", cipher.decrypt("enc:v1:AAECAwQFBgcICQoLU29ObJi7HevPwawCqf3hcg==",
                 "sysconf:models", "providers", "厂商.a:b", "api_key"));
     }
 

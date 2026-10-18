@@ -2,11 +2,11 @@
  * 用户认证、权限状态与会话生命周期管理
  */
 
-export const TOKEN_KEY = "sh.token";
-export const USER_KEY = "sh.username";
-export const ROLE_KEY = "sh.role";
-export const SESSION_KEY = "sh.sessionId";
-export const WORK_KEY = "sh.workId";
+export const TOKEN_KEY = "sa.token";
+export const USER_KEY = "sa.username";
+export const ROLE_KEY = "sa.role";
+export const SESSION_KEY = "sa.sessionId";
+export const WORK_KEY = "sa.workId";
 
 export const ROLE_LABELS = {
   owner: "站长",

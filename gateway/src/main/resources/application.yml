@@ -6,7 +6,7 @@ server:
 
 spring:
   application:
-    name: springharness-gateway
+    name: springagent-gateway
   web:
     resources:
       # 网关托管前端静态文件（相对 gateway 模块的工作目录）
@@ -23,7 +23,7 @@ spring:
   datasource:
     # 宿主 18900 → Docker 容器内 MySQL；serverTimezone=UTC 与库中 naive UTC 时间戳对齐
     # characterEncoding 要填 Java 字符集名 UTF-8，不是 MySQL 的 utf8mb4
-    url: jdbc:mysql://127.0.0.1:18900/springharness?characterEncoding=UTF-8&serverTimezone=UTC
+    url: jdbc:mysql://127.0.0.1:18900/springagent?characterEncoding=UTF-8&serverTimezone=UTC
     username: root
     password: root   # 开发环境本地值；生产用环境变量覆盖
   data:
@@ -43,16 +43,16 @@ spring:
         default-requeue-rejected: false
 
 app:
-  # 必须与 Python 引擎 ~/.springharness/config.toml 的 [cloud].jwt_secret 完全一致
+  # 必须与 Python 引擎 ~/.springagent/config.toml 的 [cloud].jwt_secret 完全一致
   # 这是"Java 签发、Python 验证"互认 token 的前提；生产用环境变量 JWT_SECRET 覆盖
   # RFC 7518 要求 HS256 密钥 ≥32 字节（jjwt 强制执行），所以开发默认值也要够长
-  jwt-secret: ${JWT_SECRET:springharness-dev-secret-0123456789abcd}
+  jwt-secret: ${JWT_SECRET:springagent-dev-secret-0123456789abcd}
   jwt-expire-minutes: 10080
   # /internal/** 内部数据面接口的共享静态令牌：Python 引擎经网关切库时带在 X-Internal-Token 头，
   # 与用户 JWT 无关；生产用环境变量 INTERNAL_TOKEN 覆盖
-  internal-token: ${INTERNAL_TOKEN:springharness-internal-dev-token-0123456789}
+  internal-token: ${INTERNAL_TOKEN:springagent-internal-dev-token-0123456789}
   # 云端数据根目录。
-  data-root: ${user.home}/.springharness/cloud
+  data-root: ${user.home}/.springagent/cloud
   # 每用户最多可创建的 work 数量
   work-max-works: ${WORK_MAX_WORKS:5}
   # Python 引擎地址，WS 中继（turn/start 回退透传、token 流）仍然需要

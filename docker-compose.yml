@@ -18,13 +18,13 @@ services:
     image: mysql:8.0
     environment:
       MYSQL_ROOT_PASSWORD: *mysql-root-password
-      MYSQL_DATABASE: springharness
+      MYSQL_DATABASE: springagent
       MYSQL_USER: *mysql-user
       MYSQL_PASSWORD: *mysql-password
     volumes:
       - mysql-data:/var/lib/mysql
     healthcheck:
-      test: ["CMD-SHELL", "MYSQL_PWD=\"$${MYSQL_PASSWORD}\" mysql -h 127.0.0.1 -u\"$${MYSQL_USER}\" -D springharness -e 'SELECT 1' >/dev/null"]
+      test: ["CMD-SHELL", "MYSQL_PWD=\"$${MYSQL_PASSWORD}\" mysql -h 127.0.0.1 -u\"$${MYSQL_USER}\" -D springagent -e 'SELECT 1' >/dev/null"]
       interval: 5s
       timeout: 5s
       retries: 30
@@ -96,12 +96,12 @@ services:
       MYSQL_PASSWORD: *mysql-password
       RABBITMQ_USER: *rabbitmq-user
       RABBITMQ_PASSWORD: *rabbitmq-password
-      SPRINGHARNESS_CLOUD_DATA_ROOT: /data/cloud
-      SPRINGHARNESS_CLOUD_JWT_SECRET: *jwt-secret
-      SPRINGHARNESS_CLOUD_REDIS_URL: redis://redis:6379/0
-      SPRINGHARNESS_CLOUD_GATEWAY_BASE_URL: http://127.0.0.1:16900
-      SPRINGHARNESS_CLOUD_INTERNAL_TOKEN: *internal-token
-      SPRING_DATASOURCE_URL: "jdbc:mysql://mysql:3306/springharness?characterEncoding=UTF-8&serverTimezone=UTC"
+      SPRINGAGENT_CLOUD_DATA_ROOT: /data/cloud
+      SPRINGAGENT_CLOUD_JWT_SECRET: *jwt-secret
+      SPRINGAGENT_CLOUD_REDIS_URL: redis://redis:6379/0
+      SPRINGAGENT_CLOUD_GATEWAY_BASE_URL: http://127.0.0.1:16900
+      SPRINGAGENT_CLOUD_INTERNAL_TOKEN: *internal-token
+      SPRING_DATASOURCE_URL: "jdbc:mysql://mysql:3306/springagent?characterEncoding=UTF-8&serverTimezone=UTC"
       SPRING_DATASOURCE_USERNAME: *mysql-user
       SPRING_DATASOURCE_PASSWORD: *mysql-password
       SPRING_DATA_REDIS_HOST: redis

@@ -49,7 +49,7 @@ async function ensureSession() {
   applyModelSelection(r);
   state.sessionId = r.sessionId;
   state.sessionReady = true;
-  localStorage.setItem("sh.sessionId", r.sessionId);
+  localStorage.setItem("sa.sessionId", r.sessionId);
   subscribeStream(r.sessionId);
   refreshSessionList();
 }

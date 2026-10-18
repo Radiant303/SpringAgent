@@ -57,7 +57,7 @@ export function switchPage(page) {
     el.classList.toggle("active", el.dataset.page === page));
   document.querySelectorAll(".admin-page").forEach((el) =>
     el.classList.toggle("active", el.dataset.page === page));
-  document.title = (PAGE_TITLES[page] || "账户中心") + " - Spring Harness";
+  document.title = (PAGE_TITLES[page] || "账户中心") + " - SpringAgent";
   if (location.hash !== "#" + page) history.replaceState(null, "", "#" + page);
   const main = $("admin-main");
   if (main) main.scrollTop = 0;

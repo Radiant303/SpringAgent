@@ -115,11 +115,11 @@ class IncrementalStorageTests {
 
     @Test
     void recoveryCountsInternalTreeOnce() throws Exception {
-        Files.createDirectories(root.resolve("works/one/.springharness/sessions"));
-        Files.createDirectories(root.resolve("works/one/nested/.springharness"));
-        Files.writeString(root.resolve("works/one/.springharness/sessions/messages.json"), "abc");
+        Files.createDirectories(root.resolve("works/one/.springagent/sessions"));
+        Files.createDirectories(root.resolve("works/one/nested/.springagent"));
+        Files.writeString(root.resolve("works/one/.springagent/sessions/messages.json"), "abc");
         Files.writeString(root.resolve("works/one/content.txt"), "de");
-        Files.writeString(root.resolve("works/one/nested/.springharness/visible.txt"), "fg");
+        Files.writeString(root.resolve("works/one/nested/.springagent/visible.txt"), "fg");
         assertEquals(7L, service.directoryBytes("one"));
         user.setStorageInitialized(false);
         service.ensureCurrent(user);

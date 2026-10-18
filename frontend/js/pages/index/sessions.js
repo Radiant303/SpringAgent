@@ -186,7 +186,7 @@ function queueSessionLoad(view, attachedResult) {
         return;
       }
       applyServerBusy(view.sid, !!result.busy);
-      localStorage.setItem("sh.sessionId", view.sid);
+      localStorage.setItem("sa.sessionId", view.sid);
       unsubscribed = true;
       try { await rpc.request("stream/unsubscribe", { sessionId: view.sid }); } catch {}
       if (!isViewCurrent(view)) return;
@@ -331,7 +331,7 @@ export function onSessionInvalidated({ sessionId: sid, deleted }) {
   sessionTitles.delete(sid);
   discardSessionAttachments(sid);
   listGeneration++;
-  if (localStorage.getItem("sh.sessionId") === sid) localStorage.removeItem("sh.sessionId");
+  if (localStorage.getItem("sa.sessionId") === sid) localStorage.removeItem("sa.sessionId");
   if (state.sessionId === sid) newSession();
   else refreshSessionList();
   notifyStorageChanged();
@@ -357,7 +357,7 @@ export function newSession() {
   syncSessionSelection();
   drainPendingFor(null);
   discardPending();
-  localStorage.removeItem("sh.sessionId");
+  localStorage.removeItem("sa.sessionId");
   clearMessages();
   updateInputState();
   refreshSessionList();
@@ -398,7 +398,7 @@ export async function openWorkSession(preferredSid = null) {
     return queueSessionLoad(view);
   }
   state.sessionId = null;
-  localStorage.removeItem("sh.sessionId");
+  localStorage.removeItem("sa.sessionId");
   clearMessages();
   renderSessionList(sessions);
   updateInputState();
@@ -406,5 +406,5 @@ export async function openWorkSession(preferredSid = null) {
 }
 
 export async function openSession() {
-  await openWorkSession(localStorage.getItem("sh.sessionId"));
+  await openWorkSession(localStorage.getItem("sa.sessionId"));
 }

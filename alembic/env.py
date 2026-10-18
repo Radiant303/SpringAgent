@@ -1,12 +1,12 @@
-"""Alembic 环境：metadata 取自 spring_harness.cloud.db，URL 取自 cloud 配置。"""
+"""Alembic 环境：metadata 取自 spring_agent.cloud.db，URL 取自 cloud 配置。"""
 
 from logging.config import fileConfig
 
 from sqlalchemy import engine_from_config, pool
 
 from alembic import context
-from spring_harness.cloud.db import Base
-from spring_harness.core.config.settings import config as app_config
+from spring_agent.cloud.db import Base
+from spring_agent.core.config.settings import config as app_config
 
 config = context.config
 

@@ -3,12 +3,12 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>账户中心 - Spring Harness</title>
+  <title>账户中心 - SpringAgent</title>
   <link rel="icon" type="image/png" href="/static/assets/images/log.png">
   <script>
     /* 未登录先去登录页，登录后带回当前页（含 #hash 分页） */
     try {
-      if (!localStorage.getItem("sh.token")) {
+      if (!localStorage.getItem("sa.token")) {
         location.replace("/static/login.html?next=" + encodeURIComponent(location.pathname + location.hash));
       }
     } catch (e) { /* 存储不可用时交给 admin.js 处理 */ }

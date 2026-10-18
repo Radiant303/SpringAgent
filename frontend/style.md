@@ -1,4 +1,4 @@
-# Spring Harness 前端设计规范
+# SpringAgent 前端设计规范
 
 写给以后在这个仓库里写页面/组件的人（和 AI）。目标：新写的东西放进现有页面里看不出是后加的。
 
@@ -89,7 +89,7 @@ font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-s
 
 | 字号 | 字重 | 用于 |
 |---|---|---|
-| 40px | 600 | 只用于首页字标 `SPRING HARNESS`（`#hero`，另加 `0.14em` 字距），别处不用 |
+| 40px | 600 | 只用于首页字标 `SPRINGAGENT`（`#hero`，另加 `0.14em` 字距），别处不用 |
 | 24px / 32px 行高 | 600 | 独立页面（登录/注册）的主标题：页面上唯一的大标题，用了它就别再加别的层级 |
 | 20px / 28px 行高 | 600 | 页面标题（`.page-title`）、账号名 |
 | 17px / 24px | 600 | 对话框标题 |
@@ -516,7 +516,7 @@ UI.enhanceDate(inp);               // 只换一个日期框
 
 - **登录**：独立页面 `login.html`（`#register` 进入注册模式）。需要登录的页面在 `<head>` 里先检查 token，没有就 `location.replace` 到登录页，避免先闪出页面内容（见 §9 模板）。
 - **被动登出**：接口 401 / WebSocket 4401 → `login.html?reason=expired`；4403 → `?reason=disabled`。需要回到原页面时带 `next=当前路径+hash`，登录页只接受本站 `/static/` 下的地址。
-- **退出登录**：清除 `sh.token`、`sh.username`、`sh.role`、`sh.sessionId` 后跳登录页。
+- **退出登录**：清除 `sa.token`、`sa.username`、`sa.role`、`sa.sessionId` 后跳登录页。
 - **账户中心分页**：用 `#hash` 定位（`admin.html#points`），可以直接链接到某一页。
 - **键盘**：Esc 关闭对话框 / 菜单；Enter 提交表单；对话框内 Tab 循环聚焦。
 - **长文本**：单行省略号截断（`overflow: hidden; text-overflow: ellipsis; white-space: nowrap`），完整内容放 `title`。
@@ -535,7 +535,7 @@ UI.enhanceDate(inp);               // 只换一个日期框
 - **显隐**：用 `.hidden` 类（`display: none !important`）切换，不直接改 `style.display`。
 - **用户数据**一律用 `textContent` 插入，不拼进 `innerHTML`（防 XSS）。对话框的 `title` / `message` 内部已用 `textContent`，可以直接传用户名。
 - **注释**：中文，写"为什么"而不是"做了什么"（例："replaceState 改地址不触发 hashchange，避免刚显示的错误被清掉"）。
-- **localStorage 键**：`sh.token`、`sh.username`、`sh.role`、`sh.sessionId`、`sh.workId`，与主站共用，不要另起名字。
+- **localStorage 键**：`sa.token`、`sa.username`、`sa.role`、`sa.sessionId`、`sa.workId`，与主站共用，不要另起名字。
 
 ## 9. 新页面模板
 
@@ -545,11 +545,11 @@ UI.enhanceDate(inp);               // 只换一个日期框
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>页面名 - Spring Harness</title>
+  <title>页面名 - SpringAgent</title>
   <script>
     /* 未登录先去登录页，登录后带回当前页 */
     try {
-      if (!localStorage.getItem("sh.token")) {
+      if (!localStorage.getItem("sa.token")) {
         location.replace("/static/login.html?next=" + encodeURIComponent(location.pathname + location.hash));
       }
     } catch (e) { /* 存储不可用时交给页面脚本处理 */ }

@@ -82,7 +82,7 @@ export async function send() {
         applyModelSelection(r);
         state.sessionId = sessionId;
         state.sessionReady = true;
-        localStorage.setItem("sh.sessionId", sessionId);
+        localStorage.setItem("sa.sessionId", sessionId);
         drainPendingFor(sessionId);
       }
       subscribeStream(sessionId);

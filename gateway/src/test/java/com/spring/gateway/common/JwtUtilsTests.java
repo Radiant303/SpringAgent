@@ -14,7 +14,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
  */
 class JwtUtilsTests {
 
-    private static final String SECRET = "springharness-dev-secret-0123456789abcd";
+    private static final String SECRET = "springagent-dev-secret-0123456789abcd";
 
     /**
      * 金标准 token（sub=123456789，username=golden，exp=9999999999），
@@ -23,7 +23,7 @@ class JwtUtilsTests {
     private static final String PYTHON_SIGNED_TOKEN =
             "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9."
             + "eyJzdWIiOiIxMjM0NTY3ODkiLCJ1c2VybmFtZSI6ImdvbGRlbiIsImV4cCI6OTk5OTk5OTk5OX0."
-            + "xAQ1Ku-DKRdWdyTKrSjiTW7Q_5cvUNnB1KB70jAPVxI";
+            + "vv9iffQRG3MRJCY9-OYi5gg--B5Hl8amuJm8I5TTjN4";
 
     @Test
     @DisplayName("签发后能解析回 userId")

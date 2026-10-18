@@ -30,8 +30,8 @@ compose() {
     docker compose "${compose_args[@]}" "$@"
 }
 
-legacy_project=springharness
 project=springagent
+database=springagent
 
 compose config -q
 compose pull
@@ -78,31 +78,6 @@ if [[ $project_name != "$project" ]]; then
 fi
 if [[ $app_data_type != volume ]]; then
     printf 'springagent /data/cloud 仍使用宿主机 bind 挂载，本脚本只支持命名卷 app-data。请先迁移数据并改为命名卷。\n' >&2
-    exit 1
-fi
-
-old_containers=()
-for owner in "$project" "$legacy_project"; do
-    for service in engine gateway migrate; do
-        containers=$(docker ps -a -q \
-            --filter "label=com.docker.compose.project=$owner" \
-            --filter "label=com.docker.compose.service=$service")
-        for container in $containers; do
-            old_containers+=("$owner/$service:$container")
-        done
-    done
-done
-legacy_volumes=$(docker volume ls -q --filter "label=com.docker.compose.project=$legacy_project")
-if ((${#old_containers[@]})); then
-    printf '检测到旧版 engine/gateway/migrate 容器：\n' >&2
-    printf '  %s\n' "${old_containers[@]}" >&2
-fi
-if [[ -n $legacy_volumes ]]; then
-    printf '检测到旧项目 %s 的数据卷：\n%s\n' "$legacy_project" "$legacy_volumes" >&2
-fi
-if ((${#old_containers[@]})) || [[ -n $legacy_volumes ]]; then
-    printf '顶层项目名已从 %s 改为 %s，命名卷前缀随之变化，脚本不会静默迁移或导入旧项目。请手工迁移数据卷并删除旧容器后重试；脚本不会删除任何卷。\n' \
-        "$legacy_project" "$project" >&2
     exit 1
 fi
 
@@ -154,7 +129,7 @@ maintenance=1
 compose stop springagent nginx
 compose up -d --no-build --pull never --wait --wait-timeout 180 mysql redis rabbitmq
 
-compose exec -T mysql sh -c 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" exec mysqldump -uroot --single-transaction --routines --triggers --events --set-gtid-purged=OFF --databases springharness' > "$backup_dir/mysql.sql.tmp"
+compose exec -T mysql sh -c 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" exec mysqldump -uroot --single-transaction --routines --triggers --events --set-gtid-purged=OFF --databases '"$database" > "$backup_dir/mysql.sql.tmp"
 mv -- "$backup_dir/mysql.sql.tmp" "$backup_dir/mysql.sql"
 compose run --rm -T --no-deps --pull never --entrypoint python springagent -c 'import sys, tarfile; archive = tarfile.open(fileobj=sys.stdout.buffer, mode="w|gz"); archive.add("/data/cloud", arcname="."); archive.close()' > "$backup_dir/app-data.tar.gz.tmp"
 mv -- "$backup_dir/app-data.tar.gz.tmp" "$backup_dir/app-data.tar.gz"

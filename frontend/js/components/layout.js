@@ -8,7 +8,7 @@ import { getUsername, getRole, ROLE_LABELS, logout } from "../api/auth.js";
 /**
  * 注入品牌标页头（登录页、独立页）
  */
-export function renderBrandHeader(container, { brandName = "SPRING HARNESS", logoSrc = "/static/assets/images/log.png" } = {}) {
+export function renderBrandHeader(container, { brandName = "SPRINGAGENT", logoSrc = "/static/assets/images/log.png" } = {}) {
   const host = $(container);
   if (!host) return;
   host.innerHTML = `
@@ -69,7 +69,7 @@ export function renderSidebarFooter(container, { onPointsClick, onLogout } = {})
         <svg viewBox="0 0 192 192" fill="none" stroke="currentColor" stroke-width="12" stroke-linejoin="round" aria-hidden="true"><path d="M153.933 114.718c-2.953-9.509-6.349-17.5-11.573-30.58C143.172 49.786 128.922 22 96.101 22c-33.189 0-47.125 28.34-46.24 62.139-5.241 13.097-8.62 21.033-11.573 30.579-6.276 20.256-4.246 28.636-2.695 28.821 3.323.407 12.94-15.243 12.94-15.243 0 9.064 4.651 20.886 14.73 29.413-4.873 1.499-15.82 5.532-13.217 9.953 2.105 3.57 36.217 2.275 46.056 1.165 9.838 1.11 43.95 2.405 46.055-1.165 2.602-4.403-8.362-8.454-13.217-9.953 10.078-8.546 14.73-20.367 14.73-29.413 0 0 9.617 15.65 12.94 15.243 1.569-.203 3.6-8.583-2.677-28.821Z"/></svg>
         <span>官方社群</span>
       </a>
-      <a class="um-item" href="https://github.com/Radiant303/SpringHarness" target="_blank" rel="noopener" role="menuitem">
+      <a class="um-item" href="https://github.com/Radiant303/SpringAgent" target="_blank" rel="noopener" role="menuitem">
         <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M10.226 17.284c-2.965-.36-5.054-2.493-5.054-5.256 0-1.123.404-2.336 1.078-3.144-.292-.741-.247-2.314.09-2.965.898-.112 2.111.36 2.83 1.01.853-.269 1.752-.404 2.853-.404 1.1 0 1.999.135 2.807.382.696-.629 1.932-1.1 2.83-.988.315.606.36 2.179.067 2.942.72.854 1.101 2 1.101 3.167 0 2.763-2.089 4.852-5.098 5.234.763.494 1.28 1.572 1.28 2.807v2.336c0 .674.561 1.056 1.235.786 4.066-1.55 7.255-5.615 7.255-10.646C23.5 6.188 18.334 1 11.978 1 5.62 1 .5 6.188.5 12.545c0 4.986 3.167 9.12 7.435 10.669.606.225 1.19-.18 1.19-.786V20.63a2.9 2.9 0 0 1-1.078.224c-1.483 0-2.359-.808-2.987-2.313-.247-.607-.517-.966-1.034-1.033-.27-.023-.359-.135-.359-.27 0-.27.45-.471.898-.471.652 0 1.213.404 1.797 1.235.45.651.921.943 1.483.943.561 0 .92-.202 1.437-.719.382-.381.674-.718.944-.943"/></svg>
         <span>项目地址</span>
       </a>

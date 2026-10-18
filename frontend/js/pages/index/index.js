@@ -247,7 +247,7 @@ export function bindAccountMenu() {
       clearToken();
       localStorage.removeItem(USER_KEY);
       localStorage.removeItem(ROLE_KEY);
-      localStorage.removeItem("sh.sessionId");
+      localStorage.removeItem("sa.sessionId");
       goLogin();
     };
   }

@@ -153,7 +153,7 @@ public class MailCodeService {
         String html = HTML_TEMPLATE.replace("{{code}}", code).replace("{{ttlText}}", ttl);
         try {
             mailSender.send(from, authCode, normalized,
-                    "【Spring Harness】" + scene.actionText + "验证码", plainText, html);
+                    "【SpringAgent】" + scene.actionText + "验证码", plainText, html);
         } catch (RuntimeException e) {
             // 发信失败：清掉锁与验证码，让用户可以立刻重发，而不是等锁自然过期
             redis.delete(LOCK_KEY_PREFIX + normalized);

@@ -49,7 +49,7 @@ public class QqMailSender {
             // 各邮件客户端兼容性最好）
             MimeMessageHelper helper = new MimeMessageHelper(
                     message, MimeMessageHelper.MULTIPART_MODE_MIXED, "UTF-8");
-            helper.setFrom(from, "Spring Harness");
+            helper.setFrom(from, "SpringAgent");
             helper.setTo(to);
             helper.setSubject(subject);
             if (html == null) {

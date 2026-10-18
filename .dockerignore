@@ -3,7 +3,7 @@
 .env.*
 !.env.example
 .venv
-.springharness
+.springagent
 .agent-scratch
 .pytest_cache
 .ruff_cache

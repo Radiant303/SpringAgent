@@ -46,7 +46,7 @@ import java.util.List;
 @Component
 @Lazy(false)
 public class CacheSecretCipher {
-    public static final String ENVIRONMENT_KEY = "SPRINGHARNESS_CACHE_MASTER_KEY";
+    public static final String ENVIRONMENT_KEY = "SPRINGAGENT_CACHE_MASTER_KEY";
     private static final String PREFIX = "enc:v1:";
     private static final SecureRandom RANDOM = new SecureRandom();
     private final SecretKeySpec key;
@@ -229,7 +229,7 @@ public class CacheSecretCipher {
     private static byte[] aad(String cacheKey, String[] path) throws IOException {
         ByteArrayOutputStream bytes = new ByteArrayOutputStream();
         try (DataOutputStream output = new DataOutputStream(bytes)) {
-            writeSegment(output, "springharness-cache:v1");
+            writeSegment(output, "springagent-cache:v1");
             writeSegment(output, cacheKey);
             for (String segment : path) {
                 writeSegment(output, segment);

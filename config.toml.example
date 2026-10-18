@@ -7,11 +7,11 @@ request_limit = 120
 log_level = "INFO"
 
 [cloud]
-database_url = "mysql+pymysql://root:root@127.0.0.1:18900/springharness?charset=utf8mb4"
+database_url = "mysql+pymysql://root:root@127.0.0.1:18900/springagent?charset=utf8mb4"
 # 支持 ~ 开头。
-data_root = "~/.springharness/cloud"
+data_root = "~/.springagent/cloud"
 # HS256 密钥需 ≥32 字节；生产环境必须更换。
-jwt_secret = "springharness-dev-secret-0123456789abcd"
+jwt_secret = "springagent-dev-secret-0123456789abcd"
 jwt_expire_minutes = 10080
 host = "0.0.0.0"
 port = 15900
@@ -24,4 +24,4 @@ session_max_idle_handles = 128
 # 空闲会话的扫描间隔，单位为秒。
 session_sweep_interval_seconds = 30
 gateway_base_url = "http://127.0.0.1:16900"
-internal_token = "springharness-internal-dev-token-0123456789"
+internal_token = "springagent-internal-dev-token-0123456789"

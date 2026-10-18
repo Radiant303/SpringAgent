@@ -14,7 +14,7 @@ from urllib.request import urlopen
 
 
 def healthcheck() -> int:
-    engine_port = os.environ.get("SPRINGHARNESS_CLOUD_PORT", "15900")
+    engine_port = os.environ.get("SPRINGAGENT_CLOUD_PORT", "15900")
     gateway_port = os.environ.get("SERVER_PORT", "16900")
     try:
         for address in (
@@ -60,7 +60,7 @@ def serve() -> int:
     try:
         for name, command, directory in (
             ("gateway", ["java", "-jar", str(root / "gateway" / "app.jar")], root / "gateway"),
-            ("engine", [sys.executable, "-m", "spring_harness.entrypoints.cloud"], root),
+            ("engine", [sys.executable, "-m", "spring_agent.entrypoints.cloud"], root),
         ):
             if stopping.is_set():
                 return 0

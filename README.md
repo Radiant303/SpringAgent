@@ -115,7 +115,7 @@ docker compose version
 umask 077
 mkdir -p ~/springagent && cd ~/springagent &&
 curl -fL \
-  https://raw.githubusercontent.com/Radiant303/spring-harness/master/docker-compose.yml \
+  https://raw.githubusercontent.com/Radiant303/SpringAgent/master/docker-compose.yml \
   -o docker-compose.yml
 ```
 
@@ -167,7 +167,7 @@ docker compose logs --tail=100 springagent
 cd ~/springagent &&
 mkdir -p deploy &&
 curl -fL \
-  https://raw.githubusercontent.com/Radiant303/spring-harness/master/deploy/upgrade.sh \
+  https://raw.githubusercontent.com/Radiant303/SpringAgent/master/deploy/upgrade.sh \
   -o deploy/upgrade.sh
 ```
 
@@ -230,21 +230,21 @@ docker compose logs --tail=100 springagent
 
 | 变量 | 作用 | 默认 / 说明 |
 | --- | --- | --- |
-| `SPRINGHARNESS_CLOUD_DATABASE_URL` | 引擎数据库连接串 | 由 `MYSQL_*` 拼出 |
-| `SPRINGHARNESS_CLOUD_DATA_ROOT` | 数据根目录 | `/data/cloud` |
-| `SPRINGHARNESS_CLOUD_JWT_SECRET` | HS256 签名密钥 | 必须与网关 `JWT_SECRET` 一致，≥32 字节 |
-| `SPRINGHARNESS_CLOUD_JWT_EXPIRE_MINUTES` | 登录有效期（分钟） | `10080` |
-| `SPRINGHARNESS_CLOUD_REDIS_URL` | Redis 连接串 | `redis://redis:6379/0` |
-| `SPRINGHARNESS_CLOUD_RABBITMQ_URL` | RabbitMQ 连接串 | 由 `RABBITMQ_*` 拼出 |
-| `SPRINGHARNESS_CLOUD_GATEWAY_BASE_URL` | 引擎回调网关地址 | `http://127.0.0.1:16900` |
-| `SPRINGHARNESS_CLOUD_INTERNAL_TOKEN` | 内部接口共享令牌 | 必须与网关 `INTERNAL_TOKEN` 一致，≥32 字节 |
-| `SPRINGHARNESS_CLOUD_HOST` / `PORT` | 引擎监听地址 | `0.0.0.0:15900` |
+| `SPRINGAGENT_CLOUD_DATABASE_URL` | 引擎数据库连接串 | 由 `MYSQL_*` 拼出 |
+| `SPRINGAGENT_CLOUD_DATA_ROOT` | 数据根目录 | `/data/cloud` |
+| `SPRINGAGENT_CLOUD_JWT_SECRET` | HS256 签名密钥 | 必须与网关 `JWT_SECRET` 一致，≥32 字节 |
+| `SPRINGAGENT_CLOUD_JWT_EXPIRE_MINUTES` | 登录有效期（分钟） | `10080` |
+| `SPRINGAGENT_CLOUD_REDIS_URL` | Redis 连接串 | `redis://redis:6379/0` |
+| `SPRINGAGENT_CLOUD_RABBITMQ_URL` | RabbitMQ 连接串 | 由 `RABBITMQ_*` 拼出 |
+| `SPRINGAGENT_CLOUD_GATEWAY_BASE_URL` | 引擎回调网关地址 | `http://127.0.0.1:16900` |
+| `SPRINGAGENT_CLOUD_INTERNAL_TOKEN` | 内部接口共享令牌 | 必须与网关 `INTERNAL_TOKEN` 一致，≥32 字节 |
+| `SPRINGAGENT_CLOUD_HOST` / `PORT` | 引擎监听地址 | `0.0.0.0:15900` |
 | `JWT_SECRET` / `INTERNAL_TOKEN` | 网关侧同名配置 | 与引擎保持一致 |
 | `APP_DATA_ROOT` | 网关数据根目录 | `/data/cloud` |
 | `ENGINE_BASE_URL` | 网关访问引擎地址 | `http://127.0.0.1:15900` |
-| `SPRING_DATASOURCE_*` | 网关数据源 | `jdbc:mysql://mysql:3306/springharness` |
+| `SPRING_DATASOURCE_*` | 网关数据源 | `jdbc:mysql://mysql:3306/springagent` |
 | `WORK_MAX_WORKS` | 每用户项目数量上限 | `5` |
-| `SPRINGHARNESS_CACHE_MASTER_KEY` | 模型与设置缓存的主密钥 | 可选项，32 随机字节的标准 Base64；未设置时读取或生成 `{data-root}/.secrets/cache-master.key` |
+| `SPRINGAGENT_CACHE_MASTER_KEY` | 模型与设置缓存的主密钥 | 可选项，32 随机字节的标准 Base64；未设置时读取或生成 `{data-root}/.secrets/cache-master.key` |
 
 Python 侧还支持 `[loop_control]` 的 `request_limit`（单轮模型请求上限，默认 120）、`reserved_context_size` 与 `max_retries_per_step`，详见 [`config.toml.example`](./config.toml.example)。
 
@@ -263,10 +263,10 @@ Python 侧还支持 `[loop_control]` 的 `request_limit`（单轮模型请求上
 ### 启动引擎
 
 ```bash
-cp config.toml.example ~/.springharness/config.toml   # 按需修改数据库与中间件地址
+cp config.toml.example ~/.springagent/config.toml   # 按需修改数据库与中间件地址
 uv sync
 uv run alembic upgrade head
-uv run springcloud
+uv run springagent
 ```
 
 引擎监听 `15900`，同时挂载 `/static` 前端资源；完整功能仍应经网关访问，单独打开 `15900` 只能检查静态页面。
@@ -306,7 +306,7 @@ uv run alembic revision -m "describe change"
 uv run alembic upgrade head
 ```
 
-同时同步 `spring_harness/cloud/db.py` 的模型，以及网关的 `entity`、Mapper、SQL、DTO 与 Service。迁移和两端模型在类型、长度、可空、默认值、索引上必须一致。
+同时同步 `spring_agent/cloud/db.py` 的模型，以及网关的 `entity`、Mapper、SQL、DTO 与 Service。迁移和两端模型在类型、长度、可空、默认值、索引上必须一致。
 
 ### 检查与测试
 
@@ -321,10 +321,10 @@ cd gateway && ./mvnw test    # 网关单元测试
 
 | 目录 | 职责 |
 | --- | --- |
-| `spring_harness/cloud/` | FastAPI 应用、WebSocket、会话注册表、计费、模型配置、存储、MQ |
-| `spring_harness/core/` | Agent 组装、会话与历史、文件系统、配置、流事件、RPC |
-| `spring_harness/capabilities/` | 计划、压缩、子代理、代码模式、技能、教学等能力 |
-| `spring_harness/toolsets/` | 文件、搜索、图片、提问、页面地址等工具集 |
+| `spring_agent/cloud/` | FastAPI 应用、WebSocket、会话注册表、计费、模型配置、存储、MQ |
+| `spring_agent/core/` | Agent 组装、会话与历史、文件系统、配置、流事件、RPC |
+| `spring_agent/capabilities/` | 计划、压缩、子代理、代码模式、技能、教学等能力 |
+| `spring_agent/toolsets/` | 文件、搜索、图片、提问、页面地址等工具集 |
 | `gateway/` | Spring Boot 网关：控制器、服务、实体、WebSocket 中继 |
 | `frontend/` | 原生 HTML/CSS/JS 前端 |
 | `alembic/` | 数据库迁移 |
@@ -334,9 +334,9 @@ cd gateway && ./mvnw test    # 网关单元测试
 
 ### 扩展一个工具
 
-1. 在 `spring_harness/toolsets/` 中按现有风格定义工具函数；
-2. 在 `spring_harness/core/agent/agent.py` 组装 Agent 时挂载对应工具集；
-3. 如涉及审批或计费，复用 `spring_harness/core/approval.py`、`spring_harness/core/hooks/billing.py` 的现有机制；
+1. 在 `spring_agent/toolsets/` 中按现有风格定义工具函数；
+2. 在 `spring_agent/core/agent/agent.py` 组装 Agent 时挂载对应工具集；
+3. 如涉及审批或计费，复用 `spring_agent/core/approval.py`、`spring_agent/core/hooks/billing.py` 的现有机制；
 4. 在前端 `frontend/js/pages/index/chatView.js` 的 `TOOL_META` 中补充图标、动词与目标字段，避免界面显示为裸工具名。
 
 贡献前请阅读 [AGENTS.md](./AGENTS.md) 的注释与数据库变更规范。
@@ -345,8 +345,8 @@ cd gateway && ./mvnw test    # 网关单元测试
 
 ## 社区
 
-- 提交问题：<https://github.com/Radiant303/spring-harness/issues>
-- 项目地址：<https://github.com/Radiant303/spring-harness>
+- 提交问题：<https://github.com/Radiant303/SpringAgent/issues>
+- 项目地址：<https://github.com/Radiant303/SpringAgent>
 
 反馈问题时请附上版本、部署方式、复现步骤及脱敏日志。欢迎贡献文档、翻译、渠道适配和有针对性的回归测试。
 

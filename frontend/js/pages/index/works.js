@@ -45,7 +45,7 @@ export async function loadWorks() {
     const fallback = works.find((w) => w.default_work) || works[0] || null;
     state.workId = fallback ? fallback.work_id : null;
   }
-  if (state.workId) localStorage.setItem("sh.workId", state.workId);
+  if (state.workId) localStorage.setItem("sa.workId", state.workId);
   renderWorks();
   updateWorkName();
 }
@@ -95,7 +95,7 @@ export function renderWorks() {
 export async function selectWork(workId) {
   if (workId === state.workId) return;
   state.workId = workId;
-  localStorage.setItem("sh.workId", workId);
+  localStorage.setItem("sa.workId", workId);
   renderWorks();
   updateWorkName();
   try {
@@ -150,7 +150,7 @@ export async function deleteWork(work) {
     await openWorkSession();
   } else {
     state.sessionId = null;
-    localStorage.removeItem("sh.sessionId");
+    localStorage.removeItem("sa.sessionId");
     clearMessages();
     await refreshSessionList();
     updateInputState();
