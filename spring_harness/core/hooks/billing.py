@@ -9,7 +9,7 @@ from contextlib import asynccontextmanager
 from copy import copy
 from typing import Any, TypeVar
 
-from pydantic_ai import ModelMessage, ModelResponse, RequestUsage, RunContext
+from pydantic_ai import ModelMessage, ModelResponse, RequestUsage, RunCancelled, RunContext
 from pydantic_ai.exceptions import ModelHTTPError
 from pydantic_ai.models import Model, ModelRequestParameters, StreamedResponse
 from pydantic_ai.models.wrapper import WrapperModel
@@ -17,6 +17,7 @@ from pydantic_ai.settings import ModelSettings
 
 from spring_harness.core.agent.deps import RequestUsageEntry
 from spring_harness.core.billing import BillingContext, BillingError
+from spring_harness.core.hooks.usage import count_native_web_searches, fill_missing_usage
 
 T = TypeVar("T")
 
@@ -67,16 +68,27 @@ class RequestBillingModel(WrapperModel):
             raise asyncio.CancelledError
 
     async def _settle(self, request_id: str, response: ModelResponse | None,
-                      error: BaseException | None, *, issued: bool = True) -> None:
+                      error: BaseException | None, *, issued: bool = True,
+                      messages: list[ModelMessage] | None = None,
+                      model_request_parameters: ModelRequestParameters | None = None) -> None:
         usage = copy(response.usage) if response is not None else RequestUsage()
         web_searches = getattr(response.usage, "web_searches", None) if response is not None else None
+        if response is not None and (type(web_searches) is not int or web_searches < 0):
+            web_searches = response.usage.details.get("web_search_requests")
         if type(web_searches) is not int or web_searches < 0:
             web_searches = None
-        reported = any((usage.input_tokens, usage.output_tokens, usage.cache_read_tokens,
-                        usage.cache_write_tokens))
         known_rejection = isinstance(error, ModelHTTPError) and 400 <= error.status_code < 500
-        usage_known = reported or not issued or known_rejection
-        status = "cancelled" if isinstance(error, asyncio.CancelledError) else "error" if error else "finished"
+        if response is not None and issued and not known_rejection:
+            if messages is not None and model_request_parameters is not None:
+                usage = fill_missing_usage(usage, response, messages, model_request_parameters)
+            if web_searches is None:
+                web_searches = count_native_web_searches(response)
+        has_usage = any((usage.input_tokens, usage.output_tokens, usage.cache_read_tokens,
+                         usage.cache_write_tokens))
+        usage_known = has_usage or not issued or known_rejection
+        interrupted = response is not None and response.state == "interrupted"
+        cancelled_status = isinstance(error, asyncio.CancelledError | RunCancelled) or (error is None and interrupted)
+        status = "cancelled" if cancelled_status else "error" if error else "finished"
         if response is not None:
             self.usage_log.append(RequestUsageEntry(model_id=self.catalog_model_id, usage=usage))
         if self.billing is None:
@@ -107,7 +119,10 @@ class RequestBillingModel(WrapperModel):
             error = exc
             raise
         finally:
-            await self._settle(request_id, response, error)
+            await self._settle(
+                request_id, response, error, messages=messages,
+                model_request_parameters=model_request_parameters,
+            )
 
     @asynccontextmanager
     async def request_stream(self, messages: list[ModelMessage], model_settings: ModelSettings | None,
@@ -128,4 +143,7 @@ class RequestBillingModel(WrapperModel):
             error = exc
             raise
         finally:
-            await self._settle(request_id, response, error)
+            await self._settle(
+                request_id, response, error, messages=messages,
+                model_request_parameters=model_request_parameters,
+            )

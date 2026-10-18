@@ -22,6 +22,7 @@ dependencies = [
     "redis>=5.0",
     "sqlalchemy>=2.0",
     "tavily-python==0.8.5",
+    "tiktoken>=0.14",
     "uvicorn[standard]>=0.52.3",
 ]
 

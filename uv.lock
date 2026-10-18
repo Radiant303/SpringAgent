@@ -2297,6 +2297,7 @@ dependencies = [
     { name = "redis" },
     { name = "sqlalchemy" },
     { name = "tavily-python" },
+    { name = "tiktoken" },
     { name = "uvicorn", extra = ["standard"] },
 ]
 
@@ -2324,6 +2325,7 @@ requires-dist = [
     { name = "redis", specifier = ">=5.0" },
     { name = "sqlalchemy", specifier = ">=2.0" },
     { name = "tavily-python", specifier = "==0.8.5" },
+    { name = "tiktoken", specifier = ">=0.14" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.52.3" },
 ]
 
