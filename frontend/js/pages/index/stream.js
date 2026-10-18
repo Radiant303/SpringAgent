@@ -49,6 +49,14 @@ import { notifyStorageChanged } from "../../utils/storage.js";
 
 export const USAGE_RING_LEN = 56.5;
 
+function settleFinishedTools() {
+  for (const card of state.tools.values()) {
+    if (!card.finishDeferred) continue;
+    card.finishDeferred = false;
+    setToolStatus(card, "done");
+  }
+}
+
 export async function refreshPoints() {
   const value = $("points-value");
   const token = getToken();
@@ -173,6 +181,7 @@ export function onSessionEvent(sid, event, seq) {
   hidePending();
   switch (event.kind) {
     case "text_delta": {
+      settleFinishedTools();
       const a = ensureAssistant();
       if (!a.text) setActive(null);
       a.text += event.text;
@@ -181,6 +190,7 @@ export function onSessionEvent(sid, event, seq) {
       break;
     }
     case "thinking_delta": {
+      settleFinishedTools();
       const group = ensureWork();
       if (!state.thinking) {
         state.thinking = thinkingNode("");
@@ -193,6 +203,7 @@ export function onSessionEvent(sid, event, seq) {
       break;
     }
     case "tool_started": {
+      settleFinishedTools();
       const group = ensureWork();
       state.thinking = null;
       const card = buildToolCard(event.tool_name, event.tool_call_id);
@@ -245,7 +256,8 @@ export function onSessionEvent(sid, event, seq) {
       const card = state.tools.get(event.tool_call_id);
       if (card) {
         card.pending.classList.add("hidden");
-        setToolStatus(card, event.is_error ? "error" : "done");
+        if (event.is_error) setToolStatus(card, "error");
+        else card.finishDeferred = true;
         card.result.textContent = event.result;
         card.result.classList.remove("hidden");
         card.result.classList.toggle("error", !!event.is_error);
