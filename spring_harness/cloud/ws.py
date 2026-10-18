@@ -55,6 +55,7 @@ class CloudAppServer(AppServer):
         self._connection_id = connection_id or uuid.uuid4().hex
         self._owned_sessions: set[str] = set()
         self._control_tokens: dict[str, str] = {}
+        self.selected_session_id: str | None = None
         self._routes.update({
             "initialize": (None, self._initialize),
             "session/status": (SessionParams, self._session_status),
@@ -86,7 +87,15 @@ class CloudAppServer(AppServer):
 
     async def handle_request(self, method: str, params: dict):
         self._check_connection()
-        return await super().handle_request(method, params)
+        registry = get_registry()
+        session_id = params.get("sessionId")
+        handle = (registry.get(session_id)
+                  if registry is not None and isinstance(session_id, str)
+                  and self._active_owners.get(session_id) is self else None)
+        if handle is None:
+            return await super().handle_request(method, params)
+        with handle.use():
+            return await super().handle_request(method, params)
 
     def _check_connection(self) -> None:
         if self._shutting_down:
@@ -159,6 +168,10 @@ class CloudAppServer(AppServer):
             owner._track(asyncio.create_task(owner._notify_replaced(session_id)))
         if self._active_owners.get(session_id) is not self:
             self._control_tokens[session_id] = uuid.uuid4().hex
+        previous = registry.get(self.selected_session_id) if self.selected_session_id is not None else None
+        if previous is not None:
+            previous.touch()
+        self.selected_session_id = session_id
         self._active_owners[session_id] = self
         self._owned_sessions.add(session_id)
         handle.remember_user(self._user_id)
@@ -170,6 +183,8 @@ class CloudAppServer(AppServer):
         handle = registry.get(session_id) if registry is not None else None
         if handle is not None and handle.approval_target is self:
             handle.set_approval_target(None)
+        if self.selected_session_id == session_id:
+            self.selected_session_id = None
         self._release(session_id)
         self._sessions.pop(session_id, None)
 

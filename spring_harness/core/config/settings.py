@@ -3,7 +3,7 @@ import tomllib
 from pathlib import Path
 from typing import Any, Self
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 STATE_DIR = ".springharness"
 CONFIG_PATH = Path(os.environ.get(
@@ -61,6 +61,12 @@ class Cloud(ConfigBase):
     port: int = 15900
     rabbitmq_url: str = "amqp://guest:guest@127.0.0.1:20900/"
     redis_url: str = "redis://127.0.0.1:19900/0"
+    # 后台空闲会话的保留时长，单位为秒。
+    session_idle_ttl_seconds: float = Field(default=600, gt=0, allow_inf_nan=False)
+    # 可回收空闲会话的缓存数量上限。
+    session_max_idle_handles: int = Field(default=128, ge=1)
+    # 空闲会话的扫描间隔，单位为秒。
+    session_sweep_interval_seconds: float = Field(default=30, gt=0, allow_inf_nan=False)
     gateway_base_url: str = "http://127.0.0.1:16900"
     internal_token: str = "springharness-internal-dev-token-0123456789"
 

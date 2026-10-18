@@ -17,5 +17,11 @@ host = "0.0.0.0"
 port = 15900
 rabbitmq_url = "amqp://guest:guest@127.0.0.1:20900/"
 redis_url = "redis://127.0.0.1:19900/0"
+# 后台空闲会话的保留时长，单位为秒。
+session_idle_ttl_seconds = 600
+# 可回收空闲会话的缓存数量上限。
+session_max_idle_handles = 128
+# 空闲会话的扫描间隔，单位为秒。
+session_sweep_interval_seconds = 30
 gateway_base_url = "http://127.0.0.1:16900"
 internal_token = "springharness-internal-dev-token-0123456789"

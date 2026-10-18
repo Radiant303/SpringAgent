@@ -4,6 +4,9 @@ from __future__ import annotations
 
 import asyncio
 import json
+import time
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -65,6 +68,11 @@ class CloudSessionHandle:
         self._tasks: set[asyncio.Task] = set()
         self._turn_pending = False
         self._cancel_pending = False
+        self._pending_finishes = 0
+        self._users = 0
+        self._last_used = time.monotonic()
+        self._closed = False
+        self._fanout_active = False
         # 最近见到该会话的用户 ID：lifecycle 事件归属的兜底
         self._last_user_id: int | None = None
         self._fanout_task = self._track(asyncio.create_task(self._fanout_loop()))
@@ -77,9 +85,36 @@ class CloudSessionHandle:
     def approval_target(self) -> AppServer | None:
         return self._approval_target
 
+    @property
+    def last_used(self) -> float:
+        return self._last_used
+
+    @property
+    def idle(self) -> bool:
+        return not (self._closed or self.busy or self._users or self._pending_finishes
+                    or self._fanout_active or any(
+                        task is not self._fanout_task and not task.done() for task in self._tasks
+                    ))
+
+    def touch(self) -> None:
+        self._last_used = time.monotonic()
+
+    @contextmanager
+    def use(self) -> Iterator[None]:
+        if self._closed:
+            raise JsonRpcError(SESSION_NOT_FOUND, "会话已释放，请重新选择会话")
+        self._users += 1
+        self.touch()
+        try:
+            yield
+        finally:
+            self._users -= 1
+            self.touch()
+
     # ---- 连接挂载/卸载 ----
 
     def set_approval_target(self, server: AppServer | None) -> None:
+        self.touch()
         self._approval_target = server
         if server is not None and self._parked_requests:
             parked, self._parked_requests = self._parked_requests, []
@@ -101,14 +136,19 @@ class CloudSessionHandle:
     def start_turn(
         self, text: str, *, turn_id: str | None = None, user_id: int | None = None,
     ) -> None:
+        if self._closed:
+            raise JsonRpcError(SESSION_NOT_FOUND, "会话已释放，请重新选择会话")
         if self.busy:
             raise JsonRpcError(BUSY, "上一轮还没结束")
         self.remember_user(user_id)
+        self.touch()
         self._turn_pending = True
+        self._pending_finishes += 1
         self._cancel_pending = False
         self._track(asyncio.create_task(self._run(text, turn_id=turn_id, user_id=user_id)))
 
     def cancel_turn(self) -> None:
+        self.touch()
         if self._turn_pending and not self.session.busy:
             self._cancel_pending = True
         self.session.cancel()
@@ -117,14 +157,21 @@ class CloudSessionHandle:
         try:
             if self._cancel_pending:
                 event = TurnFinished(cancelled=True, turn_id=turn_id, user_id=user_id)
-                await self._write_stream(event)
-                await self._publish_lifecycle(event)
+                try:
+                    await self._write_stream(event)
+                    await self._publish_lifecycle(event)
+                finally:
+                    self._pending_finishes = max(0, self._pending_finishes - 1)
                 return
             await self.session.run_turn(text, turn_id=turn_id, user_id=user_id)
         except Exception:
+            self._pending_finishes = max(0, self._pending_finishes - 1)
             logger.exception("会话 {} 的轮次异常", self.session_id)
         finally:
             self._turn_pending = False
+            if self._fanout_task.done():
+                self._pending_finishes = 0
+            self.touch()
 
     # ---- 事件扇出 ----
 
@@ -136,16 +183,33 @@ class CloudSessionHandle:
     async def _fanout_loop(self) -> None:
         try:
             async for event in self.session.events():
-                if isinstance(event, (ApprovalRequest, QuestionRequest)):
-                    await self._route_request(event)
-                else:
-                    await self._write_stream(event)
+                self._fanout_active = True
+                try:
+                    if isinstance(event, (ApprovalRequest, QuestionRequest)):
+                        await self._route_request(event)
+                    else:
+                        try:
+                            await self._write_stream(event)
+                        finally:
+                            if isinstance(event, TurnFinished):
+                                await self._publish_lifecycle(event)
+                except Exception:
+                    logger.exception("会话 {} 的事件处理失败", self.session_id)
+                finally:
                     if isinstance(event, TurnFinished):
-                        await self._publish_lifecycle(event)
+                        self._pending_finishes = max(0, self._pending_finishes - 1)
+                        self._parked_requests.clear()
+                    self._fanout_active = False
+                    self.touch()
         except asyncio.CancelledError:
             raise
-        except Exception:  # noqa: BLE001 扇出是长驻任务：任何意外只记日志，不让任务静默死掉
+        except Exception:
             logger.exception("会话 {} 的事件扇出异常退出", self.session_id)
+        finally:
+            self._pending_finishes = 0
+            self._fanout_active = False
+            self._parked_requests.clear()
+            self.touch()
 
     async def _route_request(self, event: ApprovalRequest | QuestionRequest) -> None:
         target = self._approval_target
@@ -194,25 +258,130 @@ class CloudSessionHandle:
         except Exception:  # noqa: BLE001 生命周期回传失败不影响事件流
             logger.exception("turn 生命周期事件发布失败: session={}", self.session_id)
 
-    # ---- 关闭（进程退出时调用） ----
-
     async def close(self) -> None:
-        self._fanout_task.cancel()
-        for task in tuple(self._tasks):
+        self._closed = True
+        self._approval_target = None
+        self._parked_requests.clear()
+        tasks = tuple(self._tasks)
+        for task in tasks:
             task.cancel()
-        if self._tasks:
-            await asyncio.gather(*self._tasks, return_exceptions=True)
+        if tasks:
+            await asyncio.gather(*tasks, return_exceptions=True)
+        self._tasks.clear()
         await self.session.close()
 
 
 class CloudSessionRegistry:
-    """进程级会话表：session_id → CloudSessionHandle。"""
+    """进程级会话运行时缓存。
 
-    def __init__(self, redis: aioredis.Redis | None) -> None:
+    @author hanbing
+    @since 2026-10-18
+    """
+
+    def __init__(
+        self, redis: aioredis.Redis | None, *, idle_ttl: float | None = None,
+        max_idle_handles: int | None = None, sweep_interval: float | None = None,
+    ) -> None:
+        from spring_harness.core.config.settings import config
+
+        idle_ttl = config.cloud.session_idle_ttl_seconds if idle_ttl is None else idle_ttl
+        max_idle_handles = (config.cloud.session_max_idle_handles
+                            if max_idle_handles is None else max_idle_handles)
+        sweep_interval = (config.cloud.session_sweep_interval_seconds
+                          if sweep_interval is None else sweep_interval)
+        if not 0 < idle_ttl < float("inf") or max_idle_handles < 1 \
+                or not 0 < sweep_interval < float("inf"):
+            raise ValueError("会话空闲超时和回收间隔必须为有限正数，缓存容量必须为正数")
         self._redis = redis
+        self._idle_ttl = idle_ttl
+        self._max_idle_handles = max_idle_handles
+        self._sweep_interval = sweep_interval
         self._handles: dict[str, CloudSessionHandle] = {}
         self._deletions: dict[str, tuple[int, str, AppServer | None]] = {}
         self._create_lock = asyncio.Lock()
+        self._sweep_task: asyncio.Task | None = None
+        self._cleanup_tasks: set[asyncio.Task] = set()
+        self._closed = False
+
+    def start(self) -> None:
+        if self._closed:
+            raise RuntimeError("会话注册表已关闭")
+        if self._sweep_task is None:
+            self._sweep_task = asyncio.create_task(self._sweep_loop())
+
+    async def _sweep_loop(self) -> None:
+        while True:
+            await asyncio.sleep(self._sweep_interval)
+            try:
+                await self.evict_idle()
+            except Exception:
+                logger.exception("空闲会话回收失败")
+
+    async def evict_idle(self) -> int:
+        async with self._create_lock:
+            retired = self._retire_idle_locked()
+            cleanup = self._start_cleanup(retired)
+        if cleanup is not None:
+            await asyncio.shield(cleanup)
+        return len(retired)
+
+    def _retire_idle_locked(
+        self, keep: CloudSessionHandle | None = None,
+    ) -> list[tuple[CloudSessionHandle, AppServer | None]]:
+        from spring_harness.cloud.ws import CloudAppServer
+
+        now = time.monotonic()
+        idle = sorted((handle for handle in self._handles.values()
+                       if handle.idle and not (
+                           isinstance(handle.approval_target, CloudAppServer)
+                           and handle.approval_target.selected_session_id == handle.session_id
+                       )), key=lambda handle: handle.last_used)
+        expired = {handle for handle in idle
+                   if handle is not keep and now - handle.last_used >= self._idle_ttl}
+        excess = max(0, len(idle) - len(expired) - self._max_idle_handles)
+        for handle in idle:
+            if not excess:
+                break
+            if handle is not keep and handle not in expired:
+                expired.add(handle)
+                excess -= 1
+        retired = []
+        for handle in idle:
+            if handle not in expired:
+                continue
+            owner = CloudAppServer.unmount_session(handle.session_id)
+            self._handles.pop(handle.session_id)
+            retired.append((handle, owner))
+        return retired
+
+    def _start_cleanup(
+        self, retired: list[tuple[CloudSessionHandle, AppServer | None]],
+    ) -> asyncio.Task | None:
+        if not retired:
+            return None
+        task = asyncio.create_task(self._release_retired(retired))
+        self._cleanup_tasks.add(task)
+        task.add_done_callback(self._cleanup_tasks.discard)
+        return task
+
+    async def _release_retired(
+        self, retired: list[tuple[CloudSessionHandle, AppServer | None]],
+    ) -> None:
+        async def release(handle: CloudSessionHandle, owner: AppServer | None) -> None:
+            try:
+                await handle.close()
+            except Exception:
+                logger.exception("空闲会话关闭失败: {}", handle.session_id)
+            if owner is not None and handle.session_id not in owner._sessions:
+                try:
+                    await asyncio.wait_for(owner._connection.send_notification(
+                        "session/invalidated", {"sessionId": handle.session_id, "deleted": False},
+                    ), timeout=5)
+                except Exception:
+                    logger.debug("空闲会话释放通知发送失败: {}", handle.session_id)
+
+        await asyncio.gather(*(release(handle, owner) for handle, owner in retired))
+        logger.info("已回收空闲会话: {}", len(retired))
 
     def get(self, session_id: str) -> CloudSessionHandle | None:
         return self._handles.get(session_id)
@@ -224,6 +393,8 @@ class CloudSessionRegistry:
         if session_id != store.session_id:
             raise JsonRpcError(SESSION_NOT_FOUND, "未知会话")
         async with self._create_lock:
+            if self._closed:
+                raise JsonRpcError(SESSION_NOT_FOUND, "会话服务已关闭")
             if session_id in self._deletions:
                 raise JsonRpcError(BUSY, "会话正在删除，请稍后重试")
             from spring_harness.cloud.db import SessionRow, get_sessionmaker
@@ -240,6 +411,7 @@ class CloudSessionRegistry:
             if handle is not None:
                 if handle.file_access != access:
                     raise JsonRpcError(SESSION_NOT_FOUND, "未知会话")
+                handle.touch()
                 return handle
             check_path(access.workspace_root, directory=True)
             check_path(access.knowledge_root, directory=True)
@@ -259,6 +431,7 @@ class CloudSessionRegistry:
             )
             handle = CloudSessionHandle(session, self._redis, access=access)
             self._handles[session_id] = handle
+            self._start_cleanup(self._retire_idle_locked(keep=handle))
             logger.info("云端会话已注册: {}", session_id)
             return handle
 
@@ -276,6 +449,8 @@ class CloudSessionRegistry:
                     raise JsonRpcError(SESSION_NOT_FOUND, "未知会话")
                 if handle.busy:
                     raise JsonRpcError(BUSY, "会话正在运行，请结束当前任务后删除")
+                if not handle.idle:
+                    raise JsonRpcError(BUSY, "会话操作尚未完成，请稍后重试删除")
                 workspace = handle.file_access.workspace_root
             else:
                 workspace = await asyncio.to_thread(self._workspace_for, session_id, user_id)
@@ -315,17 +490,30 @@ class CloudSessionRegistry:
                 logger.debug("会话释放通知发送失败: {}", session_id)
 
     def active_count_in_work(self, work_id: str) -> int:
-        """进程内该 work 下"活跃"的会话数：有连接挂载或 turn 在跑即活跃，
-        仅注册可续传的会话不算（否则删除入口会被永远堵死）。"""
+        """统计项目内已挂载或仍在使用的会话数。"""
         return sum(
             1 for handle in self._handles.values()
             if handle.work_id == work_id
-            and (handle.approval_target is not None or handle.busy)
+            and (handle.approval_target is not None or not handle.idle)
         )
 
     async def close_all(self) -> None:
-        handles, self._handles = list(self._handles.values()), {}
-        await asyncio.gather(*(h.close() for h in handles), return_exceptions=True)
+        from spring_harness.cloud.ws import CloudAppServer
+
+        self._closed = True
+        if self._sweep_task is not None:
+            self._sweep_task.cancel()
+            await asyncio.gather(self._sweep_task, return_exceptions=True)
+            self._sweep_task = None
+        async with self._create_lock:
+            handles = list(self._handles.values())
+            for handle in handles:
+                CloudAppServer.unmount_session(handle.session_id)
+            self._handles.clear()
+            self._start_cleanup([(handle, None) for handle in handles])
+            pending = tuple(self._cleanup_tasks)
+        if pending:
+            await asyncio.shield(asyncio.gather(*pending, return_exceptions=True))
 
 
 _registry: CloudSessionRegistry | None = None

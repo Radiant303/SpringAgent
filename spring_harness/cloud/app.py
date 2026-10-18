@@ -88,8 +88,13 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
                             data_root / "billing-outbox.sqlite3")
     await billing.start()
     set_billing_client(billing)
-    registry = CloudSessionRegistry(redis_client)
+    registry = CloudSessionRegistry(
+        redis_client, idle_ttl=config.cloud.session_idle_ttl_seconds,
+        max_idle_handles=config.cloud.session_max_idle_handles,
+        sweep_interval=config.cloud.session_sweep_interval_seconds,
+    )
     set_registry(registry)
+    registry.start()
 
     dispatcher = TurnDispatcher(config.cloud.rabbitmq_url)
 
@@ -133,10 +138,10 @@ def create_app() -> FastAPI:
         return FileResponse(DEFAULT_FRONTEND_DIR / "index.html")
 
     @app.get("/internal/works/{work_id}/active-sessions")
-    def active_sessions(
+    async def active_sessions(
         work_id: str, x_internal_token: str | None = Header(default=None),
     ) -> dict[str, int]:
-        """网关删除 work 前的活跃校验：进程内注册（含在跑的 turn）即活跃。"""
+        """查询项目内已挂载或仍在使用的会话数。"""
         if x_internal_token != config.cloud.internal_token:
             raise HTTPException(status_code=401, detail="未认证")
         registry = get_registry()
