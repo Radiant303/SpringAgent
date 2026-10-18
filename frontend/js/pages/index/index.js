@@ -354,6 +354,7 @@ export function bind() {
 
   if ($("approval-approve")) $("approval-approve").onclick = () => settleApproval(true);
   if ($("approval-reject")) $("approval-reject").onclick = () => settleApproval(false);
+  if ($("approval-close")) $("approval-close").onclick = () => settleApproval(false);
   if ($("question-cancel")) $("question-cancel").onclick = () => settleQuestion(null);
   if ($("question-close")) $("question-close").onclick = () => settleQuestion(null);
   if ($("question-submit")) {
@@ -374,6 +375,7 @@ export function bind() {
   const input = $("input");
   if (input) {
     input.addEventListener("keydown", (e) => {
+      if ($("input-card")?.classList.contains("hidden")) return;
       if (e.key === "Enter" && !e.shiftKey && !e.isComposing) {
         e.preventDefault();
         send();
@@ -395,6 +397,15 @@ export function bind() {
       if (n >= 1 && n <= btns.length) btns[n - 1].click();
       else if (n === btns.length + 1 && $("question-custom-row") && !$("question-custom-row").classList.contains("hidden")) {
         $("question-custom")?.focus();
+      }
+      return;
+    }
+    const aCard = $("approval-card");
+    if (aCard && !aCard.classList.contains("hidden")) {
+      if (e.key === "Escape") { e.preventDefault(); settleApproval(false); return; }
+      if (e.key === "Enter" && !e.isComposing && e.target.tagName !== "BUTTON") {
+        e.preventDefault();
+        settleApproval(true);
       }
       return;
     }

@@ -28,7 +28,7 @@ function updateAttention(sid) {
 }
 
 function hideCards() {
-  $("approval-modal")?.classList.add("hidden");
+  $("approval-card")?.classList.add("hidden");
   $("question-card")?.classList.add("hidden");
   $("input-card")?.classList.remove("hidden");
 }
@@ -99,7 +99,11 @@ export function drainPendingFor(sid) {
 
 function showApproval(params) {
   const target = targetFromArgs(params.args, params.toolName);
-  if ($("approval-tool")) $("approval-tool").textContent = [toolMeta(params.toolName).verb, target].filter(Boolean).join(" · ");
+  const label = [toolMeta(params.toolName).verb, target].filter(Boolean).join(" · ");
+  if ($("approval-tool")) {
+    $("approval-tool").textContent = label;
+    $("approval-tool").title = label;
+  }
   if ($("approval-args")) $("approval-args").textContent = JSON.stringify(params.args ?? {}, null, 2);
   const diffEl = $("approval-diff");
   if (diffEl) {
@@ -111,7 +115,9 @@ function showApproval(params) {
       diffEl.textContent = "";
     }
   }
-  $("approval-modal")?.classList.remove("hidden");
+  $("input-card")?.classList.add("hidden");
+  $("approval-card")?.classList.remove("hidden");
+  $("approval-card")?.focus({ preventScroll: true });
 }
 
 function showQuestion(params, custom = "") {

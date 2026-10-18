@@ -247,21 +247,24 @@
             <button id="question-submit" class="btn-primary">提交 <span class="q-kbd">Enter</span></button>
           </div>
         </div>
+
+        <!-- 工具审批卡：与提问卡一致，顶替输入卡片的位置 -->
+        <div id="approval-card" class="hidden" tabindex="-1">
+          <div id="approval-head">
+            <span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v5.5c0 4.3-2.9 7.9-7 9.5-4.1-1.6-7-5.2-7-9.5V6z"/><path d="m9 12 2 2 4-4"/></svg></span>
+            <span id="approval-tool"></span>
+            <span class="spacer"></span>
+            <button id="approval-close" class="icon-btn" title="拒绝 (Esc)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+          </div>
+          <pre id="approval-args"></pre>
+          <pre id="approval-diff" class="diff hidden"></pre>
+          <div id="approval-actions">
+            <button id="approval-reject">拒绝 <span class="q-kbd">Esc</span></button>
+            <button id="approval-approve" class="btn-primary">批准 <span class="q-kbd">Enter</span></button>
+          </div>
+        </div>
       </footer>
     </main>
-  </div>
-
-  <div id="approval-modal" class="modal hidden">
-    <div class="modal-box">
-      <h3>工具审批</h3>
-      <div class="modal-row"><span class="modal-label">工具</span><span id="approval-tool"></span></div>
-      <pre id="approval-args" class="modal-pre"></pre>
-      <pre id="approval-diff" class="modal-pre diff hidden"></pre>
-      <div class="modal-actions">
-        <button id="approval-reject" class="btn-danger">拒绝</button>
-        <button id="approval-approve" class="btn-primary">批准</button>
-      </div>
-    </div>
   </div>
 
   <script src="/static/vendor/marked.min.js"></script>
