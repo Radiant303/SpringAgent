@@ -40,8 +40,8 @@ class Model(ConfigBase):
 class LoopControl(ConfigBase):
     max_retries_per_step: int = 3
     reserved_context_size: int = 50000
-    # 单次运行的模型请求上限（pydantic-ai 默认 50）
-    request_limit: int = 50
+    # 单次运行的模型请求上限
+    request_limit: int = 120
 
 
 class Log(ConfigBase):
