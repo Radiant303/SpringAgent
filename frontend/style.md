@@ -292,7 +292,7 @@ body.login-page { display: flex; flex-direction: column; min-height: 100vh; back
 // 确认（危险操作）
 const ok = await UI.confirm({
   title: "删除项目",
-  message: `确定删除「${name}」吗？\n其工作区目录与全部会话数据会被物理删除，不可恢复。`,
+  message: `确定删除「${name}」吗？\n删除后工作区与会话数据将被清理，不可恢复。`,
   okText: "删除",
   danger: true,
   submit: () => api(`/api/works/${id}`, { method: "DELETE" }),  // 在框内提交，失败时错误显示在框内
