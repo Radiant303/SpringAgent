@@ -60,7 +60,7 @@ def reviewer(root_dir: str, parent_model_id: str, effort: str | None = None,
         agent=Agent(
             model,
             name='reviewer',
-            description='只读审查当前项目代码，向主 Agent 提供缺陷、边界遗漏和风险证据的子代理。',
+            description='只读审查当前项目代码，向主 Agent 提供缺陷、边界遗漏和风险证据的子代理；仅在用户主动要求审查时使用。',
             instructions=(
                 '审查主 Agent 指定的代码，先读相关文件再下结论。'
                 '将每条意见的文件路径、行号、问题原因和修改建议返回主 Agent，'
@@ -89,7 +89,9 @@ class _ProjectSubAgents(SubAgents[CodingAgentDeps]):
         if isinstance(instructions, str):
             return instructions.replace(
                 'Each runs in its own fresh context and does not see this conversation, so pass everything it needs.',
-                'Each starts with a fresh context; include the goal, relevant facts, and expected result in the task.',
+                'Each starts with a fresh context; include the goal, relevant facts, and expected result in the task. '
+                'Invoke `reviewer` only when the user explicitly asks for a review or names the review agent; '
+                'do not start a review on your own initiative.',
             )
         return instructions
 
