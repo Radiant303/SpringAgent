@@ -2,7 +2,7 @@
  * 实时事件流调度与处理
  */
 
-import { $, el, hidePending, markScrolling, icon } from "../../utils/dom.js";
+import { $, el, hidePending, appendKeepingBottom, icon } from "../../utils/dom.js";
 import { getToken } from "../../api/auth.js";
 import { rpc } from "../../api/rpc.js";
 import { setMarkdown } from "../../utils/markdown.js";
@@ -188,12 +188,7 @@ export function onSessionEvent(sid, event, seq) {
         setActive(state.thinking);
       }
       const body = state.thinking.querySelector(".thinking-body");
-      const atBottom = body.scrollHeight - body.scrollTop - body.clientHeight < 40;
-      body.textContent += event.text;
-      if (atBottom) {
-        body.scrollTop = body.scrollHeight;
-        markScrolling(body);
-      }
+      appendKeepingBottom(body, event.text);
       maybeScroll();
       break;
     }
@@ -210,7 +205,7 @@ export function onSessionEvent(sid, event, seq) {
     case "tool_args_delta": {
       const card = state.tools.get(event.tool_call_id);
       if (card) {
-        card.args.textContent += event.args_chunk;
+        appendKeepingBottom(card.args, event.args_chunk);
         const args = parseArgs(card.args.textContent);
         const target = args ? targetFromArgs(args, card.name) : targetFromPartial(card.args.textContent, card.name);
         if (target !== card.target) {

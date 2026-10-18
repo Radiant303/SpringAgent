@@ -39,6 +39,15 @@ export function markScrolling(element) {
   }, 900);
 }
 
+export function appendKeepingBottom(element, text, threshold = 40) {
+  const atBottom = element.scrollHeight - element.scrollTop - element.clientHeight < threshold;
+  element.textContent += text;
+  if (atBottom) {
+    element.scrollTop = element.scrollHeight;
+    markScrolling(element);
+  }
+}
+
 export function showPending(container) {
   hidePending();
   const parent = container || $("messages");
