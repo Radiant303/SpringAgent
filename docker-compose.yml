@@ -35,7 +35,7 @@ services:
       --performance-schema=OFF
       --innodb-buffer-pool-size=64M
       --innodb-log-buffer-size=8M
-      --innodb-redo-log-capacity=32M
+      --innodb-redo-log-capacity=128M
       --max-connections=50
       --table-open-cache=200
       --thread-cache-size=10
