@@ -83,6 +83,7 @@ services:
       - /bin/sh
       - -ec
       - |
+        umask 022
         echo 'SpringAgent：开始数据库迁移。'
         if alembic upgrade head; then
           echo 'SpringAgent：数据库迁移成功，启动应用。'
@@ -90,6 +91,12 @@ services:
           status=$$?
           echo 'SpringAgent：数据库迁移失败，应用未启动。' >&2
           exit "$$status"
+        fi
+        # 共享卷由另一容器以非 root 用户分发工作区文件
+        chmod a+rx /data/cloud
+        if [ -d /data/cloud/works ]; then
+          chmod a+rx /data/cloud/works
+          chmod -R a+rX /data/cloud/works/
         fi
         exec python /app/start.py
     environment:
