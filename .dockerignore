@@ -15,6 +15,7 @@ gateway/target
 gateway/.idea
 logs
 backups
+certs
 *.db
 *.sqlite3
 config.toml

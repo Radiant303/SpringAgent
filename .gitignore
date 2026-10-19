@@ -8,6 +8,7 @@ test*
 config.toml
 logs/app.log
 /backups/
+/certs/
 codex/
 plan.db
 teaching.db

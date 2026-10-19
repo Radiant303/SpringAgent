@@ -158,7 +158,112 @@ docker compose logs --tail=100 springagent
 
 浏览器访问 `http://服务器IP:17900`；本机部署访问 `http://localhost:17900`。远程访问时需允许网页端口通过服务器防火墙或云安全组。
 
-首次注册的账号成为站长。登录后台后，配置模型服务商、API Key、模型及默认模型，再按需配置积分资费、邮箱和搜索服务。公网正式使用建议在前面再加一层 HTTPS 反向代理。
+首次注册的账号成为站长。登录后台后，配置模型服务商、API Key、模型及默认模型，再按需配置积分资费、邮箱和搜索服务。
+
+### 域名与 HTTPS（可选）
+
+默认配置可直接通过 `http://服务器IP:17900` 使用。需要域名或 HTTPS 时，按下面三种方式选择一种；均使用项目自带的 Nginx，无需额外安装或编辑 Nginx 配置。
+
+以下配置均修改 `docker-compose.yml` 顶部 `x-settings` 中的对应项，不要替换整个 `x-settings`，其余账号、密码和密钥保持原值。示例中的域名和 IP 请替换为自己的实际值。
+
+#### 方式一：HTTP＋域名
+
+不需要证书，适合只想通过域名访问 HTTP 的用户。
+
+1. 把域名的 A/AAAA 记录指向服务器，放行 **80** 端口，并确保端口未被其他程序占用。
+2. 修改配置：
+
+   ```yaml
+   web-ports: &web-ports ["80:80"]
+   https-domain: &https-domain ""
+   ```
+
+3. 按下方「应用配置」启动或重建 Nginx，然后访问 `http://agent.example.com`。
+
+#### 方式二：只用 HTTPS，通过 IP 访问
+
+不需要域名，但仍然需要证书。以下以服务器公网 IPv4 地址 `203.0.113.10` 为例，只对外开放 **443** 端口。
+
+**1. 准备 IP 证书。**
+
+在部署目录执行 `mkdir -p certs`，将包含该 IP 地址的证书和私钥分别放入 `certs/fullchain.pem`、`certs/privkey.pem`。证书的 SAN（使用者可选名称）必须包含实际 IP，不能直接拿域名证书代替。
+
+没有可信 IP 证书时，可以在已安装 OpenSSL 的服务器上生成自签名证书，用于自用或测试：
+
+```bash
+SERVER_IP="203.0.113.10"
+mkdir -p certs &&
+(umask 077; openssl req -x509 -nodes -newkey rsa:2048 -days 365 \
+  -keyout certs/privkey.pem \
+  -out certs/fullchain.pem \
+  -subj "/CN=${SERVER_IP}" \
+  -addext "subjectAltName=IP:${SERVER_IP}")
+```
+
+> 自签名证书只提供加密，不会自动获得浏览器信任，访问时会出现安全警告；部分客户端会拒绝连接。若要正常通过证书校验，需在客户端安装并信任该证书，或使用受信任机构签发的 IP 证书。公网正式使用推荐方式三。已有证书时不要执行生成命令，以免覆盖。
+
+**2. 修改配置并放行 443 端口。**
+
+```yaml
+web-ports: &web-ports ["443:443"]
+https-domain: &https-domain "203.0.113.10"
+certificate-directory: &certificate-directory "./certs"
+```
+
+这里的 `https-domain` 也可以填写 IPv4 地址，不含协议、端口或路径。确保 443 端口未被其他程序占用。
+
+**3. 应用配置后访问 `https://203.0.113.10`。**
+
+此方式不对外开放 HTTP。如需 HTTP 自动跳转到 HTTPS，将 `web-ports` 改为 `["80:80", "443:443"]`，并同时放行 80 端口。
+
+#### 方式三：HTTPS＋域名
+
+适合公网正式部署，使用与域名匹配的受信任证书。
+
+**1. 准备域名和证书。**
+
+把域名的 A/AAAA 记录指向服务器，放行 **80、443** 端口，并确保端口未被其他程序占用。在部署目录执行 `mkdir -p certs`，放入该域名的证书和私钥：
+
+```text
+springagent/
+├── docker-compose.yml
+└── certs/
+    ├── fullchain.pem
+    └── privkey.pem
+```
+
+**2. 修改配置。**
+
+```yaml
+web-ports: &web-ports ["80:80", "443:443"]
+https-domain: &https-domain "agent.example.com"
+certificate-directory: &certificate-directory "./certs"
+```
+
+`https-domain` 只填域名，不含 `https://`、端口或路径。证书在其他目录时，修改 `certificate-directory` 即可。
+
+**3. 应用配置后访问 `https://agent.example.com`。**
+
+HTTP 会自动跳转到 HTTPS；WebSocket、文件上传和下载已内置配置。
+
+#### 应用配置与证书更新
+
+三种方式都使用同一套启动命令。首次部署按上面的快速开始启动；已经部署的，只需重建 Nginx：
+
+```bash
+docker compose up -d --no-deps --force-recreate nginx
+```
+
+HTTPS 证书需自行申请并续期；请放入实际文件，不要使用指向证书目录外的软链接。私钥不要公开或提交到 Git。域名格式无效、证书缺失或无法加载时，Nginx 会拒绝启动，可执行 `docker compose logs --tail=100 nginx` 查看原因。
+
+证书更新后，检查并重新加载：
+
+```bash
+docker compose exec nginx nginx -t &&
+docker compose exec nginx nginx -s reload
+```
+
+恢复默认 HTTP：将 `web-ports` 改回 `["17900:80"]`、`https-domain` 改回 `""`，再次重建 Nginx。
 
 ### 升级部署
 
