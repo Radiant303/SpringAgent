@@ -181,3 +181,7 @@ docker push "$IMAGE:latest"
 ```
 
 Release 说明从 `CHANGELOG.md` 对应段落复制。预发布不要推 `latest`。
+
+## 常见失败
+
+- `build` 报 `denied: permission_denied: write_package`：`GITHUB_TOKEN` 没有包写权限。先确认仓库 Settings → Actions → General → Workflow permissions 为 “Read and write permissions”，再到 package 的 Package settings → Manage Actions access 把仓库加为 **Write**。两处改完后重跑失败的 workflow，不需要重新打 tag。
