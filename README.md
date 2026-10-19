@@ -414,6 +414,10 @@ cd gateway && ./mvnw test    # 网关单元测试
 
 ---
 
+## 友链 
+
+- [Linux.do](https://linux.do/u/radiant/preferences/account) - 感谢真诚、友善、团结、专业之社区L站及一众佬友。
+
 ## 📜 许可证
 
 本项目采用 Apache 2.0 许可证授权。
