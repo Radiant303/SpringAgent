@@ -5,12 +5,16 @@ from typing import Any
 from pydantic_ai import Agent, UsageLimits
 from pydantic_ai.tools import DeferredToolRequests
 from pydantic_ai_harness import Shell
-from spring_agent.capabilities.research import researcher
+
 from spring_agent.capabilities.code_mode import code_mode
-from spring_agent.capabilities.compaction import NotifyingCompaction, OnCompaction, OnCompactionStart
+from spring_agent.capabilities.compaction import (
+    NotifyingCompaction,
+    OnCompaction,
+    OnCompactionStart,
+)
 from spring_agent.capabilities.planning import OnPlanChange, planning
 from spring_agent.capabilities.repo_context import repo_context
-from spring_agent.capabilities.skills import skills
+from spring_agent.capabilities.research import researcher
 from spring_agent.capabilities.subagents import subagents
 from spring_agent.capabilities.teaching import (
     OnTeachingChange,
@@ -21,17 +25,17 @@ from spring_agent.core.agent import (
     shell_patch as _shell_patch,  # noqa: F401  # Windows 杀进程补丁，导入即生效
 )
 from spring_agent.core.agent.deps import CodingAgentDeps
-from spring_agent.core.workspace import FileAccessContext
 from spring_agent.core.config.model import get_model, get_model_config, setting
 from spring_agent.core.config.settings import loop_control
 from spring_agent.core.config.thinking import resolve_effort, thinking_capability
 from spring_agent.core.hooks.model import hooks, request_hooks
+from spring_agent.core.workspace import FileAccessContext
 from spring_agent.instructions.default import register_default_instructions
 from spring_agent.toolsets.ask_user import ask_user_toolset
 from spring_agent.toolsets.filesystem import filesystem
-from spring_agent.toolsets.storage import InternalStorageToolset
 from spring_agent.toolsets.page_site import page_site_toolset
 from spring_agent.toolsets.session_info import session_info_toolset
+from spring_agent.toolsets.storage import InternalStorageToolset
 from spring_agent.toolsets.view_image import view_image_toolset
 
 
@@ -87,7 +91,6 @@ def create_agent(
             thinking_capability(model_config, effort),
             hooks,
             request_hooks(model_id),
-            skills(),
             planning(session_id, on_change=plan_on_change, root=root),
             code_mode(),
             subagents(str(root), model_id, effort, file_access=file_access),
