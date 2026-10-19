@@ -60,6 +60,7 @@ services:
   rabbitmq:
     image: rabbitmq:3-management
     hostname: rabbitmq
+    user: "999:999"
     environment:
       RABBITMQ_DEFAULT_USER: *rabbitmq-user
       RABBITMQ_DEFAULT_PASS: *rabbitmq-password
