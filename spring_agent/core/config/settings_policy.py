@@ -1,6 +1,7 @@
 PUBLIC_KEYS: frozenset[str] = frozenset({
     "registration_open",
     "mail.register_enabled",
+    "mail.register_domains",
     "work_max_bytes",
     "billing.est_cache_read_tokens",
     "billing.est_input_tokens",

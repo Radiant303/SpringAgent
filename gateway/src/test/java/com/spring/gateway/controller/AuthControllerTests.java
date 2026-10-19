@@ -138,6 +138,31 @@ class AuthControllerTests {
     }
 
     @Test
+    @DisplayName("注册白名单按完整域名匹配，拒绝时不发邮件与验证码")
+    void registrationDomainWhitelist() throws Exception {
+        enableMailRegister();
+        systemSettingService.set(SystemSetting.KEY_MAIL_REGISTER_DOMAINS, "[\"qq.com\",\"edu.cn\"]");
+        for (String domain : java.util.List.of("sub.qq.com", "evilqq.com", "qq.com.evil", "school.edu.cn")) {
+            String email = "t_" + UUID.randomUUID().toString().substring(0, 8) + "@" + domain;
+            mockMvc.perform(post("/api/auth/send-code")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"email\":\"" + email + "\"}"))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.message").value("该邮箱域名不在注册白名单中"));
+            org.junit.jupiter.api.Assertions.assertNull(redis.opsForValue().get("mail:code:register:" + email));
+            org.junit.jupiter.api.Assertions.assertNull(redis.opsForValue().get("mail:code:lock:" + email));
+        }
+        org.mockito.Mockito.verifyNoInteractions(mailSender);
+        String email = "t_" + UUID.randomUUID().toString().substring(0, 8) + "@QQ.COM";
+        mockMvc.perform(post("/api/auth/send-code")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"" + email + "\"}"))
+                .andExpect(status().isOk());
+        org.junit.jupiter.api.Assertions.assertNotNull(redis.opsForValue().get(
+                "mail:code:register:" + email.toLowerCase(java.util.Locale.ROOT)));
+    }
+
+    @Test
     @DisplayName("public-config 公开接口回传开关状态与社群链接")
     void publicConfig() throws Exception {
         disableMailRegister();

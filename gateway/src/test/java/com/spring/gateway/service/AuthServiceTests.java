@@ -155,6 +155,36 @@ class AuthServiceTests {
     }
 
     @Test
+    @DisplayName("域名白名单拒绝注册时不消费已有验证码")
+    void domainRestrictionDoesNotConsumeIssuedRegistrationCode() {
+        enableMailRegister();
+        String email = randomEmail();
+        String code = issueCode(email);
+        systemSettingService.set(SystemSetting.KEY_MAIL_REGISTER_DOMAINS,
+                systemSettingService.serializeMailRegisterDomains(java.util.List.of("qq.com")));
+        BizException rejected = assertThrows(BizException.class, () -> authService.register(
+                new RegisterRequest(randomUsername(), "pass123456", email, code)));
+        assertEquals(400, rejected.getStatus());
+        assertEquals(code, redis.opsForValue().get("mail:code:register:" + email));
+        systemSettingService.set(SystemSetting.KEY_MAIL_REGISTER_DOMAINS, "[]");
+        assertNotNull(authService.register(new RegisterRequest(randomUsername(), "pass123456", email, code)));
+        assertNull(redis.opsForValue().get("mail:code:register:" + email));
+    }
+
+    @Test
+    @DisplayName("域名白名单只限制新注册，不影响已有账号登录和找回密码")
+    void existingAccountCanLoginAndResetAfterDomainsChange() {
+        enableMailRegister();
+        String username = randomUsername();
+        String email = randomEmail();
+        register(username, email);
+        systemSettingService.set(SystemSetting.KEY_MAIL_REGISTER_DOMAINS, "[\"qq.com\"]");
+        assertEquals(username, authService.login(new LoginRequest(email, "pass123456")).username());
+        authService.resetPassword(new ResetPasswordRequest(email, issueResetCode(email), "changed456"));
+        assertEquals(username, authService.login(new LoginRequest(email, "changed456")).username());
+    }
+
+    @Test
     @DisplayName("同一邮箱重发间隔内再次发码返回 429")
     void resendWithinIntervalRejected() {
         enableMailRegister();

@@ -18,6 +18,7 @@ public final class SystemSettingCachePolicy {
     public static final Set<String> PUBLIC_KEYS = Set.of(
             "registration_open",
             "mail.register_enabled",
+            "mail.register_domains",
             "work_max_bytes",
             "billing.est_cache_read_tokens",
             "billing.est_input_tokens",

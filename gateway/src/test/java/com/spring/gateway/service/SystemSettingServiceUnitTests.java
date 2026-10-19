@@ -61,8 +61,8 @@ class SystemSettingServiceUnitTests {
 
     @Test
     void whitelistIsExactAndImmutable() {
-        assertEquals(18, SystemSettingCachePolicy.PUBLIC_KEYS.size());
-        assertEquals(Set.of("registration_open", "mail.register_enabled", "work_max_bytes",
+        assertEquals(19, SystemSettingCachePolicy.PUBLIC_KEYS.size());
+        assertEquals(Set.of("registration_open", "mail.register_enabled", "mail.register_domains", "work_max_bytes",
                 "billing.est_cache_read_tokens", "billing.est_input_tokens", "billing.est_output_tokens",
                 "mail.resend_interval_seconds", "mail.code_ttl_seconds", "community_link", "storage.type",
                 "storage.reconcile_cron", "platform.domain", "platform.https", "search.local.enabled",
@@ -71,11 +71,105 @@ class SystemSettingServiceUnitTests {
         assertEquals(Set.of("mail.username", "mail.auth_code", "storage.oss.endpoint", "storage.oss.bucket",
                 "storage.oss.access_key_id", "storage.oss.access_key_secret", "search.providers.tavily.api_key",
                 "search.providers.exa.api_key"), SystemSettingCachePolicy.SENSITIVE_KEYS);
-        assertEquals(26, SystemSettingCachePolicy.CACHEABLE_KEYS.size());
+        assertEquals(27, SystemSettingCachePolicy.CACHEABLE_KEYS.size());
         assertFalse(SystemSettingCachePolicy.CACHEABLE_KEYS.contains("default_model"));
         assertFalse(SystemSettingCachePolicy.CACHEABLE_KEYS.contains("subagents.searcher"));
         assertThrows(UnsupportedOperationException.class,
                 () -> SystemSettingCachePolicy.CACHEABLE_KEYS.add("future.setting"));
+    }
+
+    @Test
+    void registrationDomainsNormalizeDeduplicateAndUseRootLocale() {
+        java.util.Locale original = java.util.Locale.getDefault();
+        try {
+            java.util.Locale.setDefault(java.util.Locale.forLanguageTag("tr-TR"));
+            assertEquals("[\"qq.com\",\"edu.cn\",\"i.example\"]", service.serializeMailRegisterDomains(
+                    List.of(" QQ.COM ", "edu.cn", "qq.com", "I.EXAMPLE")));
+            assertEquals("[]", service.serializeMailRegisterDomains(List.of()));
+        } finally {
+            java.util.Locale.setDefault(original);
+        }
+        verifyNoInteractions(mapper, cache, redis);
+    }
+
+    @Test
+    void registrationDomainsRejectMalformedValuesAndOverLimitLists() {
+        for (String domain : List.of("", " ", "@qq.com", "https://qq.com", "qq.com:25", "*.qq.com",
+                "qq..com", ".qq.com", "qq.com.", "-qq.com", "qq-.com", "qq.c-", "localhost",
+                "qq_com.cn", "qq.com/path", "q q.com", "邮箱.cn", "K.com", "a".repeat(64) + ".com",
+                "a".repeat(63) + "." + "b".repeat(63) + "." + "c".repeat(63) + "." + "d".repeat(62))) {
+            var failure = assertThrows(com.spring.gateway.common.BizException.class,
+                    () -> service.serializeMailRegisterDomains(List.of(domain)), domain);
+            assertEquals(400, failure.getStatus());
+        }
+        assertThrows(com.spring.gateway.common.BizException.class,
+                () -> service.serializeMailRegisterDomains(java.util.Arrays.asList("qq.com", null)));
+        assertThrows(com.spring.gateway.common.BizException.class,
+                () -> service.serializeMailRegisterDomains(java.util.Collections.nCopies(101, "qq.com")));
+        verifyNoInteractions(mapper, cache, redis);
+    }
+
+    @Test
+    void registrationDomainsAllowBoundaryLengthsAndOneHundredEntries() {
+        String longest = "a".repeat(63) + "." + "b".repeat(63) + "." + "c".repeat(63) + "." + "d".repeat(61);
+        assertEquals(253, longest.length());
+        assertEquals(List.of(longest), json.readValue(service.serializeMailRegisterDomains(List.of(longest)), List.class));
+        List<String> domains = java.util.stream.IntStream.range(0, 100).mapToObj(i -> "d" + i + ".t").toList();
+        assertEquals(domains, json.readValue(service.serializeMailRegisterDomains(domains), List.class));
+        assertEquals("[\"a.b\",\"xn--fiqs8s.cn\"]", service.serializeMailRegisterDomains(List.of("a.b", "xn--fiqs8s.cn")));
+    }
+
+    @Test
+    void registrationDomainJsonCapacityIsCheckedAfterNormalizationAndDeduplication() {
+        String suffix = "." + "b".repeat(63) + "." + "c".repeat(63) + "." + "d".repeat(61);
+        List<String> atLimit = List.of("a".repeat(63) + suffix, "b".repeat(63) + suffix,
+                "c".repeat(63) + suffix, "d".repeat(62) + suffix);
+        assertEquals(1024, service.serializeMailRegisterDomains(atLimit).length());
+        List<String> overLimit = List.of(atLimit.get(0), atLimit.get(1), atLimit.get(2), "d" + atLimit.get(3));
+        assertEquals(1025, json.writeValueAsString(overLimit).length());
+        var failure = assertThrows(com.spring.gateway.common.BizException.class,
+                () -> service.serializeMailRegisterDomains(overLimit));
+        assertEquals(400, failure.getStatus());
+        assertTrue(failure.getMessage().contains("1024"));
+        assertEquals(List.of(atLimit.getFirst()), json.readValue(service.serializeMailRegisterDomains(
+                java.util.Collections.nCopies(100, " " + atLimit.getFirst().toUpperCase(java.util.Locale.ROOT) + " ")), List.class));
+        verifyNoInteractions(mapper, cache, redis);
+    }
+
+    @Test
+    void registrationDomainsReadSharedSnapshotAndDefaultToEmpty() {
+        when(values.get(SystemSettingCache.CACHE_KEY)).thenReturn(snapshot(Map.of()));
+        assertEquals(List.of(), service.getMailRegisterDomains());
+        when(values.get(SystemSettingCache.CACHE_KEY)).thenReturn(snapshot(Map.of(
+                SystemSetting.KEY_MAIL_REGISTER_ENABLED, "true",
+                SystemSetting.KEY_MAIL_REGISTER_DOMAINS, "[\" QQ.COM \",\"edu.cn\",\"qq.com\"]")));
+        assertTrue(service.isMailRegisterEnabled());
+        assertEquals(List.of("qq.com", "edu.cn"), service.getMailRegisterDomains());
+        verifyNoInteractions(mapper);
+    }
+
+    @Test
+    void malformedStoredRegistrationDomainsFailClosed() {
+        for (String raw : List.of("null", "{}", "[null]", "[1]", "[\"*.qq.com\"]", "[] true", "broken")) {
+            when(values.get(SystemSettingCache.CACHE_KEY)).thenReturn(snapshot(Map.of(
+                    SystemSetting.KEY_MAIL_REGISTER_DOMAINS, raw)));
+            var failure = assertThrows(com.spring.gateway.common.BizException.class, service::getMailRegisterDomains);
+            assertEquals(500, failure.getStatus());
+        }
+    }
+
+    @Test
+    void registrationDomainsDatabaseFallbackAndWritesUseSharedCachePolicy() {
+        when(mapper.selectList(any())).thenReturn(List.of(row(SystemSetting.KEY_MAIL_REGISTER_DOMAINS, "[\"edu.cn\"]")));
+        assertEquals(List.of("edu.cn"), service.getMailRegisterDomains());
+        assertQueryKeys(SystemSettingCachePolicy.CACHEABLE_KEYS);
+        assertEquals("[\"edu.cn\"]", writtenPayload().get(SystemSetting.KEY_MAIL_REGISTER_DOMAINS));
+        service.set(SystemSetting.KEY_MAIL_REGISTER_DOMAINS, service.serializeMailRegisterDomains(List.of("QQ.COM")));
+        ArgumentCaptor<SystemSetting> written = ArgumentCaptor.forClass(SystemSetting.class);
+        verify(mapper).upsert(written.capture());
+        assertEquals(SystemSetting.KEY_MAIL_REGISTER_DOMAINS, written.getValue().getSettingKey());
+        assertEquals("[\"qq.com\"]", written.getValue().getSettingValue());
+        verify(cache).invalidate();
     }
 
     @Test

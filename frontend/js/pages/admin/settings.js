@@ -40,8 +40,105 @@ async function saveWith(saveId, fn) {
 /* ================= 注册设置 ================= */
 
 let registrationReady = false;
+let registrationBusy = false;
 let savedMailEnabled = false;
 let ownerEmail = "";
+
+function normalizeMailDomains(values) {
+  const domains = new Set();
+  for (const value of values) {
+    const domain = typeof value === "string" ? value.trim() : "";
+    const labels = domain.split(".");
+    if (domain.length > 253 || labels.length < 2 || labels.some((label) =>
+      label.length > 63 || !/^[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?$/.test(label))) {
+      throw new Error("邮箱后缀格式不正确：仅填 ASCII 多段域名，每段最多 63 个字符、总长最多 253 个字符；不要包含网址、@、通配符、端口、空段或首尾连字符");
+    }
+    domains.add(domain.toLowerCase());
+  }
+  if (domains.size > 100) throw new Error("最多填写 100 个邮箱后缀");
+  const result = [...domains];
+  if (JSON.stringify(result).length > 1024) throw new Error("邮箱后缀列表过长，保存后的总长度不能超过 1024 个字符，请减少域名");
+  return result;
+}
+
+let mailDomains = [];
+let mailDomainInputBound = false;
+let mailDomainComposing = false;
+
+function renderMailDomains() {
+  const disabled = !registrationReady || registrationBusy;
+  const tags = mailDomains.map((domain) => {
+    const tag = document.createElement("span");
+    tag.className = "mail-domain-tag";
+    tag.setAttribute("role", "listitem");
+    const label = document.createElement("span");
+    label.textContent = domain;
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.className = "mail-domain-remove";
+    remove.textContent = "×";
+    remove.setAttribute("aria-label", `删除 ${domain}`);
+    remove.disabled = disabled;
+    remove.addEventListener("click", () => {
+      if (!registrationReady || registrationBusy) return;
+      mailDomains = mailDomains.filter((value) => value !== domain);
+      renderMailDomains();
+      $("mail-domain-input").focus();
+    });
+    tag.append(label, remove);
+    return tag;
+  });
+  $("mail-domain-tags").replaceChildren(...tags);
+  $("mail-domain-input").disabled = disabled;
+  $("mail-domain-input").placeholder = mailDomains.length ? "" : "留空不限，如：company.com";
+}
+
+function commitMailDomainInput() {
+  const input = $("mail-domain-input");
+  const pending = input.value.split(/[,，;；\s]+/).filter(Boolean);
+  const domains = normalizeMailDomains([...mailDomains, ...pending]);
+  mailDomains = domains;
+  input.value = "";
+  renderMailDomains();
+  return domains;
+}
+
+function tryCommitMailDomainInput() {
+  try {
+    commitMailDomainInput();
+  } catch (e) {
+    UI.toast(e.message, { type: "error" });
+  }
+}
+
+function bindMailDomainInput() {
+  if (mailDomainInputBound) return;
+  mailDomainInputBound = true;
+  const input = $("mail-domain-input");
+  input.addEventListener("compositionstart", () => { mailDomainComposing = true; });
+  input.addEventListener("compositionend", () => { mailDomainComposing = false; });
+  input.addEventListener("keydown", (event) => {
+    if (!registrationReady || registrationBusy || event.isComposing || mailDomainComposing || event.keyCode === 229) return;
+    if (["Enter", ",", "，", ";", "；", " "].includes(event.key)) {
+      event.preventDefault();
+      tryCommitMailDomainInput();
+    } else if (event.key === "Backspace" && !input.value && mailDomains.length) {
+      event.preventDefault();
+      mailDomains = mailDomains.slice(0, -1);
+      renderMailDomains();
+    }
+  });
+  input.addEventListener("input", (event) => {
+    if (!registrationReady || registrationBusy || event.isComposing || mailDomainComposing) return;
+    if (/[,，;；\s]/.test(input.value)) tryCommitMailDomainInput();
+  });
+  input.addEventListener("blur", () => {
+    if (registrationReady && !registrationBusy && !mailDomainComposing && input.value.trim()) tryCommitMailDomainInput();
+  });
+  $("mail-domain-editor").addEventListener("click", (event) => {
+    if (!event.target.closest("button") && registrationReady && !registrationBusy) input.focus();
+  });
+}
 
 function mailDisableCountdown(btn, seconds) {
   let left = seconds;
@@ -74,8 +171,8 @@ async function sendMailDisableCode(btn) {
   }
 }
 
-async function saveRegistrationSetting(open) {
-  await api("/api/admin/settings/registration", { method: "POST", body: { open } });
+async function saveRegistrationSetting(open, emailDomains) {
+  await api("/api/admin/settings/registration", { method: "POST", body: { open, emailDomains } });
 }
 
 async function saveMailSettings(body, code) {
@@ -88,73 +185,104 @@ async function saveMailSettings(body, code) {
 }
 
 export async function loadRegistration() {
+  if (getRole() !== "owner" || registrationBusy) return;
+  bindMailDomainInput();
   registrationReady = false;
-  const result = await withSkeleton("registration", "registration-save", () =>
-    Promise.all([api("/api/admin/settings"), api("/api/account/me")]));
-  if (!result) return;
-  const [data, account] = result;
-  if (!data || !account) throw new Error("注册设置加载失败，请重新进入页面");
-  if ($("registration-open")) $("registration-open").checked = data.registrationOpen !== false;
-  if ($("mail-enabled")) $("mail-enabled").checked = data.mailRegisterEnabled === true;
-  if ($("mail-username")) $("mail-username").value = data.mailUsername ?? "";
-  // 授权码只写不读：不回显原值，留空表示保持不变
-  if ($("mail-auth-code")) {
-    $("mail-auth-code").value = "";
-    $("mail-auth-code").placeholder = data.mailAuthCodeConfigured ? "已配置，留空保持不变" : "未配置";
+  registrationBusy = true;
+  renderMailDomains();
+  try {
+    const result = await withSkeleton("registration", "registration-save", () =>
+      Promise.all([api("/api/admin/settings"), api("/api/account/me")]));
+    const [data, account] = result;
+    if (!data || !account) throw new Error("注册设置加载失败，请重新进入页面");
+    const domains = data.mailRegisterDomains === undefined ? [] : data.mailRegisterDomains;
+    if (!Array.isArray(domains)) throw new Error("注册邮箱域名白名单加载失败，请重新进入页面");
+    const normalizedDomains = normalizeMailDomains(domains);
+    if ($("registration-open")) $("registration-open").checked = data.registrationOpen !== false;
+    if ($("mail-enabled")) $("mail-enabled").checked = data.mailRegisterEnabled === true;
+    if ($("mail-username")) $("mail-username").value = data.mailUsername ?? "";
+    // 授权码只写不读：不回显原值，留空表示保持不变
+    if ($("mail-auth-code")) {
+      $("mail-auth-code").value = "";
+      $("mail-auth-code").placeholder = data.mailAuthCodeConfigured ? "已配置，留空保持不变" : "未配置";
+    }
+    if ($("mail-resend-interval")) $("mail-resend-interval").value = data.mailResendIntervalSeconds ?? 60;
+    if ($("mail-code-ttl")) $("mail-code-ttl").value = data.mailCodeTtlSeconds ?? 300;
+    savedMailEnabled = data.mailRegisterEnabled === true;
+    ownerEmail = typeof account.email === "string" ? account.email : "";
+    mailDomains = normalizedDomains;
+    $("mail-domain-input").value = "";
+    registrationReady = true;
+  } finally {
+    registrationBusy = false;
+    renderMailDomains();
+    $("registration-save").disabled = !registrationReady;
   }
-  if ($("mail-resend-interval")) $("mail-resend-interval").value = data.mailResendIntervalSeconds ?? 60;
-  if ($("mail-code-ttl")) $("mail-code-ttl").value = data.mailCodeTtlSeconds ?? 300;
-  savedMailEnabled = data.mailRegisterEnabled === true;
-  ownerEmail = typeof account.email === "string" ? account.email : "";
-  registrationReady = true;
 }
 
 export async function saveRegistration() {
+  if (getRole() !== "owner" || registrationBusy) return;
   if (!registrationReady) {
     UI.toast("设置尚未加载完成，请重新进入页面", { type: "error" });
     return;
   }
-  await saveWith("registration-save", async () => {
-    const mailResend = parseInteger($("mail-resend-interval").value, { min: 10, max: 3600 });
-    const mailTtl = parseInteger($("mail-code-ttl").value, { min: 60, max: 3600 });
-    if (mailResend === null || mailTtl === null) {
-      throw new Error("重发间隔须为 10～3600 秒、验证码有效期须为 60～3600 秒的整数");
-    }
-    const registrationOpen = $("registration-open").checked;
-    const mail = {
-      enabled: $("mail-enabled").checked,
-      username: $("mail-username").value.trim(),
-      authCode: $("mail-auth-code").value.trim(),
-      resendIntervalSeconds: mailResend,
-      codeTtlSeconds: mailTtl,
-    };
-    if (!(savedMailEnabled && !mail.enabled && ownerEmail)) {
-      await saveRegistrationSetting(registrationOpen);
-      await saveMailSettings(mail);
-      return;
-    }
-    const values = await UI.dialog({
-      title: "关闭邮箱功能",
-      message: `验证码将发送至绑定邮箱 ${ownerEmail}`,
-      fields: [
-        {
-          name: "code", label: "邮箱验证码", placeholder: "6 位数字", inputMode: "numeric", maxLength: 6,
-          suffixBtn: { text: "获取验证码", onClick: (btn) => sendMailDisableCode(btn) },
+  if (mailDomainComposing) return;
+  let emailDomains;
+  try {
+    emailDomains = commitMailDomainInput();
+  } catch (e) {
+    UI.toast(e.message, { type: "error" });
+    $("mail-domain-input").focus();
+    return;
+  }
+  registrationBusy = true;
+  renderMailDomains();
+  try {
+    await saveWith("registration-save", async () => {
+      const mailResend = parseInteger($("mail-resend-interval").value, { min: 10, max: 3600 });
+      const mailTtl = parseInteger($("mail-code-ttl").value, { min: 60, max: 3600 });
+      if (mailResend === null || mailTtl === null) {
+        throw new Error("重发间隔须为 10～3600 秒、验证码有效期须为 60～3600 秒的整数");
+      }
+      const registrationOpen = $("registration-open").checked;
+      const mail = {
+        enabled: $("mail-enabled").checked,
+        username: $("mail-username").value.trim(),
+        authCode: $("mail-auth-code").value.trim(),
+        resendIntervalSeconds: mailResend,
+        codeTtlSeconds: mailTtl,
+      };
+      if (!(savedMailEnabled && !mail.enabled && ownerEmail)) {
+        await saveRegistrationSetting(registrationOpen, emailDomains);
+        await saveMailSettings(mail);
+        return;
+      }
+      const values = await UI.dialog({
+        title: "关闭邮箱功能",
+        message: `验证码将发送至绑定邮箱 ${ownerEmail}`,
+        fields: [
+          {
+            name: "code", label: "邮箱验证码", placeholder: "6 位数字", inputMode: "numeric", maxLength: 6,
+            suffixBtn: { text: "获取验证码", onClick: (btn) => sendMailDisableCode(btn) },
+          },
+        ],
+        okText: "关闭并保存",
+        validate: (v) => /^\d{6}$/.test(v.code.trim()) ? null : { message: "请输入 6 位数字验证码", name: "code" },
+        submit: async (v) => {
+          await saveMailSettings(mail, v.code.trim());
+          try {
+            await saveRegistrationSetting(registrationOpen, emailDomains);
+          } catch {
+            throw new Error("邮箱设置已保存，但注册设置（含域名白名单）保存失败，请重试");
+          }
         },
-      ],
-      okText: "关闭并保存",
-      validate: (v) => /^\d{6}$/.test(v.code.trim()) ? null : { message: "请输入 6 位数字验证码", name: "code" },
-      submit: async (v) => {
-        await saveMailSettings(mail, v.code.trim());
-        try {
-          await saveRegistrationSetting(registrationOpen);
-        } catch {
-          throw new Error("邮箱设置已保存，但开放注册设置保存失败，请重试");
-        }
-      },
+      });
+      return values === null ? false : undefined;
     });
-    return values === null ? false : undefined;
-  });
+  } finally {
+    registrationBusy = false;
+    renderMailDomains();
+  }
 }
 
 /* ================= 存储设置 ================= */

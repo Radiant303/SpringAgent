@@ -77,6 +77,7 @@ public class AdminSettingsController {
                 "mailAuthCodeConfigured", !mail.authCode().isBlank(),
                 "mailResendIntervalSeconds", systemSettingService.getMailResendIntervalSeconds(),
                 "mailCodeTtlSeconds", systemSettingService.getMailCodeTtlSeconds()));
+        data.put("mailRegisterDomains", systemSettingService.getMailRegisterDomains());
         data.put("communityLink", systemSettingService.getCommunityLink());
         data.put("platformDomain", systemSettingService.getPlatformDomain());
         data.put("platformHttps", systemSettingService.isPlatformHttps());
@@ -119,15 +120,21 @@ public class AdminSettingsController {
     }
 
     /**
-     * 设置注册开关
+     * 设置注册开关与邮箱域名白名单。
      *
-     * @param req 开关
+     * @param req 注册设置
      * @return 空数据返回体
      */
     @RequiresOwner(message = "仅站长可修改系统设置")
     @PostMapping("/registration")
+    @Transactional
     public Result<Void> setRegistration(@Valid @RequestBody AdminRegistrationRequest req) {
+        String domains = req.emailDomains() == null ? null
+                : systemSettingService.serializeMailRegisterDomains(req.emailDomains());
         systemSettingService.set(SystemSetting.KEY_REGISTRATION_OPEN, String.valueOf(req.open()));
+        if (domains != null) {
+            systemSettingService.set(SystemSetting.KEY_MAIL_REGISTER_DOMAINS, domains);
+        }
         return Result.ok(null);
     }
 

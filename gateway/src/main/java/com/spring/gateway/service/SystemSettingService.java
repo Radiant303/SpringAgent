@@ -154,6 +154,60 @@ public class SystemSettingService {
         return getBool(SystemSetting.KEY_MAIL_REGISTER_ENABLED, false);
     }
 
+    public List<String> getMailRegisterDomains() {
+        String raw = readValue(SystemSetting.KEY_MAIL_REGISTER_DOMAINS);
+        if (raw == null) {
+            return List.of();
+        }
+        try {
+            Object decoded = objectMapper.readerFor(Object.class)
+                    .with(tools.jackson.databind.DeserializationFeature.FAIL_ON_TRAILING_TOKENS)
+                    .readValue(raw);
+            if (!(decoded instanceof List<?> domains)
+                    || domains.stream().anyMatch(domain -> !(domain instanceof String))) {
+                throw new IllegalArgumentException();
+            }
+            return normalizeMailRegisterDomains(domains.stream().map(String.class::cast).toList());
+        } catch (RuntimeException e) {
+            throw new BizException(500, "注册邮箱域名配置无效，请联系站长");
+        }
+    }
+
+    public String serializeMailRegisterDomains(List<String> domains) {
+        String serialized = objectMapper.writeValueAsString(normalizeMailRegisterDomains(domains));
+        if (serialized.length() > 1024) {
+            throw new BizException(400, "注册邮箱域名列表序列化后不能超过 1024 个字符");
+        }
+        return serialized;
+    }
+
+    private List<String> normalizeMailRegisterDomains(List<String> domains) {
+        if (domains == null || domains.size() > 100) {
+            throw new BizException(400, "注册邮箱域名最多 100 个");
+        }
+        return domains.stream().map(domain -> {
+            if (domain == null) {
+                throw new BizException(400, "邮箱域名格式不正确");
+            }
+            String trimmed = domain.trim();
+            if (trimmed.isEmpty() || trimmed.length() > 253
+                    || trimmed.chars().anyMatch(character -> character > 127)) {
+                throw new BizException(400, "邮箱域名格式不正确");
+            }
+            String normalized = trimmed.toLowerCase(java.util.Locale.ROOT);
+            String[] labels = normalized.split("\\.", -1);
+            if (labels.length < 2) {
+                throw new BizException(400, "邮箱域名格式不正确");
+            }
+            for (String label : labels) {
+                if (!label.matches("[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?")) {
+                    throw new BizException(400, "邮箱域名格式不正确");
+                }
+            }
+            return normalized;
+        }).distinct().toList();
+    }
+
     /**
      * 获取发件邮箱凭证。
      *

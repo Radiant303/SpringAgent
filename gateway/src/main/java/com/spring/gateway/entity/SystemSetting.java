@@ -35,6 +35,9 @@ public class SystemSetting {
     /** 设置键：是否开启 QQ 邮箱验证码注册（"true"/"false"）。 */
     public static final String KEY_MAIL_REGISTER_ENABLED = "mail.register_enabled";
 
+    /** 注册邮箱域名白名单，JSON 字符串数组。 */
+    public static final String KEY_MAIL_REGISTER_DOMAINS = "mail.register_domains";
+
     /** 设置键：发件 QQ 邮箱（SMTP 登录账号，From 必须与之一致）。 */
     public static final String KEY_MAIL_USERNAME = "mail.username";
 

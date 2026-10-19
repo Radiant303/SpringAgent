@@ -339,6 +339,74 @@ button.row-link:hover { text-decoration: none; }
 .settings-number:focus, .model-form input:focus { border-color: rgba(0, 0, 0, 0.16); background: #fff; }
 .group-card .settings-number { width: 110px; background: #fff; text-align: right; }
 .group-card .settings-text { width: 220px; text-align: left; }
+.mail-domain-row > .row-text { flex: 0 0 auto; }
+.mail-domain-editor {
+  display: flex;
+  flex: 0 1 340px;
+  max-width: 100%;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  min-height: 44px;
+  padding: 7px 10px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: #fff;
+  transition: border-color 0.15s;
+}
+.mail-domain-editor:focus-within { border-color: rgba(0, 0, 0, 0.16); }
+.mail-domain-tags { display: contents; }
+.mail-domain-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  padding: 4px 7px 4px 10px;
+  border-radius: 5px;
+  background: #f2f2f2;
+  color: var(--text, rgba(0, 0, 0, 0.9));
+  font-size: 13px;
+  line-height: 20px;
+}
+.mail-domain-tag > span { min-width: 0; overflow-wrap: anywhere; }
+.mail-domain-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 20px;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-faint, rgba(0, 0, 0, 0.45));
+  font: inherit;
+  cursor: pointer;
+}
+.mail-domain-remove:hover { background: #e5e5e5; color: var(--text, #111); }
+.mail-domain-remove:focus-visible { outline: 2px solid rgba(23, 131, 255, 0.4); outline-offset: 1px; }
+.mail-domain-remove:disabled { opacity: 0.5; cursor: default; }
+.mail-domain-input {
+  flex: 1 1 130px;
+  min-width: 0;
+  width: 130px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: var(--text, rgba(0, 0, 0, 0.9));
+  font: inherit;
+  font-size: 14px;
+}
+.mail-domain-input::placeholder { color: var(--text-faint, rgba(0, 0, 0, 0.45)); }
+.admin-page.is-loading .mail-domain-editor { background: rgba(0, 0, 0, 0.05); pointer-events: none; }
+.admin-page.is-loading .mail-domain-editor > * { visibility: hidden; }
+@media (max-width: 520px) {
+  .mail-domain-row > .mail-domain-editor { flex-basis: 100%; }
+}
 .usage-sep { font-size: 14px; color: var(--text-faint, rgba(0, 0, 0, 0.45)); }
 
 .model-form {

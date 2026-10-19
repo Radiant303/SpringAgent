@@ -137,6 +137,95 @@ class AdminSettingsControllerUnitTests {
     }
 
     @Test
+    void registrationSwitchAndNormalizedDomainsCommitTogether() {
+        controller.setRegistration(new com.spring.gateway.dto.AdminRegistrationRequest(false,
+                List.of(" QQ.COM ", "edu.cn", "qq.com")));
+        assertEquals(Map.of(SystemSetting.KEY_REGISTRATION_OPEN, "false",
+                SystemSetting.KEY_MAIL_REGISTER_DOMAINS, "[\"qq.com\",\"edu.cn\"]"), committed);
+        assertEquals(List.of("qq.com", "edu.cn"), controller.get().getData().get("mailRegisterDomains"));
+        assertEquals(1, transactions.commits);
+        assertEquals(0, transactions.rollbacks);
+        verify(cache, times(2)).invalidate();
+        verifyNoInteractions(scheduler, mailCodes, users);
+    }
+
+    @Test
+    void registrationRequestJsonPreservesOmittedAndNullDomainsAndClearsEmptyDomains() {
+        ObjectMapper json = new ObjectMapper();
+        committed.put(SystemSetting.KEY_MAIL_REGISTER_DOMAINS, "[\"qq.com\"]");
+        var omitted = json.readValue("{\"open\":true}", com.spring.gateway.dto.AdminRegistrationRequest.class);
+        assertNull(omitted.emailDomains());
+        assertEquals(new com.spring.gateway.dto.AdminRegistrationRequest(true), omitted);
+        controller.setRegistration(omitted);
+        controller.setRegistration(json.readValue("{\"open\":false,\"emailDomains\":null}",
+                com.spring.gateway.dto.AdminRegistrationRequest.class));
+        assertEquals("[\"qq.com\"]", committed.get(SystemSetting.KEY_MAIL_REGISTER_DOMAINS));
+        verify(mapper, times(2)).upsert(any(SystemSetting.class));
+        controller.setRegistration(json.readValue("{\"open\":true,\"emailDomains\":[]}",
+                com.spring.gateway.dto.AdminRegistrationRequest.class));
+        assertEquals("[]", committed.get(SystemSetting.KEY_MAIL_REGISTER_DOMAINS));
+        assertEquals(List.of(), controller.get().getData().get("mailRegisterDomains"));
+        assertEquals(3, transactions.commits);
+    }
+
+    @Test
+    void invalidRegistrationDomainsRejectAllWritesBeforeSwitchChanges() {
+        committed.put(SystemSetting.KEY_REGISTRATION_OPEN, "true");
+        committed.put(SystemSetting.KEY_MAIL_REGISTER_DOMAINS, "[\"qq.com\"]");
+        Map<String, String> original = Map.copyOf(committed);
+        var failure = assertThrows(BizException.class, () -> controller.setRegistration(
+                new com.spring.gateway.dto.AdminRegistrationRequest(false, List.of("edu.cn", "*.qq.com"))));
+        assertEquals(400, failure.getStatus());
+        assertEquals(original, committed);
+        assertEquals(0, transactions.commits);
+        assertEquals(1, transactions.rollbacks);
+        verify(mapper, never()).upsert(any(SystemSetting.class));
+        verifyNoInteractions(cache);
+    }
+
+    @Test
+    void oversizedRegistrationDomainsRejectBeforeAnySettingWrite() {
+        committed.put(SystemSetting.KEY_REGISTRATION_OPEN, "true");
+        committed.put(SystemSetting.KEY_MAIL_REGISTER_DOMAINS, "[\"qq.com\"]");
+        Map<String, String> original = Map.copyOf(committed);
+        List<String> domains = java.util.stream.IntStream.range(0, 20)
+                .mapToObj(i -> "a".repeat(60) + i + ".example").toList();
+        var failure = assertThrows(BizException.class, () -> controller.setRegistration(
+                new com.spring.gateway.dto.AdminRegistrationRequest(false, domains)));
+        assertEquals(400, failure.getStatus());
+        assertTrue(failure.getMessage().contains("1024"));
+        assertEquals(original, committed);
+        assertEquals(0, transactions.commits);
+        assertEquals(1, transactions.rollbacks);
+        verify(mapper, never()).upsert(any(SystemSetting.class));
+        verifyNoInteractions(cache);
+    }
+
+    @Test
+    void registrationDomainsWriteFailureRollsBackSwitchAndList() {
+        committed.put(SystemSetting.KEY_REGISTRATION_OPEN, "true");
+        committed.put(SystemSetting.KEY_MAIL_REGISTER_DOMAINS, "[\"qq.com\"]");
+        Map<String, String> original = Map.copyOf(committed);
+        failureKey = SystemSetting.KEY_MAIL_REGISTER_DOMAINS;
+        assertThrows(IllegalStateException.class, () -> controller.setRegistration(
+                new com.spring.gateway.dto.AdminRegistrationRequest(false, List.of("edu.cn"))));
+        assertEquals(original, committed);
+        assertEquals(0, transactions.commits);
+        assertEquals(1, transactions.rollbacks);
+        verify(mapper, times(2)).upsert(any(SystemSetting.class));
+    }
+
+    @Test
+    void settingsExposeEmptyRegistrationDomainsByDefault() {
+        assertEquals(List.of(), controller.get().getData().get("mailRegisterDomains"));
+        SystemSettingService service = mock(SystemSettingService.class);
+        when(service.getMailCredentials()).thenReturn(new SystemSettingService.MailCredentials("", ""));
+        when(service.getOssConfig()).thenReturn(new SystemSettingService.OssConfig("", "", "", ""));
+        AdminSettingsController direct = new AdminSettingsController(service, scheduler, mailCodes, users);
+        assertEquals(List.of(), direct.get().getData().get("mailRegisterDomains"));
+    }
+
+    @Test
     void mailCredentialsAndTimingCommitTogether() {
         controller.setMail(USER_ID,
                 new AdminMailSettingsRequest(true, " SENDER@example.test ", " fakeSecret ", 60, 300, null));

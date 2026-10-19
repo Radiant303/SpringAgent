@@ -59,6 +59,7 @@ public class AuthService {
             if (!MailCodeService.isValidEmail(email)) {
                 throw new BizException(400, "邮箱格式不正确");
             }
+            validateRegistrationEmailDomain(email);
             if (!code.matches("\\d{6}")) {
                 throw new BizException(400, "验证码为 6 位数字");
             }
@@ -139,6 +140,12 @@ public class AuthService {
      */
     public long sendSceneCode(String email, MailCodeService.Scene scene) {
         String normalized = MailCodeService.normalize(email);
+        if (scene == MailCodeService.Scene.REGISTER && systemSettingService.isMailRegisterEnabled()) {
+            if (!MailCodeService.isValidEmail(normalized)) {
+                throw new BizException(400, "邮箱格式不正确");
+            }
+            validateRegistrationEmailDomain(normalized);
+        }
         boolean registered = userMapper.exists(
                 new LambdaQueryWrapper<User>().eq(User::getEmail, normalized));
         if (scene == MailCodeService.Scene.REGISTER && registered) {
@@ -148,6 +155,14 @@ public class AuthService {
             throw new BizException(400, "该邮箱未注册");
         }
         return mailCodeService.sendCode(normalized, scene);
+    }
+
+    private void validateRegistrationEmailDomain(String email) {
+        var domains = systemSettingService.getMailRegisterDomains();
+        String domain = email.substring(email.lastIndexOf('@') + 1).toLowerCase(java.util.Locale.ROOT);
+        if (!domains.isEmpty() && !domains.contains(domain)) {
+            throw new BizException(400, "该邮箱域名不在注册白名单中");
+        }
     }
 
     /**

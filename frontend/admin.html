@@ -535,6 +535,17 @@
             </span>
             <input type="checkbox" id="mail-enabled" class="switch">
           </label>
+          <div class="row mail-domain-row">
+            <span class="row-text">
+              <label for="mail-domain-input" class="row-label">允许的邮箱后缀</label>
+            </span>
+            <div id="mail-domain-editor" class="mail-domain-editor">
+              <span id="mail-domain-tags" class="mail-domain-tags" role="list" aria-label="已允许的邮箱后缀"></span>
+              <input type="text" id="mail-domain-input" class="mail-domain-input"
+                     placeholder="留空不限，如：company.com" autocomplete="off"
+                     autocapitalize="none" spellcheck="false" disabled>
+            </div>
+          </div>
           <div class="row">
             <span class="row-text">
               <span class="row-label">发件 QQ 邮箱</span>
