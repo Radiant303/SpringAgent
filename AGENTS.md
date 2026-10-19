@@ -89,3 +89,95 @@
 - 验证全新安装执行 `alembic upgrade head`，并从一个旧版本携带旧数据升级，确认数据保留且应用能启动。
 - Docker 镜像必须包含新迁移，不得把手工执行 SQL 当成发布步骤。
 - 升级通过 `deploy/upgrade.sh` 先停应用，再备份数据库和共享目录，迁移成功后才启动；迁移失败不得自动重试 DDL、清库、删卷或自动降级。
+
+# 版本发布
+
+发布由 tag 触发，`.github/workflows/release.yml` 负责构建多架构镜像、推送 GHCR 和生成 GitHub Release。
+
+## 发布前
+
+1. 修改 `pyproject.toml` 的 `version`，预发布用 PEP 440 写法（如 `0.1.1-rc1`）。
+2. 执行 `uv lock`，同步 `uv.lock`；Docker 构建使用 `uv sync --frozen`，锁文件过期会失败。
+3. 在 `CHANGELOG.md` **最上方**追加条目，格式必须是：
+
+   ```markdown
+   ## vX.Y.Z (YYYY-MM-DD)：一句话标题
+
+   ### 功能新增
+   * ……
+
+   ### 优化与修复
+   * ……
+   ```
+
+4. 提交并推送，确认 `.github/workflows/release.yml` 就在这次提交里：
+
+   ```bash
+   git add pyproject.toml uv.lock CHANGELOG.md .github
+   git commit -m "chore: 发布 vX.Y.Z"
+   git push origin master
+   ```
+
+> tag 指向的 commit 必须包含 workflow 文件，否则推送 tag 不会触发发布。
+
+## 打 tag
+
+```bash
+git tag -a vX.Y.Z -m "vX.Y.Z"
+git push origin vX.Y.Z
+```
+
+tag 去掉 `v` 后必须与 `pyproject.toml` 的 `version` 完全一致，`CHANGELOG.md` 也必须有对应标题，否则 `prepare` 阶段直接失败，不会推送任何镜像。
+
+## 流水线行为
+
+- `prepare`：校验版本号与 CHANGELOG。
+- `build`：`linux/amd64` 与 `linux/arm64` 由原生 runner 并行构建，按 digest 推送。
+- `merge`：合成多架构 manifest，打版本 tag；正式版额外更新 `latest`，预发布不动 `latest`。
+- `release`：截取 CHANGELOG 中该版本段落生成 GitHub Release；已存在则更新说明。
+
+版本与镜像的对应关系：
+
+| tag | 镜像标签 | Release | `latest` |
+|---|---|---|---|
+| `v0.1.1-rc1` | `0.1.1-rc1` | Pre-release | 不变 |
+| `v0.1.1` | `0.1.1`、`latest` | 正式版 | 更新 |
+
+站长端左下角的“版本更新”卡片读取 GitHub `releases/latest`，只识别正式版。仓库只有预发布时该接口返回 404，卡片不显示。
+
+## 发布后核对
+
+```bash
+gh release view vX.Y.Z
+docker buildx imagetools inspect ghcr.io/radiant303/springagent:X.Y.Z
+```
+
+服务器升级使用 `deploy/upgrade.sh`，它会先停应用并备份数据库和 `/data/cloud`，再启动新镜像执行迁移。
+
+## 重发同一个 tag
+
+```bash
+git tag -d vX.Y.Z
+git push origin :refs/tags/vX.Y.Z
+# 修复并提交后重新打 tag
+git tag -a vX.Y.Z -m "vX.Y.Z"
+git push origin vX.Y.Z
+```
+
+## 手动兜底
+
+CI 不可用时手动构建推送，仍需先改版本、写 CHANGELOG、提交。手动构建只包含本机架构：
+
+```bash
+VERSION=X.Y.Z
+IMAGE=ghcr.io/radiant303/springagent
+docker login ghcr.io -u Radiant303
+docker build --build-arg APP_VERSION="$VERSION" -t "$IMAGE:$VERSION" .
+docker push "$IMAGE:$VERSION"
+
+# 仅正式版：
+docker tag "$IMAGE:$VERSION" "$IMAGE:latest"
+docker push "$IMAGE:latest"
+```
+
+Release 说明从 `CHANGELOG.md` 对应段落复制。预发布不要推 `latest`。

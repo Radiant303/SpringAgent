@@ -17,11 +17,13 @@ RUN mvn -B -DskipTests package
 FROM eclipse-temurin:21-jre-jammy AS java-runtime
 
 FROM python:3.14-slim-bookworm
+ARG APP_VERSION=dev
 ENV PATH="/app/.venv/bin:/opt/java/openjdk/bin:${PATH}" \
     JAVA_HOME=/opt/java/openjdk \
     PYTHONUNBUFFERED=1 \
     SPRINGAGENT_CONFIG=/app/config.toml \
-    SPRINGAGENT_LOG_STDOUT=1
+    SPRINGAGENT_LOG_STDOUT=1 \
+    APP_VERSION=${APP_VERSION}
 WORKDIR /app
 RUN apt-get update \
     && apt-get install -y --no-install-recommends libstdc++6 zlib1g \
