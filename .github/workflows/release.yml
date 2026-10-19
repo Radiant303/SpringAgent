@@ -156,10 +156,13 @@ jobs:
 
           version = os.environ["VERSION"]
           text = pathlib.Path("CHANGELOG.md").read_text(encoding="utf-8")
-          heading = re.compile(rf"^##\s+v?{re.escape(version)}(?:\s|$).*$", re.MULTILINE)
+          heading = re.compile(rf"^##[ \t]+v?{re.escape(version)}(?=[ \t：:]|$)[^\r\n]*", re.MULTILINE)
           match = heading.search(text)
           if match is None:
               sys.exit(f"CHANGELOG.md 缺少 v{version} 条目")
+          summary = re.search(r"[：:][ \t]*(.+)$", match.group())
+          title = f"v{version}：{summary.group(1).strip()}" if summary else f"v{version}"
+          pathlib.Path("release-title.txt").write_text(title + "\n", encoding="utf-8")
           rest = text[match.end():]
           following = re.compile(r"^##\s+", re.MULTILINE).search(rest)
           body = rest[: following.start() if following else len(rest)]
@@ -187,7 +190,8 @@ jobs:
           PRERELEASE: ${{ needs.prepare.outputs.prerelease }}
         run: |
           set -euo pipefail
-          args=(--title "v${VERSION}" --notes-file release-notes.md)
+          release_title=$(tr -d '\r\n' < release-title.txt)
+          args=(--title "$release_title" --notes-file release-notes.md)
           if [ "$PRERELEASE" = "true" ]; then
             args+=(--prerelease)
           fi

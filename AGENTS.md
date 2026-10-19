@@ -134,7 +134,7 @@ tag 去掉 `v` 后必须与 `pyproject.toml` 的 `version` 完全一致，`CHANG
 - `prepare`：校验版本号与 CHANGELOG。
 - `build`：`linux/amd64` 与 `linux/arm64` 由原生 runner 并行构建，按 digest 推送。
 - `merge`：合成多架构 manifest，打版本 tag；正式版额外更新 `latest`，预发布不动 `latest`。
-- `release`：截取 CHANGELOG 中该版本段落生成 GitHub Release；已存在则更新说明。
+- `release`：使用 CHANGELOG 对应标题冒号后的文字生成 `vX.Y.Z：一句话标题`，不含日期；未提供标题时使用版本号。截取该版本段落生成正文；已存在则更新标题和说明。
 
 版本与镜像的对应关系：
 
