@@ -17,7 +17,7 @@ from pydantic_ai.settings import ModelSettings
 
 from spring_agent.core.agent.deps import RequestUsageEntry
 from spring_agent.core.billing import BillingContext, BillingError
-from spring_agent.core.hooks.usage import count_native_web_searches, fill_missing_usage
+from spring_agent.core.hooks.usage import count_native_web_searches, estimate_interrupted_usage, fill_missing_usage
 
 T = TypeVar("T")
 
@@ -58,14 +58,6 @@ class RequestBillingModel(WrapperModel):
         if cancelled:
             await self._settle(request_id, None, asyncio.CancelledError(), issued=False)
             raise asyncio.CancelledError
-        try:
-            _, cancelled = await finish_shielded(self.billing.gateway.issued(request_id))
-        except Exception as error:
-            await self._settle(request_id, None, error, issued=False)
-            raise
-        if cancelled:
-            await self._settle(request_id, None, asyncio.CancelledError(), issued=False)
-            raise asyncio.CancelledError
 
     async def _settle(self, request_id: str, response: ModelResponse | None,
                       error: BaseException | None, *, issued: bool = True,
@@ -78,16 +70,20 @@ class RequestBillingModel(WrapperModel):
         if type(web_searches) is not int or web_searches < 0:
             web_searches = None
         known_rejection = isinstance(error, ModelHTTPError) and 400 <= error.status_code < 500
+        cancelled_error = isinstance(error, asyncio.CancelledError | RunCancelled)
         if response is not None and issued and not known_rejection:
             if messages is not None and model_request_parameters is not None:
                 usage = fill_missing_usage(usage, response, messages, model_request_parameters)
             if web_searches is None:
                 web_searches = count_native_web_searches(response)
+        elif issued and cancelled_error and messages is not None \
+                and model_request_parameters is not None:
+            usage = estimate_interrupted_usage(messages, model_request_parameters)
         has_usage = any((usage.input_tokens, usage.output_tokens, usage.cache_read_tokens,
                          usage.cache_write_tokens))
-        usage_known = has_usage or not issued or known_rejection
+        usage_known = has_usage or not issued or error is not None
         interrupted = response is not None and response.state == "interrupted"
-        cancelled_status = isinstance(error, asyncio.CancelledError | RunCancelled) or (error is None and interrupted)
+        cancelled_status = cancelled_error or (error is None and interrupted)
         status = "cancelled" if cancelled_status else "error" if error else "finished"
         if response is not None:
             self.usage_log.append(RequestUsageEntry(model_id=self.catalog_model_id, usage=usage))

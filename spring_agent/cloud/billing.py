@@ -247,8 +247,8 @@ class BillingClient:
         raise AssertionError("unreachable")
 
     @staticmethod
-    def _recovery(request_id: str, user_id: int, *, issued: bool) -> dict:
-        return {"requestId": request_id, "userId": user_id, "status": "error", "usageKnown": not issued,
+    def _recovery(request_id: str, user_id: int) -> dict:
+        return {"requestId": request_id, "userId": user_id, "status": "error", "usageKnown": True,
                 "inputTokens": 0, "cacheReadTokens": 0, "cacheWriteTokens": 0, "outputTokens": 0,
                 "webSearches": None}
 
@@ -256,7 +256,7 @@ class BillingClient:
         async with self._delivery_lock:
             if await asyncio.to_thread(self._pending, payload["userId"]):
                 raise BillingError("有模型请求尚未结算，请稍后重试")
-        recovery = self._recovery(payload["requestId"], payload["userId"], issued=False)
+        recovery = self._recovery(payload["requestId"], payload["userId"])
         await asyncio.to_thread(self._save, recovery, ready=False)
         try:
             await self._post("reserve", payload)
@@ -266,17 +266,6 @@ class BillingClient:
             else:
                 await asyncio.to_thread(self._save, recovery, ready=True)
             raise
-
-    async def issued(self, request_id: str) -> None:
-        def update():
-            with self._connection() as db:
-                row = db.execute("SELECT user_id FROM billing_outbox WHERE request_id = ?", (request_id,)).fetchone()
-                if row is None:
-                    raise BillingError("请求冻结记录丢失")
-                payload = self._recovery(request_id, row[0], issued=True)
-                db.execute("UPDATE billing_outbox SET payload = ? WHERE request_id = ?",
-                           (json.dumps(payload), request_id))
-        await asyncio.to_thread(update)
 
     async def settle(self, payload: dict[str, Any]) -> None:
         async with self._delivery_lock:

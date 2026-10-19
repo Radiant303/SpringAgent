@@ -9,13 +9,18 @@ from functools import cache
 
 from pydantic_ai import (
     ModelMessage,
+    ModelRequest,
     ModelResponse,
     NativeToolCallPart,
     NativeToolReturnPart,
     RequestUsage,
+    RetryPromptPart,
+    SystemPromptPart,
     TextPart,
     ThinkingPart,
     ToolCallPart,
+    ToolReturnPart,
+    UserPromptPart,
 )
 from pydantic_ai.models import ModelRequestParameters
 from pydantic_ai_harness.compaction._shared import estimate_context_tokens
@@ -76,6 +81,35 @@ def fill_missing_usage(usage: RequestUsage, response: ModelResponse, messages: l
     if estimated.output_tokens == 0:
         estimated.output_tokens = sum(_count_text(text) for text in _output_text(response))
     return estimated
+
+
+def estimate_interrupted_usage(messages: list[ModelMessage],
+                               parameters: ModelRequestParameters) -> RequestUsage:
+    """无响应请求的用量估算：新输入按全价，系统提示词与上下文按缓存读取价。"""
+    split = 0
+    for index in range(len(messages) - 1, -1, -1):
+        if isinstance(messages[index], ModelResponse):
+            split = index + 1
+            break
+    cached = estimate_context_tokens(messages[:split], _count_text,
+                                     model_request_parameters=parameters) if split else 0
+    fresh = 0
+    for message in messages[split:]:
+        if not isinstance(message, ModelRequest):
+            continue
+        if message.instructions:
+            cached += _count_text(message.instructions)
+        for part in message.parts:
+            if isinstance(part, SystemPromptPart):
+                cached += _count_text(part.content)
+            elif isinstance(part, UserPromptPart):
+                if isinstance(part.content, str):
+                    fresh += _count_text(part.content)
+                else:
+                    fresh += sum(_count_text(item) for item in part.content if isinstance(item, str))
+            elif isinstance(part, ToolReturnPart | RetryPromptPart):
+                fresh += _count_text(str(part.content))
+    return RequestUsage(input_tokens=cached + fresh, cache_read_tokens=cached)
 
 
 def count_native_web_searches(response: ModelResponse) -> int | None:
