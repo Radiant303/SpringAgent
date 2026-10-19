@@ -12,9 +12,6 @@ x-settings:
   jwt-secret: &jwt-secret "springagent-default-jwt-secret-0123456789abcdef"
   internal-token: &internal-token "springagent-default-internal-token-0123456789abcdef"
   web-ports: &web-ports ["17900:80"]
-  # 空值表示不启用 HTTPS。
-  https-domain: &https-domain ""
-  certificate-directory: &certificate-directory "./certs"
 
 services:
   mysql:
@@ -138,77 +135,11 @@ services:
   nginx:
     image: nginx:1.27-alpine
     ports: *web-ports
-    environment:
-      HTTPS_DOMAIN: *https-domain
-    command:
-      - /bin/sh
-      - -ec
-      - |
-        NGINX_SERVER_NAME=_
-        NGINX_LISTEN=80
-        NGINX_TLS_CONFIG=
-        NGINX_HTTP_REDIRECT=
-        if [ -n "$$HTTPS_DOMAIN" ]; then
-            case "$$HTTPS_DOMAIN" in
-                *[!a-zA-Z0-9.-]*|.*|*.|*..*)
-                    echo 'HTTPS 域名无效，请只填写域名，不含协议、端口或路径。' >&2
-                    exit 1
-                    ;;
-            esac
-            if [ "$${#HTTPS_DOMAIN}" -gt 253 ]; then
-                echo 'HTTPS 域名过长。' >&2
-                exit 1
-            fi
-            IFS=.
-            set -- $$HTTPS_DOMAIN
-            unset IFS
-            for label do
-                case "$$label" in
-                    -*|*-)
-                        echo 'HTTPS 域名中的每段不能以连字符开头或结尾。' >&2
-                        exit 1
-                        ;;
-                esac
-                if [ "$${#label}" -gt 63 ]; then
-                    echo 'HTTPS 域名中的每段不能超过 63 个字符。' >&2
-                    exit 1
-                fi
-            done
-            for file in fullchain.pem privkey.pem; do
-                if [ ! -s "/etc/nginx/certs/$$file" ] || [ ! -r "/etc/nginx/certs/$$file" ]; then
-                    echo "HTTPS 证书文件缺失、为空或不可读：$$file" >&2
-                    exit 1
-                fi
-            done
-            NGINX_SERVER_NAME=$$HTTPS_DOMAIN
-            NGINX_LISTEN='443 ssl'
-            NGINX_TLS_CONFIG='
-                ssl_certificate /etc/nginx/certs/fullchain.pem;
-                ssl_certificate_key /etc/nginx/certs/privkey.pem;
-                ssl_protocols TLSv1.2 TLSv1.3;'
-            NGINX_HTTP_REDIRECT="server {
-                listen 80;
-                server_name $$HTTPS_DOMAIN;
-                location = /healthz { access_log off; return 200; }
-                location / { return 301 https://$$HTTPS_DOMAIN\$$request_uri; }
-            }"
-        fi
-        export NGINX_SERVER_NAME NGINX_LISTEN NGINX_TLS_CONFIG NGINX_HTTP_REDIRECT
-        envsubst '$$NGINX_SERVER_NAME $$NGINX_LISTEN $$NGINX_TLS_CONFIG $$NGINX_HTTP_REDIRECT' \
-            < /etc/nginx/springagent.conf.template > /etc/nginx/conf.d/default.conf
-        nginx -t
-        exec nginx -g 'daemon off;'
     configs:
       - source: nginx-config
-        target: /etc/nginx/springagent.conf.template
+        target: /etc/nginx/conf.d/default.conf
     volumes:
       - app-data:/data/cloud:ro
-      - type: bind
-        source: *certificate-directory
-        target: /etc/nginx/certs
-        read_only: true
-        bind:
-          create_host_path: true
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1/healthz"]
       interval: 5s
@@ -230,11 +161,9 @@ configs:
           default $$scheme;
           "http:https" https;
       }
-      $$NGINX_HTTP_REDIRECT
       server {
-          listen $$NGINX_LISTEN;
-          server_name $$NGINX_SERVER_NAME;
-          $$NGINX_TLS_CONFIG
+          listen 80;
+          server_name _;
           client_max_body_size 5120m;
           location = /healthz {
               access_log off;
