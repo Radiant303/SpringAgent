@@ -1,6 +1,9 @@
+<div align="center">
+
+<img src="assets/public/log.png" alt="SpringAgent" width="180">
+
 # SpringAgent
 
-<div align="center">
 
 **云端 Agent 平台**
 
