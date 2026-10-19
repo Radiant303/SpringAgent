@@ -36,6 +36,7 @@ import {
   syncChrome,
 } from "./input.js";
 import { initUpload } from "./upload.js";
+import { initVersionNotice } from "./version.js";
 import { syncPlaceholder } from "./editor.js";
 
 // Markdown 配置
@@ -474,6 +475,7 @@ export async function init() {
     return;
   }
   showUserChip();
+  initVersionNotice();
   try {
     await connectAndSetup();
   } catch (e) {

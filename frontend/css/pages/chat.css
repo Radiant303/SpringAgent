@@ -306,6 +306,7 @@
   text-decoration: none;
   transition: background-color 0.15s;
 }
+
 .points-card:hover {
   background: rgba(0, 0, 0, 0.06);
 }
@@ -342,6 +343,16 @@
 }
 .points-card.negative .pc-title {
   color: var(--danger, #FF3849);
+}
+
+/* ---- 版本更新入口 ---- */
+.update-card .pc-icon {
+  color: var(--admin-green, #2fb36d);
+}
+.update-card .pc-sub {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .user-chip {

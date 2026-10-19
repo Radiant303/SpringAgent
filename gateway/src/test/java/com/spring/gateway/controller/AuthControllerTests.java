@@ -170,7 +170,8 @@ class AuthControllerTests {
         mockMvc.perform(get("/api/auth/public-config"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.mailVerify").value(false))
-                .andExpect(jsonPath("$.data.communityLink").value(""));
+                .andExpect(jsonPath("$.data.communityLink").value(""))
+                .andExpect(jsonPath("$.data.version").exists());
 
         enableMailRegister();
         systemSettingService.set(SystemSetting.KEY_COMMUNITY_LINK, "https://qm.qq.com/q/abc123");

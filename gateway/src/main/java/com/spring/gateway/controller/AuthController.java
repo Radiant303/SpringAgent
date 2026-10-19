@@ -12,6 +12,7 @@ import com.spring.gateway.service.MailCodeService;
 import com.spring.gateway.service.SystemSettingService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -33,6 +34,9 @@ public class AuthController {
 
     private final AuthService authService;
     private final SystemSettingService systemSettingService;
+
+    @Value("${app.version:dev}")
+    private String version;
 
     /**
      * 发送邮箱验证码；同一邮箱在重发间隔内只能发一次。
@@ -70,7 +74,8 @@ public class AuthController {
     public Result<Map<String, Object>> publicConfig() {
         return Result.ok(Map.of(
                 "mailVerify", systemSettingService.isMailRegisterEnabled(),
-                "communityLink", systemSettingService.getCommunityLink()));
+                "communityLink", systemSettingService.getCommunityLink(),
+                "version", version));
     }
 
     /**
