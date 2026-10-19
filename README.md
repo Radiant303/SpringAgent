@@ -345,8 +345,7 @@ cd gateway && ./mvnw test    # 网关单元测试
 
 ## 社区
 
-- 提交问题：<https://github.com/Radiant303/SpringAgent/issues>
-- 项目地址：<https://github.com/Radiant303/SpringAgent>
+- QQ交流群：<https://qm.qq.com/q/CYVegzSipG>
 
 反馈问题时请附上版本、部署方式、复现步骤及脱敏日志。欢迎贡献文档、翻译、渠道适配和有针对性的回归测试。
 
