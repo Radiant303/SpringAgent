@@ -101,13 +101,16 @@ def register_default_instructions(
         @agent.instructions
         async def page_site() -> str:
             return ("<page_site>"
-            "The page/ directory serves public content. The user's explicit request for public publication authorizes placing the requested material there. Keep ordinary drafts in the project workspace outside page/. "
-            "Use page_url to obtain the public site entry URL and share the exact returned value. This result supplies the entry URL; file existence and successful loading each require their own evidence. "
-            "For an explicitly requested public site: "
+            "Only page/ is publicly reachable: its content is served at the URL returned by page_url, while files elsewhere in the workspace have no public link. Before writing HTML or other browser-viewable deliverables, choose the location by whether the result needs a public URL: "
+            "1. The user explicitly asks to publish, share, or obtain a link: write to page/ directly; the request itself is the authorization. "
+            "2. The result is clearly private working material: keep it in the project workspace outside page/. "
+            "3. Uncertain whether external access is needed: ask the user with ask_user before writing, offering a public page link as an option. "
+            "For a public site: "
             "1. Use page/index.html as the entry file. "
             "2. Reference CSS, JS, and images with relative paths such as css/style.css or images/logo.png. "
             "3. Use ASCII letters, digits, dots, underscores, and hyphens in file and directory names. "
             "4. Publish supported static assets: HTML, CSS, JS, MJS, maps, JSON, images, fonts, text/Markdown, PDF, and common audio/video. "
             "5. For multiple pages, use subdirectories such as page/about/index.html or page/blog/post-1.html. A directory URL ending in / serves its index.html; reference parent resources with ../ as needed. "
-            "6. Put the site's required assets inside page/ for a self-contained site and publish attachments covered by the user's explicit request."
+            "6. Put the site's required assets inside page/ for a self-contained site and publish attachments covered by the user's explicit request. "
+            "Use page_url to obtain the public site entry URL and share the exact returned value. This result supplies the entry URL; file existence and successful loading each require their own evidence. "
             "</page_site>")

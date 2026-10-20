@@ -43,6 +43,11 @@ function isViewCurrent(view) {
   return isScopeCurrent(view) && state.sessionId === view.sid;
 }
 
+/** 卸载会话在当前连接上的挂载，释放项目删除的"使用中"占用 */
+function detachSession(sid) {
+  if (sid && state.connected) rpc.request("session/detach", { sessionId: sid }).catch(() => {});
+}
+
 function syncSessionSelection() {
   for (const item of $("session-list")?.querySelectorAll(".session-item") || []) {
     item.classList.toggle("active", item.dataset.sessionId === state.sessionId);
@@ -352,6 +357,7 @@ export function switchSession(sid) {
 
 export function newSession() {
   state.viewGeneration++;
+  detachSession(state.sessionId);
   state.sessionId = null;
   state.sessionReady = false;
   syncSessionSelection();
@@ -367,6 +373,7 @@ export function newSession() {
 export async function openWorkSession(preferredSid = null) {
   state.viewGeneration++;
   listGeneration++;
+  const previousSid = state.sessionId;
   const view = viewContext();
   selectSessionView(preferredSid);
   UI.showSkeleton("session-list");
@@ -397,6 +404,7 @@ export async function openWorkSession(preferredSid = null) {
     renderSessionList(sessions);
     return queueSessionLoad(view);
   }
+  detachSession(previousSid);
   state.sessionId = null;
   localStorage.removeItem("sa.sessionId");
   clearMessages();

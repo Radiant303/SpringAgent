@@ -67,6 +67,7 @@ class CloudAppServer(AppServer):
             "session/resume_last": (WorkspaceParams, self._session_resume_last),
             "session/list": (WorkspaceParams, self._session_list),
             "session/attach": (AttachParams, self._session_attach),
+            "session/detach": (SessionParams, self._session_detach),
         })
 
     @classmethod
@@ -168,9 +169,12 @@ class CloudAppServer(AppServer):
             owner._track(asyncio.create_task(owner._notify_replaced(session_id)))
         if self._active_owners.get(session_id) is not self:
             self._control_tokens[session_id] = uuid.uuid4().hex
-        previous = registry.get(self.selected_session_id) if self.selected_session_id is not None else None
-        if previous is not None:
-            previous.touch()
+        # 一个连接同时只挂载一个选中会话：换选前释放上一个，否则旧会话一直被算作"页面挂载中"
+        previous_id = self.selected_session_id
+        if previous_id is not None and previous_id != session_id \
+                and self._active_owners.get(previous_id) is self:
+            self._reject_session_requests(previous_id)
+            self._unmount(previous_id)
         self.selected_session_id = session_id
         self._active_owners[session_id] = self
         self._owned_sessions.add(session_id)
@@ -267,6 +271,11 @@ class CloudAppServer(AppServer):
             )
         self._adopt(handle, p.model, p.effort, takeover=p.takeover)
         return self._cloud_result(handle)
+
+    async def _session_detach(self, p: SessionParams) -> None:
+        if self._active_owners.get(p.session_id) is self:
+            self._reject_session_requests(p.session_id)
+            self._unmount(p.session_id)
 
     def _cloud_result(self, handle: CloudSessionHandle) -> SessionResult:
         return SessionResult(session_id=handle.session_id, busy=handle.busy,
