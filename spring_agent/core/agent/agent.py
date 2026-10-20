@@ -5,6 +5,7 @@ from typing import Any
 from pydantic_ai import Agent, UsageLimits
 from pydantic_ai.tools import DeferredToolRequests
 from pydantic_ai_harness import Shell
+from pydantic_ai_harness.compaction import ClampOversizedMessages, ClearToolResults
 
 from spring_agent.capabilities.code_mode import code_mode
 from spring_agent.capabilities.compaction import (
@@ -29,6 +30,7 @@ from spring_agent.core.config.model import get_model, get_model_config, setting
 from spring_agent.core.config.settings import loop_control
 from spring_agent.core.config.thinking import resolve_effort, thinking_capability
 from spring_agent.core.hooks.model import hooks, request_hooks
+from spring_agent.core.hooks.usage import count_text_tokens
 from spring_agent.core.workspace import FileAccessContext
 from spring_agent.instructions.default import register_default_instructions
 from spring_agent.toolsets.ask_user import ask_user_toolset
@@ -95,10 +97,22 @@ def create_agent(
             code_mode(),
             subagents(str(root), model_id, effort, file_access=file_access),
             researcher(),
+            ClampOversizedMessages(max_part_chars=100_000, tokenizer=count_text_tokens),
+            ClearToolResults(
+                max_fraction=0.75,
+                context_window=model_config.max_context_size,
+                keep_pairs=6,
+                clear_tool_inputs=True,
+                min_clear_tokens=8_192,
+                placeholder="（过旧的工具结果已清理，需要时可重新读取）",
+                exclude_tools=frozenset({"ask_user"}),
+                tokenizer=count_text_tokens,
+            ),
             NotifyingCompaction(
                 max_fraction=0.8,
-                keep_messages=4,
+                keep_tokens=24_000,
                 context_window=model_config.max_context_size,
+                tokenizer=count_text_tokens,
                 on_compaction=compact_on_change,
                 on_compaction_start=compact_on_start,
             )

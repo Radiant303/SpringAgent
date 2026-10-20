@@ -23,6 +23,7 @@ ENV PATH="/app/.venv/bin:/opt/java/openjdk/bin:${PATH}" \
     PYTHONUNBUFFERED=1 \
     SPRINGAGENT_CONFIG=/app/config.toml \
     SPRINGAGENT_LOG_STDOUT=1 \
+    TIKTOKEN_CACHE_DIR=/app/tiktoken-cache \
     APP_VERSION=${APP_VERSION}
 WORKDIR /app
 RUN apt-get update \
@@ -31,6 +32,7 @@ RUN apt-get update \
 COPY --from=java-runtime /opt/java/openjdk /opt/java/openjdk
 RUN java -version
 COPY --from=python-build /app/.venv ./.venv
+RUN python -c "import tiktoken; tiktoken.get_encoding('cl100k_base')"
 COPY --from=java-build /build/target/*.jar ./gateway/app.jar
 COPY spring_agent ./spring_agent
 COPY alembic ./alembic

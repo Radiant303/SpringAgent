@@ -44,7 +44,7 @@ def _encoding():
         return None
 
 
-def _count_text(text: str) -> int:
+def count_text_tokens(text: str) -> int:
     if not text:
         return 0
     encoding = _encoding()
@@ -73,13 +73,13 @@ def fill_missing_usage(usage: RequestUsage, response: ModelResponse, messages: l
     estimated = copy(usage)
     if estimated.input_tokens == 0:
         input_tokens = estimate_context_tokens(
-            messages, _count_text, model_request_parameters=parameters,
+            messages, count_text_tokens, model_request_parameters=parameters,
         )
         estimated.input_tokens = max(
             input_tokens, estimated.cache_read_tokens + estimated.cache_write_tokens,
         )
     if estimated.output_tokens == 0:
-        estimated.output_tokens = sum(_count_text(text) for text in _output_text(response))
+        estimated.output_tokens = sum(count_text_tokens(text) for text in _output_text(response))
     return estimated
 
 
@@ -91,24 +91,24 @@ def estimate_interrupted_usage(messages: list[ModelMessage],
         if isinstance(messages[index], ModelResponse):
             split = index + 1
             break
-    cached = estimate_context_tokens(messages[:split], _count_text,
+    cached = estimate_context_tokens(messages[:split], count_text_tokens,
                                      model_request_parameters=parameters) if split else 0
     fresh = 0
     for message in messages[split:]:
         if not isinstance(message, ModelRequest):
             continue
         if message.instructions:
-            cached += _count_text(message.instructions)
+            cached += count_text_tokens(message.instructions)
         for part in message.parts:
             if isinstance(part, SystemPromptPart):
-                cached += _count_text(part.content)
+                cached += count_text_tokens(part.content)
             elif isinstance(part, UserPromptPart):
                 if isinstance(part.content, str):
-                    fresh += _count_text(part.content)
+                    fresh += count_text_tokens(part.content)
                 else:
-                    fresh += sum(_count_text(item) for item in part.content if isinstance(item, str))
+                    fresh += sum(count_text_tokens(item) for item in part.content if isinstance(item, str))
             elif isinstance(part, ToolReturnPart | RetryPromptPart):
-                fresh += _count_text(str(part.content))
+                fresh += count_text_tokens(str(part.content))
     return RequestUsage(input_tokens=cached + fresh, cache_read_tokens=cached)
 
 

@@ -14,6 +14,8 @@ class RequestUsageEntry:
 
     model_id: str
     usage: RequestUsage
+    # 取值：main / compaction / searcher / reviewer
+    agent_name: str = "main"
 
 
 @dataclass
