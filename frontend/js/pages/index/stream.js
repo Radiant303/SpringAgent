@@ -49,18 +49,13 @@ import { notifyStorageChanged } from "../../utils/storage.js";
 
 export const USAGE_RING_LEN = 56.5;
 
-const FLUSH_INTERVAL_MS = 16;
-
 /** 到达速率无统计时的兜底输出速率（字符/秒） */
 const PUMP_FALLBACK_SPEED = 58;
 /** 匀速整形泵的目标缓冲水位（字符） */
 const PUMP_TARGET_REMAIN = 16;
 
-let flushTimer = null;
-let pendingScroll = false;
 let compactionHideTimer = null;
-const pendingArgs = new Map();
-/** 渲染目标（回答/思考节点）→ 匀速整形泵 */
+/** 渲染目标（回答/思考/工具参数节点）→ 匀速整形泵 */
 const pumps = new Map();
 
 /** 匀速整形泵：增量先入缓冲，按帧匀速喂给渲染，摊平上游到达抖动 */
@@ -177,41 +172,15 @@ function hideCompactionStatus() {
   $("context-status")?.classList.add("hidden");
 }
 
-function scheduleFlush() {
-  if (flushTimer !== null) return;
-  flushTimer = setTimeout(flushPending, FLUSH_INTERVAL_MS);
-}
-
-/** 把缓冲的增量一次性写入 DOM */
+/** 把所有整形泵的缓冲一次性写入 DOM */
 export function flushPending() {
-  if (flushTimer !== null) {
-    clearTimeout(flushTimer);
-    flushTimer = null;
-  }
   for (const pump of pumps.values()) pump.drainAll();
   pumps.clear();
-  for (const [toolCallId, chunk] of pendingArgs) {
-    const card = state.tools.get(toolCallId);
-    if (!card) continue;
-    appendKeepingBottom(card.args, chunk);
-    applyToolArgs(card);
-  }
-  pendingArgs.clear();
-  if (pendingScroll) {
-    pendingScroll = false;
-    maybeScroll();
-  }
 }
 
 export function discardPending() {
-  if (flushTimer !== null) {
-    clearTimeout(flushTimer);
-    flushTimer = null;
-  }
   for (const pump of pumps.values()) pump.destroy();
   pumps.clear();
-  pendingArgs.clear();
-  pendingScroll = false;
 }
 
 function applyToolArgs(card) {
@@ -401,9 +370,11 @@ export function onSessionEvent(sid, event, seq) {
     case "tool_args_delta": {
       const card = state.tools.get(event.tool_call_id);
       if (card) {
-        pendingArgs.set(event.tool_call_id, (pendingArgs.get(event.tool_call_id) || "") + event.args_chunk);
-        pendingScroll = true;
-        scheduleFlush();
+        pumpFor("args:" + event.tool_call_id, (text) => {
+          appendKeepingBottom(card.args, text);
+          applyToolArgs(card);
+          maybeScroll();
+        }).push(event.args_chunk);
       }
       break;
     }
