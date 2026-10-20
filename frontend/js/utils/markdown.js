@@ -183,8 +183,8 @@ function setupCodeScrollbar(wrap, pre) {
   setTimeout(update, 50);
 }
 
-export function setMarkdown(node, text) {
+export function setMarkdown(node, text, enhance = true) {
   if (!node) return;
   node.innerHTML = renderMarkdown(text);
-  enhanceCodeBlocks(node);
+  if (enhance) enhanceCodeBlocks(node);
 }

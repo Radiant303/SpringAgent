@@ -5,7 +5,7 @@
 import { $, el, hidePending, appendKeepingBottom, icon } from "../../utils/dom.js";
 import { getToken } from "../../api/auth.js";
 import { rpc } from "../../api/rpc.js";
-import { setMarkdown } from "../../utils/markdown.js";
+import { enhanceCodeBlocks, setMarkdown } from "../../utils/markdown.js";
 import { SproutManager } from "../../components/sprout.js";
 import {
   state,
@@ -49,7 +49,7 @@ import { notifyStorageChanged } from "../../utils/storage.js";
 
 export const USAGE_RING_LEN = 56.5;
 
-const FLUSH_INTERVAL_MS = 40;
+const FLUSH_INTERVAL_MS = 16;
 
 let flushTimer = null;
 let pendingScroll = false;
@@ -101,7 +101,7 @@ export function flushPending() {
   pendingArgs.clear();
   for (const [assistant, text] of pendingAnswers) {
     assistant.text += text;
-    setMarkdown(assistant.answer, assistant.text);
+    setMarkdown(assistant.answer, assistant.text, false);
   }
   pendingAnswers.clear();
   if (pendingScroll) {
@@ -400,6 +400,7 @@ export function finishTurn(event) {
   setActive(null);
   closeWork();
   foldTurnGroups();
+  if (state.assistant) enhanceCodeBlocks(state.assistant.answer);
   state.assistant = null;
   state.tools.clear();
   discardEmptyTurn();

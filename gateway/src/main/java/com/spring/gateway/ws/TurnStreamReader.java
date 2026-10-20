@@ -39,7 +39,7 @@ public class TurnStreamReader {
     private static final int READ_BATCH = 500;
     /** 阻塞读等待上限 */
     private static final Duration READ_BLOCK = Duration.ofMillis(50);
-    private static final long MERGE_WINDOW_MS = 30;
+    private static final long MERGE_WINDOW_MS = 10;
     /** 单帧合并字符数上限 */
     private static final int MERGE_MAX_CHARS = 32 * 1024;
     private static final int MERGE_MAX_EVENTS = 500;
@@ -136,24 +136,23 @@ public class TurnStreamReader {
         PendingDelta pending = null;
         try {
             while (browserSession.isOpen() && !Thread.currentThread().isInterrupted()) {
-                if (pending != null && replayPacer == null) {
-                    long wait = pending.flushAt - System.currentTimeMillis();
-                    if (wait > 0) {
-                        try {
-                            Thread.sleep(wait);
-                        } catch (InterruptedException e) {
-                            Thread.currentThread().interrupt();
-                            return;
-                        }
-                    }
-                    if (!browserSession.isOpen()) {
-                        return;
-                    }
+                if (replayPacer == null && pending != null
+                        && pending.flushAt - System.currentTimeMillis() <= 0) {
+                    pushMerged(browserSession, sessionId, pending, null);
+                    pending = null;
+                    continue;
                 }
                 List<MapRecord<String, Object, Object>> records;
                 try {
                     StreamReadOptions options = StreamReadOptions.empty().count(READ_BATCH);
-                    if (replayPacer == null) options = options.block(READ_BLOCK);
+                    if (replayPacer == null) {
+                        // 有未发增量时把阻塞读超时压到合并窗剩余时间，窗口到期即发出
+                        long blockMs = READ_BLOCK.toMillis();
+                        if (pending != null) {
+                            blockMs = Math.min(blockMs, pending.flushAt - System.currentTimeMillis());
+                        }
+                        options = options.block(Duration.ofMillis(blockMs));
+                    }
                     records = redisTemplate.opsForStream().read(options,
                             StreamOffset.create(key,
                                     offset == null ? ReadOffset.latest() : ReadOffset.from(offset)));
