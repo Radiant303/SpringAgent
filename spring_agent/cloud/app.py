@@ -27,6 +27,7 @@ from spring_agent.cloud.ws import CloudAppServer, ws_endpoint
 from spring_agent.core.config.model import build_model, set_catalog
 from spring_agent.core.config.settings import config
 from spring_agent.core.config.thinking import thinking_capability
+from spring_agent.core.filesystem import PAGE_DIRECTORY, grant_public_read
 from spring_agent.core.log import logger
 
 
@@ -56,7 +57,7 @@ def _initialize_works(data_root: Path) -> None:
             try:
                 info = directory.lstat()
             except FileNotFoundError:
-                directory.mkdir(exist_ok=True)
+                directory.mkdir(exist_ok=True, mode=0o755)
                 info = directory.lstat()
             if stat.S_ISLNK(info.st_mode) or getattr(info, "st_file_attributes", 0) & 0x400:
                 raise ValueError("存储路径包含链接")
@@ -68,10 +69,35 @@ def _initialize_works(data_root: Path) -> None:
         raise RuntimeError(f"本地存储工作区初始化失败: {works}") from e
 
 
+def _open_published_pages(data_root: Path) -> None:
+    """公开页面的权限校正。"""
+    works = data_root / "works"
+    try:
+        projects = list(works.iterdir())
+    except OSError as error:
+        logger.warning("公开页面权限校正失败，跳过本轮: {}", error)
+        return
+    grant_public_read(works, directory=True)
+    for project in projects:
+        if project.is_symlink():
+            continue
+        page = project / PAGE_DIRECTORY
+        if page.is_symlink() or not page.is_dir():
+            continue
+        grant_public_read(page, directory=True, parents=works)
+        for root, directories, files in os.walk(page):
+            for name in directories:
+                grant_public_read(Path(root) / name, directory=True)
+            for name in files:
+                grant_public_read(Path(root) / name)
+
+
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     data_root = Path(config.cloud.data_root).expanduser().absolute()
     _initialize_works(data_root)
+    if os.name != "nt":
+        await asyncio.to_thread(_open_published_pages, data_root)
     cipher = CacheSecretCipher.load(data_root)
     catalog_cache = redis.from_url(config.cloud.redis_url, decode_responses=True)
     set_catalog(DbCatalog(catalog_cache, cipher))
