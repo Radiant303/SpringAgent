@@ -51,12 +51,110 @@ export const USAGE_RING_LEN = 56.5;
 
 const FLUSH_INTERVAL_MS = 16;
 
+/** 到达速率无统计时的兜底输出速率（字符/秒） */
+const PUMP_FALLBACK_SPEED = 58;
+/** 匀速整形泵的目标缓冲水位（字符） */
+const PUMP_TARGET_REMAIN = 16;
+
 let flushTimer = null;
 let pendingScroll = false;
 let compactionHideTimer = null;
-const pendingAnswers = new Map();
-const pendingThinking = new Map();
 const pendingArgs = new Map();
+/** 渲染目标（回答/思考节点）→ 匀速整形泵 */
+const pumps = new Map();
+
+/** 匀速整形泵：增量先入缓冲，按帧匀速喂给渲染，摊平上游到达抖动 */
+class SmoothPump {
+  constructor(flushSlice) {
+    this.flushSlice = flushSlice;
+    this.buffer = "";
+    this.acc = 0;
+    this.last = 0;
+    this.raf = 0;
+    this.lastPushAt = 0;
+    this.intervalEma = 0;
+    this.chunkEma = 0;
+    this.hasFlushed = false;
+  }
+
+  push(text) {
+    const now = performance.now();
+    if (this.lastPushAt) {
+      const dt = now - this.lastPushAt;
+      this.intervalEma = this.intervalEma ? this.intervalEma * 0.8 + dt * 0.2 : dt;
+    }
+    this.lastPushAt = now;
+    this.chunkEma = this.chunkEma ? this.chunkEma * 0.8 + text.length * 0.2 : text.length;
+    this.buffer += text;
+    if (!this.raf) {
+      this.last = performance.now();
+      const loop = (now) => {
+        this.raf = 0;
+        this.tick(now);
+        if (this.buffer) this.raf = requestAnimationFrame(loop);
+      };
+      this.raf = requestAnimationFrame(loop);
+    }
+  }
+
+  tick(now) {
+    // dt 封顶 50ms：切后台或卡顿恢复后不猛冲
+    const dt = Math.max(0, Math.min(now - this.last, 50)) / 1000;
+    this.last = now;
+    const remain = this.buffer.length;
+    if (!remain) {
+      this.acc = 0;
+      return;
+    }
+    const base = this.intervalEma > 0
+      ? (this.chunkEma / this.intervalEma) * 900
+      : PUMP_FALLBACK_SPEED;
+    // 水位高于目标加速、低于减速，把缓冲稳在目标附近
+    const speed = Math.max(15, Math.min(400, base + (remain - PUMP_TARGET_REMAIN) * 5));
+    this.acc += speed * dt;
+    let n = Math.floor(this.acc);
+    this.acc -= n;
+    if (n <= 0 && !this.hasFlushed) n = 1;
+    if (n <= 0) return;
+    n = Math.min(n, remain);
+    const text = this.buffer.slice(0, n);
+    this.buffer = this.buffer.slice(n);
+    this.hasFlushed = true;
+    this.flushSlice(text);
+  }
+
+  /** 倒空剩余缓冲并停泵 */
+  drainAll() {
+    if (this.raf) {
+      cancelAnimationFrame(this.raf);
+      this.raf = 0;
+    }
+    if (this.buffer) {
+      const text = this.buffer;
+      this.buffer = "";
+      this.hasFlushed = true;
+      this.flushSlice(text);
+    }
+    this.acc = 0;
+  }
+
+  destroy() {
+    if (this.raf) {
+      cancelAnimationFrame(this.raf);
+      this.raf = 0;
+    }
+    this.buffer = "";
+  }
+}
+
+function pumpFor(key, flushSlice) {
+  let pump = pumps.get(key);
+  if (!pump) {
+    pump = new SmoothPump(flushSlice);
+    pumps.set(key, pump);
+  }
+  return pump;
+}
 
 function showCompactionStatus(text, done = false) {
   const box = $("context-status");
@@ -90,8 +188,8 @@ export function flushPending() {
     clearTimeout(flushTimer);
     flushTimer = null;
   }
-  for (const [body, text] of pendingThinking) appendKeepingBottom(body, text);
-  pendingThinking.clear();
+  for (const pump of pumps.values()) pump.drainAll();
+  pumps.clear();
   for (const [toolCallId, chunk] of pendingArgs) {
     const card = state.tools.get(toolCallId);
     if (!card) continue;
@@ -99,11 +197,6 @@ export function flushPending() {
     applyToolArgs(card);
   }
   pendingArgs.clear();
-  for (const [assistant, text] of pendingAnswers) {
-    assistant.text += text;
-    setMarkdown(assistant.answer, assistant.text, false);
-  }
-  pendingAnswers.clear();
   if (pendingScroll) {
     pendingScroll = false;
     maybeScroll();
@@ -115,9 +208,9 @@ export function discardPending() {
     clearTimeout(flushTimer);
     flushTimer = null;
   }
-  pendingThinking.clear();
+  for (const pump of pumps.values()) pump.destroy();
+  pumps.clear();
   pendingArgs.clear();
-  pendingAnswers.clear();
   pendingScroll = false;
 }
 
@@ -270,10 +363,12 @@ export function onSessionEvent(sid, event, seq) {
     case "text_delta": {
       settleFinishedTools();
       const a = ensureAssistant();
-      if (!a.text && !pendingAnswers.has(a)) setActive(null);
-      pendingAnswers.set(a, (pendingAnswers.get(a) || "") + event.text);
-      pendingScroll = true;
-      scheduleFlush();
+      if (!a.text && !pumps.has(a)) setActive(null);
+      pumpFor(a, (text) => {
+        a.text += text;
+        setMarkdown(a.answer, a.text, false);
+        maybeScroll();
+      }).push(event.text);
       break;
     }
     case "thinking_delta": {
@@ -285,9 +380,10 @@ export function onSessionEvent(sid, event, seq) {
         setActive(state.thinking);
       }
       const body = state.thinking.querySelector(".thinking-body");
-      pendingThinking.set(body, (pendingThinking.get(body) || "") + event.text);
-      pendingScroll = true;
-      scheduleFlush();
+      pumpFor(body, (text) => {
+        appendKeepingBottom(body, text);
+        maybeScroll();
+      }).push(event.text);
       break;
     }
     case "tool_started": {
