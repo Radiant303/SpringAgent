@@ -16,7 +16,80 @@ from typing import Any
 from pydantic_ai_harness import FileSystem
 from pydantic_ai_harness.filesystem import FileSystemToolset
 
-from spring_agent.core.workspace import StorageChange, StorageGuard, WorkspaceResource
+from spring_agent.core.log import logger
+from spring_agent.core.workspace import FileScope, StorageChange, StorageGuard, WorkspaceResource
+
+# 私有文件权限：仅属主可读写
+PRIVATE_FILE_MODE = 0o600
+# 私有目录权限：仅属主可进入
+PRIVATE_DIRECTORY_MODE = 0o700
+# 公开页面文件权限：需被只读分发进程读取
+PUBLIC_FILE_MODE = 0o644
+# 公开页面目录权限：需被只读分发进程进入
+PUBLIC_DIRECTORY_MODE = 0o755
+# 页面子树的目录名，位于项目工作区根下
+PAGE_DIRECTORY = "page"
+
+PUBLIC_READ = stat.S_IRGRP | stat.S_IROTH
+PUBLIC_TRAVERSE = stat.S_IXGRP | stat.S_IXOTH
+
+
+def public_modes(resource: WorkspaceResource, path: Path) -> tuple[int, int] | None:
+    """返回该路径适用的（文件权限, 目录权限）；不需要公开时返回 None。"""
+    if resource.scope != FileScope.WORKSPACE:
+        return None
+    try:
+        relative = path.relative_to(resource.root)
+    except ValueError:
+        return None
+    if not relative.parts or relative.parts[0] != PAGE_DIRECTORY:
+        return None
+    if not _safe_to_open(resource.root / PAGE_DIRECTORY):
+        return None
+    return PUBLIC_FILE_MODE, PUBLIC_DIRECTORY_MODE
+
+
+def _safe_to_open(path: Path) -> bool:
+    """不存在或是普通目录；链接等异常节点返回 False。"""
+    try:
+        info = path.lstat()
+    except FileNotFoundError:
+        return True
+    except OSError:
+        return False
+    return stat.S_ISDIR(info.st_mode)
+
+
+def grant_public_read(path: Path, *, directory: bool = False, parents: Path | None = None) -> None:
+    """补上组和其他读位，目录连同进入位；已有位保持不变。"""
+    _grant(path, directory=directory)
+    if parents is None:
+        return
+    current = path.parent
+    while current.is_relative_to(parents):
+        _grant(current, directory=True)
+        if current == parents:
+            return
+        current = current.parent
+
+
+def _grant(path: Path, *, directory: bool) -> None:
+    try:
+        info = path.lstat()
+    except OSError:
+        return
+    if stat.S_ISLNK(info.st_mode):
+        return
+    if not directory and (not stat.S_ISREG(info.st_mode) or info.st_nlink != 1):
+        return
+    extra = PUBLIC_READ | (PUBLIC_TRAVERSE if directory else 0)
+    mode = stat.S_IMODE(info.st_mode)
+    if mode & extra == extra:
+        return
+    try:
+        path.chmod(mode | extra)
+    except OSError as error:
+        logger.warning("公开目录权限补齐失败: path={} error={}", path, error)
 
 
 class _UnmeteredChange:
@@ -133,13 +206,15 @@ def _check_cancel(cancelled: threading.Event) -> None:
         raise InterruptedError("文件操作已取消。")
 
 
-def _replace_file(path: Path, content: bytes, cancelled: threading.Event) -> None:
+def _replace_file(path: Path, content: bytes, cancelled: threading.Event,
+                  *, mode: int = PRIVATE_FILE_MODE) -> None:
     descriptor, temporary = tempfile.mkstemp(prefix=".file-change-", suffix=".tmp", dir=path.parent)
     try:
         with os.fdopen(descriptor, "wb") as file:
             file.write(content)
             file.flush()
             os.fsync(file.fileno())
+            os.fchmod(file.fileno(), mode)
         _check_cancel(cancelled)
         check_path(path)
         os.replace(temporary, path)
@@ -255,9 +330,13 @@ class WorkspaceFiles:
             _check_cancel(cancelled)
             change.prepare()
             check_path(target.parent, directory=True)
-            target.parent.mkdir(parents=True, exist_ok=True)
+            modes = public_modes(self.resource, target)
+            file_mode, directory_mode = modes or (PRIVATE_FILE_MODE, PRIVATE_DIRECTORY_MODE)
+            target.parent.mkdir(parents=True, exist_ok=True, mode=directory_mode)
             check_path(target.parent, directory=True)
-            _replace_file(target, encoded, cancelled)
+            if modes is not None:
+                grant_public_read(target.parent, directory=True, parents=self.resource.root)
+            _replace_file(target, encoded, cancelled, mode=file_mode)
             change.record(_relative_path(path), len(old_bytes), len(encoded))
             return f"已更新 {path}，{len(encoded)} 字节。[hash:{content_hash(content)}]"
 
@@ -268,8 +347,12 @@ class WorkspaceFiles:
         change.check_write()
         _check_cancel(cancelled)
         change.prepare()
-        target.mkdir(parents=True, exist_ok=True)
+        modes = public_modes(self.resource, target)
+        _, directory_mode = modes or (PRIVATE_FILE_MODE, PRIVATE_DIRECTORY_MODE)
+        target.mkdir(parents=True, exist_ok=True, mode=directory_mode)
         check_path(target, directory=True)
+        if modes is not None:
+            grant_public_read(target, directory=True, parents=self.resource.root)
         return f"已创建目录：{path}"
 
     def _delete(self, path: str, cancelled: threading.Event, change: StorageChange) -> dict[str, Any]:

@@ -10,6 +10,7 @@ import { fmtPoints, fmtTime } from "../../utils/format.js";
 import { api } from "../../api/client.js";
 import { getRole } from "../../api/auth.js";
 import { UI } from "../../components/ui.js";
+import { users } from "./users.js";
 
 const ENDPOINT = "/api/admin/failure-events";
 const TYPE_LABELS = { SEARCH_BILLING: "搜索计费", MODEL_SETTLE: "模型结账" };
@@ -82,10 +83,12 @@ function cell(tr, value, className) {
 }
 
 function renderList(data) {
+  const nameOf = Object.fromEntries((users || []).map((u) => [u.user_id, u.username]));
   UI.renderRows("failure-tbody", data.list, (tr, event) => {
     tr.replaceChildren();
     cell(tr, time(event.createdAt), "failure-time");
-    cell(tr, event.userId, "failure-user");
+    const userCell = cell(tr, nameOf[event.userId] || event.userId, "failure-user");
+    userCell.title = display(event.userId);
     const identifiers = ["事件：" + display(event.eventId)];
     if (isModelSettlement(event)) identifiers.push("请求：" + display(event.requestId));
     const eventCell = cell(tr, "", "failure-event");
@@ -184,17 +187,19 @@ function detailFields(root, title, fields) {
 function renderDetail(event) {
   const root = $("failure-detail-body");
   const model = isModelSettlement(event);
+  const nameOf = Object.fromEntries((users || []).map((u) => [u.user_id, u.username]));
+  const userLabel = (id) => nameOf[id] ? `${nameOf[id]}（${id}）` : id;
   root.replaceChildren(h("p", "settings-hint", MANAGEMENT_NOTICE));
   detailFields(root, "公共信息与归属", [
     ["记录 ID", event.id], ["事件类型", typeLabel(event)],
-    ["事件 ID", event.eventId], ["用户 ID", event.userId],
+    ["事件 ID", event.eventId], ["用户", userLabel(event.userId)],
     ["会话 ID", event.sessionId], ["轮次 ID", event.turnId],
     ["事件状态", eventStatusLabel(event)], [pointsLabel(event), points(event.costPoints)],
     [model ? "结账失败次数 / 重试上限" : "重试次数 / 上限", display(event.retryCount) + " / " + (model && event.maxRetries == null ? "不限" : display(event.maxRetries))],
     ["下次自动重试", time(event.nextRetryAt)],
     ["创建时间", time(event.createdAt)], ["更新时间", time(event.updatedAt)],
     ["完成时间", time(event.completedAt)],
-    ["处理人 ID", event.handledBy], ["处理时间", time(event.handledAt)],
+    ["处理人", userLabel(event.handledBy)], ["处理时间", time(event.handledAt)],
   ]);
   if (model) {
     const settlement = event.settlement || {};

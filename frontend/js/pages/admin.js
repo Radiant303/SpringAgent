@@ -42,7 +42,7 @@ registerPageLoader("platform", () => loadPlatform());
 registerPageLoader("billing", () => loadBilling());
 registerPageLoader("community", () => loadCommunity());
 registerPageLoader("search", loadSearch);
-registerPageLoader("failure-events", loadFailureEvents);
+registerPageLoader("failure-events", () => ensureUsers().then(() => loadFailureEvents()));
 
 // 用户列表加载或刷新后，同步用量统计和积分流水页的用户筛选下拉框
 onUsersUpdated((list) => {

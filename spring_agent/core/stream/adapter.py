@@ -63,12 +63,16 @@ class AgentEventAdapter:
             handler = self._dispatch.get(type(event))
             if handler is not None:
                 await handler(event)
-            if _ctx is not None and isinstance(_ctx.deps, CodingAgentDeps) and _ctx.deps.usage_log:
-                entry = _ctx.deps.usage_log[-1]
-                tokens = entry.usage.input_tokens + entry.usage.output_tokens
-                if tokens != self._last_usage:
-                    self._last_usage = tokens
-                    await self._sink.update_context(tokens)
+            if _ctx is not None and isinstance(_ctx.deps, CodingAgentDeps):
+                # 环形图只取主对话的请求：压缩与子代理请求不代表会话上下文占用
+                entry = next(
+                    (e for e in reversed(_ctx.deps.usage_log) if e.agent_name == "main"), None,
+                )
+                if entry is not None:
+                    tokens = entry.usage.input_tokens + entry.usage.output_tokens
+                    if tokens != self._last_usage:
+                        self._last_usage = tokens
+                        await self._sink.update_context(tokens)
 
     async def _on_part_start(self, event: PartStartEvent) -> None:
         part = event.part

@@ -86,7 +86,8 @@ class RequestBillingModel(WrapperModel):
         cancelled_status = cancelled_error or (error is None and interrupted)
         status = "cancelled" if cancelled_status else "error" if error else "finished"
         if response is not None:
-            self.usage_log.append(RequestUsageEntry(model_id=self.catalog_model_id, usage=usage))
+            self.usage_log.append(RequestUsageEntry(model_id=self.catalog_model_id, usage=usage,
+                                                    agent_name=self.agent_name))
         if self.billing is None:
             return
         payload = {
