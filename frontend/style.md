@@ -27,7 +27,7 @@
 | UI 里放 emoji 当图标 | 内联 SVG 线性图标（见 §6.10） |
 | 浏览器 `alert / confirm / prompt` | `UI.dialog / UI.confirm / UI.prompt / UI.toast`（见 §6.6） |
 | 登录用弹窗盖在页面上 | 独立页面 `login.html` |
-| 加载时显示转圈或"加载中…"，数据到了再跳成内容 | 骨架屏，形状与真实内容一致（见 §6.8） |
+| 加载时显示转圈或"加载中…"，数据到了再跳成内容 | 骨架屏，形状与真实内容一致（见 §6.8）。例外：聊天区的历史加载用居中转圈（`.msg-skeleton` + `.chat-spinner`） |
 | 用户名等截断成固定字数（`name.slice(0,4)+"…"`） | 显示全名，CSS 省略号截断，完整名放 `title` |
 | 一个区域里放多个黑色主按钮 | 每个区域最多一个主按钮，其余用灰色次按钮或蓝色文字按钮 |
 | 紫色、青色等"科技感"配色 | 只用 §3 里的颜色 |
@@ -505,6 +505,7 @@ UI.enhanceDate(inp);               // 只换一个日期框
   - 分割线（`hr`）：`border-top: 1px solid var(--border)`，上下外边距 `32px 0`。
 - **行内代码**：
   - `code`：16px / 26px，浅灰底 `var(--surface)`，圆角 4px，内边距 `2px 6px`。
+- **图片**：块级居中（`margin: 0 auto`），`max-width: 100%`、`max-height: 60vh`，圆角 10px。
 - **代码块（`.code-block`）**：
   - 外部卡片：白底 `var(--bg, #fff)`、1px 细边框 `var(--border)`、12px 圆角、`margin: 16px 0`。
   - 顶部栏（`.code-header`）：高 38px，浅灰底 `var(--surface, #f5f5f5)`，左侧展示语言名（14px，字重 500），右侧放置 32×32 复制图标按钮（内部 SVG 20×20，圆角 8px 仿 iOS 图标比例，hover 底 `rgba(0,0,0,0.03)`）。

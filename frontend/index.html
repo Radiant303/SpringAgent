@@ -155,28 +155,10 @@
         <span class="spacer"></span>
       </header>
 
-      <!-- 首屏为对话骨架：历史加载完成前不判定“空会话”，避免先闪出首页字标再跳成消息列表 -->
+      <!-- 首屏为加载转圈：历史加载完成前不判定“空会话”，避免先闪出首页字标再跳成消息列表 -->
       <div id="messages">
         <div class="sk-block msg-skeleton" role="status" aria-busy="true" aria-label="正在加载对话">
-          <div class="sk-user"><span class="sk" style="--w:34%;--h:44px;--r:18px"></span></div>
-          <div class="sk-turn">
-            <span class="sk sk-avatar"></span>
-            <div class="sk-lines">
-              <span class="sk" style="--w:92%"></span>
-              <span class="sk" style="--w:86%"></span>
-              <span class="sk" style="--w:58%"></span>
-            </div>
-          </div>
-          <div class="sk-user"><span class="sk" style="--w:24%;--h:44px;--r:18px"></span></div>
-          <div class="sk-turn">
-            <span class="sk sk-avatar"></span>
-            <div class="sk-lines">
-              <span class="sk" style="--w:88%"></span>
-              <span class="sk" style="--w:94%"></span>
-              <span class="sk" style="--w:72%"></span>
-              <span class="sk" style="--w:40%"></span>
-            </div>
-          </div>
+          <span class="chat-spinner"></span>
         </div>
       </div>
 

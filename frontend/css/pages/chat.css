@@ -570,35 +570,19 @@
 }
 
 .msg-skeleton {
-  display: flex;
-  flex-shrink: 0;
-  flex-direction: column;
-  gap: 18px;
-}
-.msg-skeleton .sk-user {
-  display: flex;
-  justify-content: flex-end;
-}
-.msg-skeleton .sk-turn {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-}
-.msg-skeleton .sk-avatar {
-  --w: 36px;
-  --h: 36px;
-  --r: 50%;
-}
-.msg-skeleton .sk-lines {
-  display: flex;
   flex: 1;
-  min-width: 0;
-  flex-direction: column;
-  gap: 12px;
-  padding-top: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
-.msg-skeleton .sk-turn:last-child {
-  opacity: 0.55;
+.chat-spinner {
+  width: 28px;
+  height: 28px;
+  border: 2.5px solid rgba(0, 0, 0, 0.1);
+  border-top-color: rgba(0, 0, 0, 0.45);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  box-sizing: border-box;
 }
 
 .msg.user {
@@ -688,6 +672,15 @@
   font-size: var(--markdown-body-font-size, 16px);
   line-height: var(--markdown-body-line-height, 26px);
   color: var(--text, rgba(0, 0, 0, 0.9));
+}
+
+/* 图片默认是行内元素坐在文本基线上，大图会顶破正文列宽，需块级居中并限高 */
+.markdown-body img {
+  display: block;
+  max-width: 100%;
+  max-height: 60vh;
+  margin: 0 auto;
+  border-radius: 10px;
 }
 
 .markdown-body ul,
@@ -1909,8 +1902,6 @@ pre.tool-result.error { background: var(--diff-del-bg, rgba(192, 57, 43, 0.07));
   #hero { font-size: 26px; margin-bottom: 22px; }
   .new-session-btn .kbd { display: none; }
   .msg.user { max-width: 96%; }
-  .msg-skeleton .sk-turn { gap: 8px; }
-  .msg-skeleton .sk-avatar { --w: 32px; --h: 32px; }
 }
 
 /* ---- 滚动条：默认隐藏，悬停或滚动中浮现 ---- */
