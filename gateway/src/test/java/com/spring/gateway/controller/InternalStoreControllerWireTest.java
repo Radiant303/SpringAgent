@@ -148,7 +148,7 @@ class InternalStoreControllerWireTest {
     @Test
     @DisplayName("消息查询返回 {currentSegment, messages:[{segmentNo,payload}]}，payload 原样")
     void messagesShape() throws Exception {
-        when(internalStoreService.getMessages("s1")).thenReturn(new InternalMessagePage(
+        when(internalStoreService.getMessages("s1", null)).thenReturn(new InternalMessagePage(
                 1, List.of(new InternalMessage(0, new StringNode("hi")))));
 
         mockMvc.perform(get("/internal/sessions/s1/messages")
@@ -158,6 +158,17 @@ class InternalStoreControllerWireTest {
                 .andExpect(jsonPath("$.messages[0].segmentNo").value(0))
                 .andExpect(jsonPath("$.messages[0].payload").value("hi"))
                 .andExpect(jsonPath("$.code").doesNotExist());
+    }
+
+    @Test
+    @DisplayName("消息查询透传 segmentNo 参数")
+    void messagesSegmentParam() throws Exception {
+        when(internalStoreService.getMessages("s1", 2)).thenReturn(new InternalMessagePage(2, List.of()));
+
+        mockMvc.perform(get("/internal/sessions/s1/messages?segmentNo=2")
+                        .header(InternalAuthInterceptor.HEADER_TOKEN, TOKEN))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.messages").isArray());
     }
 
     private static Session session() {

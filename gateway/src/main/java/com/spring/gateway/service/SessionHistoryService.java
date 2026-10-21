@@ -13,9 +13,11 @@ import tools.jackson.databind.node.ArrayNode;
 import tools.jackson.databind.node.ObjectNode;
 
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
+import java.util.Set;
 
 /**
  * 会话历史分页。
@@ -27,10 +29,25 @@ import java.util.List;
 public class SessionHistoryService {
 
     /** 游标载荷版本：结构不兼容升级时 +1，旧游标按 invalid 拒绝 */
-    private static final int CURSOR_VERSION = 1;
+    private static final int CURSOR_VERSION = 2;
 
     /** JSON-RPC 错误码：会话不存在 */
     public static final int SESSION_NOT_FOUND = -32002;
+
+    /** 单页可见消息硬上限：一轮对话超过这个量级时放弃页首对齐，硬截断 */
+    private static final int PAGE_ITEM_HARD_LIMIT = 500;
+
+    /** 倒序批量取数的批大小 */
+    private static final int BATCH_SIZE = 200;
+
+    /** 段头非重叠前缀的扫描上限（压缩摘要等新消息） */
+    private static final int HEAD_SKIP = 3;
+
+    /** 段重叠去重的扫描上限：实际重叠是压缩保留的尾部，正常不超过二十余条 */
+    private static final int STRIP_SCAN = 64;
+
+    /** 系统自动注入的消息来源：不算用户消息 */
+    private static final Set<String> AUTO_SOURCES = Set.of("file_monitor");
 
     private final SessionMapper sessionMapper;
     private final MessageMapper messageMapper;
@@ -44,12 +61,12 @@ public class SessionHistoryService {
     }
 
     /**
-     * 归属校验后本地分页查询会话历史
+     * 归属校验后分页查询会话历史
      *
      * @param sessionId 会话 ID
      * @param userId    当前用户 ID
      * @param cursor    分页游标，可为 null（null 从对应方向的端点开始）
-     * @param limit     每页消息数，null 表示完整历史（此时不接受 cursor）
+     * @param limit     每页可见消息数，null 表示完整历史（此时不接受 cursor）
      * @param direction 翻页方向：forward / backward
      * @return JSON-RPC result 节点：segments / firstSegmentIndex / nextCursor / previousCursor / hasMore
      * @throws UnknownSessionException    会话不存在、不属于该用户或已删除（-32002）
@@ -63,11 +80,42 @@ public class SessionHistoryService {
         if (row == null) {
             throw new UnknownSessionException(sessionId);
         }
-        List<Message> rows = messageMapper.selectList(new LambdaQueryWrapper<Message>()
-                .eq(Message::getSessionId, sessionId)
-                .orderByAsc(Message::getSegmentNo)
-                .orderByAsc(Message::getId));
-        HistoryPage page = pageHistory(objectMapper, loadSegments(row, rows), sessionId, cursor, limit, direction);
+        if (!"forward".equals(direction) && !"backward".equals(direction)) {
+            throw new IllegalArgumentException("invalid history direction");
+        }
+        if (limit != null && limit < 1) {
+            throw new IllegalArgumentException("invalid history limit");
+        }
+        if (cursor != null && limit == null) {
+            throw new IllegalArgumentException("history cursor requires a limit");
+        }
+        if (limit == null) {
+            List<Message> rows = messageMapper.selectList(new LambdaQueryWrapper<Message>()
+                    .eq(Message::getSessionId, sessionId)
+                    .orderByAsc(Message::getSegmentNo)
+                    .orderByAsc(Message::getId));
+            List<List<JsonNode>> segments = dedupSegments(loadSegments(row, rows));
+            int total = count(segments);
+            return buildResult(objectMapper,
+                    new HistoryPage(total == 0 ? List.of() : segments, total == 0 ? null : 0, null, null, false));
+        }
+        long anchor;
+        long boundary;
+        if (cursor == null) {
+            anchor = latestId(sessionId);
+            boundary = "backward".equals(direction) ? anchor + 1 : 0;
+        } else {
+            CursorPosition position = decodeCursor(objectMapper, cursor, sessionId);
+            anchor = position.anchorId();
+            boundary = position.boundaryId();
+            if (boundary > anchor + 1) {
+                throw new IllegalArgumentException("history cursor offset is out of range");
+            }
+        }
+        RowFetcher fetcher = rowFetcher(sessionId);
+        HistoryPage page = "backward".equals(direction)
+                ? backwardPage(fetcher, objectMapper, sessionId, anchor, boundary, limit)
+                : forwardPage(fetcher, objectMapper, sessionId, anchor, boundary, limit);
         return buildResult(objectMapper, page);
     }
 
@@ -97,89 +145,243 @@ public class SessionHistoryService {
         }
     }
 
-    // ---- 分页核心：纯静态、不依赖 DB ----
+    // ---- 分页核心：流式批量取数，不依赖 DB 连接的纯逻辑 ----
 
     /**
-     * 对 raw_segments 分页切片。游标编码版本、会话 ID、存储段数、原始消息数、去重后消息边界。
-     * 存储前缀固定快照，后续追加和 rewrite 不改变既有分页；新查询用空游标。
-     * forward 包含边界后的消息，backward 包含边界之前的消息，结果始终正序。
-     * limit=null 返回完整当前历史，此时不接受 cursor。
+     * backward 一页：从边界向旧数够 limit 条可见消息后，退到最近的回合开头。
+     * 单轮对话可见消息触达硬上限时放弃对齐、硬截断。
      */
-    static HistoryPage pageHistory(ObjectMapper objectMapper, List<List<JsonNode>> rawSegments, String sessionId,
-                                   String cursor, Integer limit, String direction) {
-        if (!"forward".equals(direction) && !"backward".equals(direction)) {
-            throw new IllegalArgumentException("invalid history direction");
-        }
-        if (limit != null && limit < 1) {
-            throw new IllegalArgumentException("invalid history limit");
-        }
-        if (cursor != null && limit == null) {
-            throw new IllegalArgumentException("history cursor requires a limit");
-        }
-        CursorPosition position = cursor == null ? null : decodeCursor(objectMapper, cursor, sessionId);
-        int segmentCount = rawSegments.size();
-        int messageCount = count(rawSegments);
-        List<List<JsonNode>> snapshot = rawSegments;
-        if (position != null) {
-            segmentCount = position.segmentCount();
-            messageCount = position.messageCount();
-            if (segmentCount > rawSegments.size()) {
-                throw new IllegalArgumentException("history cursor snapshot is out of range");
+    static HistoryPage backwardPage(RowFetcher fetcher, ObjectMapper objectMapper, String sessionId,
+                                    long anchor, long boundary, int limit) {
+        BackwardStream stream = new BackwardStream(fetcher, anchor, boundary);
+        List<Row> collected = new ArrayList<>();
+        int count = 0;
+        Row row;
+        while ((row = stream.next()) != null) {
+            if (count >= limit && isUserPrompt(row.payload())) {
+                collected.add(row);
+                break;
             }
-            // 快照只截外层 list：段内 list 仍与原始数据共享（Python slice 语义），只读不改
-            snapshot = new ArrayList<>(rawSegments.subList(0, segmentCount));
-            int precedingCount = snapshot.isEmpty() ? 0 : count(snapshot.subList(0, snapshot.size() - 1));
-            if (messageCount < precedingCount || messageCount > count(snapshot)) {
-                throw new IllegalArgumentException("history cursor snapshot is out of range");
+            if (count >= PAGE_ITEM_HARD_LIMIT) {
+                break;
             }
-            if (!snapshot.isEmpty()) {
-                int keep = messageCount - precedingCount;
-                List<JsonNode> tail = snapshot.get(snapshot.size() - 1);
-                snapshot.set(snapshot.size() - 1, new ArrayList<>(tail.subList(0, keep)));
+            collected.add(row);
+            if (isVisibleItem(row.payload())) {
+                count++;
             }
         }
-        List<List<JsonNode>> segments = dedupSegments(snapshot);
-        int total = count(segments);
-        if (limit == null) {
-            return new HistoryPage(total == 0 ? List.of() : segments, total == 0 ? null : 0, null, null, false);
+        if (collected.isEmpty()) {
+            return new HistoryPage(List.of(), null, null, null, false);
         }
-        int boundary = position != null ? position.offset()
-                : ("backward".equals(direction) ? total : 0);
-        if (boundary > total) {
-            throw new IllegalArgumentException("history cursor offset is out of range");
+        List<Row> asc = collected.reversed();
+        long oldestId = asc.getFirst().id();
+        long newestId = asc.getLast().id();
+        boolean hasMore = !fetcher.fetchBackward(oldestId, anchor, 1).isEmpty();
+        String previousCursor = hasMore ? encodeCursor(objectMapper, sessionId, anchor, oldestId) : null;
+        String nextCursor = newestId < anchor ? encodeCursor(objectMapper, sessionId, anchor, newestId + 1) : null;
+        return new HistoryPage(groupSegments(asc), asc.getFirst().segmentNo(), nextCursor, previousCursor, hasMore);
+    }
+
+    /** forward 一页：从边界向新按原始消息数取 limit 条，不做可见计数与跨段去重 */
+    static HistoryPage forwardPage(RowFetcher fetcher, ObjectMapper objectMapper, String sessionId,
+                                   long anchor, long boundary, int limit) {
+        List<Row> asc = new ArrayList<>();
+        long from = boundary;
+        while (asc.size() < limit) {
+            List<Row> batch = fetcher.fetchForward(from, anchor, Math.min(BATCH_SIZE, limit - asc.size()));
+            if (batch.isEmpty()) {
+                break;
+            }
+            asc.addAll(batch);
+            from = batch.getLast().id() + 1;
         }
-        int start;
-        int end;
-        if ("forward".equals(direction)) {
-            // limit 可能顶到 Integer.MAX_VALUE，边界相加用 long 防溢出
-            start = boundary;
-            end = (int) Math.min((long) boundary + limit, total);
-        } else {
-            start = (int) Math.max(0L, (long) boundary - limit);
-            end = boundary;
+        if (asc.isEmpty()) {
+            return new HistoryPage(List.of(), null, null, null, false);
         }
-        List<List<JsonNode>> selected = new ArrayList<>();
-        Integer firstSegmentIndex = null;
-        int offset = 0;
-        for (int index = 0; index < segments.size(); index++) {
-            List<JsonNode> segment = segments.get(index);
-            int segmentStart = Math.max(start - offset, 0);
-            int segmentEnd = Math.min(end - offset, segment.size());
-            // 空段特例：窗口 strictly 覆盖该段的偏移区间时也要占位，保证 firstSegmentIndex 指向真实段
-            if (segmentStart < segmentEnd || (segment.isEmpty() && start < offset && offset < end)) {
-                if (firstSegmentIndex == null) {
-                    firstSegmentIndex = index;
+        long newestId = asc.getLast().id();
+        boolean hasMore = !fetcher.fetchForward(newestId + 1, anchor, 1).isEmpty();
+        String nextCursor = hasMore ? encodeCursor(objectMapper, sessionId, anchor, newestId + 1) : null;
+        String previousCursor = !fetcher.fetchBackward(boundary, anchor, 1).isEmpty()
+                ? encodeCursor(objectMapper, sessionId, anchor, boundary) : null;
+        return new HistoryPage(groupSegments(asc), asc.getFirst().segmentNo(), nextCursor, previousCursor, hasMore);
+    }
+
+    /** 按段号把升序行分组；段号跳跃时补空段占位，保证段下标与段号一致 */
+    private static List<List<JsonNode>> groupSegments(List<Row> asc) {
+        List<List<JsonNode>> segments = new ArrayList<>();
+        int prevSeg = -1;
+        for (Row row : asc) {
+            if (segments.isEmpty() || row.segmentNo() != prevSeg) {
+                if (!segments.isEmpty()) {
+                    for (int gap = prevSeg + 1; gap < row.segmentNo(); gap++) {
+                        segments.add(List.of());
+                    }
                 }
-                selected.add(new ArrayList<>(segment.subList(segmentStart, segmentEnd)));
+                segments.add(new ArrayList<>());
+                prevSeg = row.segmentNo();
             }
-            offset += segment.size();
+            segments.getLast().add(row.payload());
         }
-        String nextCursor = end < total
-                ? encodeCursor(objectMapper, sessionId, segmentCount, messageCount, end) : null;
-        String previousCursor = start > 0
-                ? encodeCursor(objectMapper, sessionId, segmentCount, messageCount, start) : null;
-        boolean hasMore = "forward".equals(direction) ? end < total : start > 0;
-        return new HistoryPage(selected, firstSegmentIndex, nextCursor, previousCursor, hasMore);
+        return segments;
+    }
+
+    /** 前端可见的用户消息：非自动注入且含文本 prompt */
+    private static boolean isUserPrompt(JsonNode payload) {
+        if (!"request".equals(payload.path("kind").asText()) || isAutoInjected(payload)) {
+            return false;
+        }
+        for (JsonNode part : payload.path("parts")) {
+            if ("user-prompt".equals(part.path("part_kind").asText()) && part.path("content").isTextual()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** 分页计数单位：用户消息或含正文的 AI 回复；工具调用与返回不占名额 */
+    private static boolean isVisibleItem(JsonNode payload) {
+        if (isUserPrompt(payload)) {
+            return true;
+        }
+        if (!"response".equals(payload.path("kind").asText())) {
+            return false;
+        }
+        for (JsonNode part : payload.path("parts")) {
+            if ("text".equals(part.path("part_kind").asText())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean isAutoInjected(JsonNode payload) {
+        JsonNode source = payload.path("metadata").path("source");
+        return source.isTextual() && AUTO_SOURCES.contains(source.asText());
+    }
+
+    /**
+     * 倒序消息流：批量取数，跨段时剥掉新段与旧段尾部重叠的段头。
+     * 段头扫描区以外的消息即时放行，区内的等到跨段结算或流耗尽才放出。
+     */
+    private static final class BackwardStream {
+        private final RowFetcher fetcher;
+        private final long anchor;
+        private long before;
+        private final ArrayDeque<Row> buf = new ArrayDeque<>();
+        private final ArrayDeque<Row> hold = new ArrayDeque<>();
+        private final ArrayDeque<Row> ready = new ArrayDeque<>();
+        private int currentSeg = -1;
+        private boolean eof;
+
+        BackwardStream(RowFetcher fetcher, long anchor, long before) {
+            this.fetcher = fetcher;
+            this.anchor = anchor;
+            this.before = before;
+        }
+
+        /** 流下一条（更旧的）消息；耗尽返回 null */
+        Row next() {
+            while (true) {
+                if (!ready.isEmpty()) {
+                    return ready.pollFirst();
+                }
+                if (hold.size() > HEAD_SKIP + STRIP_SCAN) {
+                    return hold.pollFirst();
+                }
+                Row candidate = peekRow();
+                if (candidate == null) {
+                    if (hold.isEmpty()) {
+                        return null;
+                    }
+                    ready.addAll(hold);
+                    hold.clear();
+                    continue;
+                }
+                int seg = candidate.segmentNo();
+                if (currentSeg == -1 || seg == currentSeg) {
+                    currentSeg = seg;
+                    hold.addLast(poll());
+                    continue;
+                }
+                if (seg > currentSeg) {
+                    // 段号倒挂（库被绕过写入时）：跳过而不是死循环
+                    poll();
+                    continue;
+                }
+                ready.addAll(settleHold());
+                hold.clear();
+                currentSeg = seg;
+                hold.addLast(poll());
+            }
+        }
+
+        /** 结算当前段的段头扫描区：剥掉与旧段尾部重叠的前缀，放行保留部分 */
+        private List<Row> settleHold() {
+            List<Row> headAscRows = new ArrayList<>(hold).reversed();
+            List<JsonNode> headAsc = headAscRows.stream().map(Row::payload).toList();
+            List<JsonNode> tailAsc = peekAhead(STRIP_SCAN).reversed().stream().map(Row::payload).toList();
+            int stripLo = 0;
+            int stripHi = 0;
+            for (int s = 0; s <= Math.min(HEAD_SKIP, headAsc.size()); s++) {
+                for (int k = Math.min(tailAsc.size(), headAsc.size() - s); k > 0; k--) {
+                    if (overlaps(tailAsc, k, headAsc, s, k)) {
+                        if (s + k > stripHi) {
+                            stripLo = s;
+                            stripHi = s + k;
+                        }
+                        break;
+                    }
+                }
+            }
+            List<Row> kept = new ArrayList<>(headAscRows.subList(0, stripLo));
+            kept.addAll(headAscRows.subList(stripHi, headAscRows.size()));
+            return kept.reversed();
+        }
+
+        /** 查看流中接下来的最多 n 行（不消费），不足时补取批次 */
+        private List<Row> peekAhead(int n) {
+            while (buf.size() < n && !eof) {
+                fetchBatch();
+            }
+            List<Row> all = new ArrayList<>(buf);
+            return all.subList(0, Math.min(n, all.size()));
+        }
+
+        private Row poll() {
+            Row head = peekRow();
+            return head == null ? null : buf.pollFirst();
+        }
+
+        private Row peekRow() {
+            if (buf.isEmpty() && !eof) {
+                fetchBatch();
+            }
+            return buf.peekFirst();
+        }
+
+        private void fetchBatch() {
+            List<Row> rows = fetcher.fetchBackward(before, anchor, BATCH_SIZE);
+            if (rows.size() < BATCH_SIZE) {
+                eof = true;
+            }
+            if (!rows.isEmpty()) {
+                before = rows.getLast().id();
+                buf.addAll(rows);
+            }
+        }
+    }
+
+    /** 消息行取数器：按 id 范围与方向批量取，payload 已解析 */
+    interface RowFetcher {
+        /** id &lt; before 且 id &lt;= anchor 的最近 limit 条，按 id 降序 */
+        List<Row> fetchBackward(long before, long anchor, int limit);
+
+        /** id &gt;= fromId 且 id &lt;= anchor 的最早 limit 条，按 id 升序 */
+        List<Row> fetchForward(long fromId, long anchor, int limit);
+    }
+
+    /** 一条消息行：主键、段号、解析后的 payload */
+    record Row(long id, int segmentNo, JsonNode payload) {
     }
 
     /**
@@ -212,10 +414,11 @@ public class SessionHistoryService {
     }
 
     /** acc 末尾 k 个元素与 seg 从 segStart 起 k 个元素是否逐条深相等（JsonNode.equals 即结构深相等） */
-    private static boolean overlaps(List<JsonNode> acc, int tailSize, List<JsonNode> seg, int segStart, int k) {
+    private static boolean overlaps(List<? extends Object> acc, int tailSize, List<? extends Object> seg,
+                                    int segStart, int k) {
         for (int i = 0; i < k; i++) {
-            JsonNode left = acc.get(acc.size() - tailSize + i);
-            JsonNode right = seg.get(segStart + i);
+            Object left = acc.get(acc.size() - tailSize + i);
+            Object right = seg.get(segStart + i);
             if (!left.equals(right)) {
                 return false;
             }
@@ -225,12 +428,12 @@ public class SessionHistoryService {
 
     /**
      * 把分页边界编码进游标：base64url（无 padding）的紧凑 JSON
-     * {@code [1, sessionId, segmentCount, messageCount, offset]}。
+     * {@code [2, sessionId, anchorId, boundaryId]}。anchorId 钉住快照（之后追加的 id 更大、
+     * 不可见）；boundaryId 是分页边界：backward 取 id &lt; boundaryId，forward 取 id &gt;= boundaryId。
      */
-    static String encodeCursor(ObjectMapper objectMapper, String sessionId, int segmentCount, int messageCount,
-                               int offset) {
+    static String encodeCursor(ObjectMapper objectMapper, String sessionId, long anchorId, long boundaryId) {
         String payload = objectMapper.writeValueAsString(
-                List.of(CURSOR_VERSION, sessionId, segmentCount, messageCount, offset));
+                List.of(CURSOR_VERSION, sessionId, anchorId, boundaryId));
         return Base64.getUrlEncoder().withoutPadding().encodeToString(payload.getBytes(StandardCharsets.UTF_8));
     }
 
@@ -242,7 +445,7 @@ public class SessionHistoryService {
         } catch (Exception e) {
             throw new IllegalArgumentException("invalid history cursor");
         }
-        if (!data.isArray() || data.size() != 5) {
+        if (!data.isArray() || data.size() != 4) {
             throw new IllegalArgumentException("invalid history cursor");
         }
         JsonNode versionNode = data.get(0);
@@ -253,8 +456,8 @@ public class SessionHistoryService {
         if (!sessionIdNode.isTextual() || !sessionId.equals(sessionIdNode.asText())) {
             throw new IllegalArgumentException("invalid history cursor");
         }
-        // 要求整型（拒绝 bool 与 float）且非负；超出 long 的大整数按越界游标走
-        long[] values = new long[3];
+        // 要求整型（拒绝 bool 与 float）且非负
+        long[] values = new long[2];
         for (int i = 0; i < values.length; i++) {
             JsonNode node = data.get(2 + i);
             if (!node.isIntegralNumber() || !node.canConvertToExactIntegral() || node.asLong() < 0) {
@@ -262,12 +465,47 @@ public class SessionHistoryService {
             }
             values[i] = node.asLong();
         }
-        return new CursorPosition(toInt(values[0]), toInt(values[1]), toInt(values[2]));
+        return new CursorPosition(values[0], values[1]);
     }
 
-    /** 超 int 范围的下标按上界截断：后续与真实段数/消息数比较时仍会判为越界游标 */
-    private static int toInt(long value) {
-        return value > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) value;
+    private long latestId(String sessionId) {
+        Message latest = messageMapper.selectOne(new LambdaQueryWrapper<Message>()
+                .eq(Message::getSessionId, sessionId)
+                .orderByDesc(Message::getId)
+                .last("LIMIT 1"));
+        return latest == null ? -1L : latest.getId();
+    }
+
+    private RowFetcher rowFetcher(String sessionId) {
+        return new RowFetcher() {
+            @Override
+            public List<Row> fetchBackward(long before, long anchor, int limit) {
+                return toRows(messageMapper.selectList(new LambdaQueryWrapper<Message>()
+                        .eq(Message::getSessionId, sessionId)
+                        .le(Message::getId, anchor)
+                        .lt(Message::getId, before)
+                        .orderByDesc(Message::getId)
+                        .last("LIMIT " + limit)));
+            }
+
+            @Override
+            public List<Row> fetchForward(long fromId, long anchor, int limit) {
+                return toRows(messageMapper.selectList(new LambdaQueryWrapper<Message>()
+                        .eq(Message::getSessionId, sessionId)
+                        .le(Message::getId, anchor)
+                        .ge(Message::getId, fromId)
+                        .orderByAsc(Message::getId)
+                        .last("LIMIT " + limit)));
+            }
+        };
+    }
+
+    private List<Row> toRows(List<Message> messages) {
+        List<Row> rows = new ArrayList<>(messages.size());
+        for (Message item : messages) {
+            rows.add(new Row(item.getId(), item.getSegmentNo(), readPayload(objectMapper, item.getPayload())));
+        }
+        return rows;
     }
 
     private static int count(List<List<JsonNode>> segments) {
@@ -298,7 +536,7 @@ public class SessionHistoryService {
     /**
      * 一页历史快照。
      *
-     * @param segments           选中段的消息切片（段内为追加序）
+     * @param segments           选中段的消息切片（段内为追加序，段间可能隔空段占位）
      * @param firstSegmentIndex 选中第一个非空切片的段下标，无则为 null
      * @param nextCursor         向前续取的游标，无更多则 null
      * @param previousCursor     向后续取的游标，无更早则 null
@@ -309,12 +547,11 @@ public class SessionHistoryService {
     }
 
     /**
-     * 游标里的存储快照：段数、原始消息数、去重后消息边界。
+     * 游标里的快照：锚点主键（分页可见的最大 id）与边界主键。
      *
-     * @param segmentCount 存储段数
-     * @param messageCount 原始消息数
-     * @param offset       去重后消息边界
+     * @param anchorId   快照锚点：首次查询时的最大消息 id
+     * @param boundaryId 分页边界
      */
-    private record CursorPosition(int segmentCount, int messageCount, int offset) {
+    private record CursorPosition(long anchorId, long boundaryId) {
     }
 }

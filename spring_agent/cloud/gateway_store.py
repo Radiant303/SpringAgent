@@ -1,12 +1,12 @@
 """会话存储客户端：sessions/messages/works 三表的读写全部经内部 HTTP API 完成。
 
-语义约定：段自增、title 首写、段列表装段（含空段）、游标分页。
+语义约定：段自增、title 首写、段列表装段（含空段）。
 端点一览（X-Internal-Token 鉴权）：
 
 - POST /internal/sessions                         建行（current_segment=0, status=active）
 - GET  /internal/sessions/{id}                    打开/查询（404 → None）
 - GET  /internal/users/{userId}/sessions          列表（status != deleted, updated_at desc）
-- GET  /internal/sessions/{id}/messages           全量消息（段内按 id 升序，payload 为原始消息 JSON）
+- GET  /internal/sessions/{id}/messages           消息（段内按 id 升序；segmentNo 参数限定单段）
 - POST /internal/sessions/{id}/messages           追加（newSegment 控制开新段；段自增、title IS NULL
                                                    时写入、updated_at 推进在服务端单事务内完成）
 - GET  /internal/works/{workId}                   work 详情（含派生 workspacePath 与生效上限 workMaxBytes）
@@ -16,18 +16,18 @@
 from __future__ import annotations
 
 import datetime
+import re
 import threading
 import uuid
 from dataclasses import dataclass
 
 import httpx
-from pydantic_ai import ModelMessage
+from pydantic_ai import ModelMessage, ModelRequest, UserPromptPart
 from pydantic_ai.messages import ModelMessagesTypeAdapter
 
 from spring_agent.cloud.db import STATUS_ACTIVE
 from spring_agent.core.config.settings import config
-from spring_agent.core.history import HistoryDirection, HistoryPage
-from spring_agent.core.store.paging import first_user_text, page_history
+from spring_agent.core.hooks.model import is_auto_injected_message
 
 
 def _dump_message(message: ModelMessage) -> dict:
@@ -46,6 +46,25 @@ def _parse_utc(value: str) -> datetime.datetime:
     if parsed.tzinfo is not None:
         parsed = parsed.astimezone(datetime.UTC).replace(tzinfo=None)
     return parsed
+
+
+# 用户上传图片随消息发出的 markdown 附件语法
+ATTACH_IMAGE_RE = re.compile(r"!\[[^\]]*\]\(https?://[^\s)]+\)")
+
+
+def first_user_text(messages: list[ModelMessage], limit: int = 30) -> str | None:
+    """第一条用户消息的截断文本（跳过系统自动注入的消息与图片附件）。"""
+    for msg in messages:
+        if is_auto_injected_message(msg):
+            continue
+        if isinstance(msg, ModelRequest):
+            for part in msg.parts:
+                if isinstance(part, UserPromptPart) and isinstance(part.content, str):
+                    text = ATTACH_IMAGE_RE.sub("", part.content).replace("\n", " ").strip()
+                    if not text:
+                        text = "[图片]"
+                    return text[:limit] + ("…" if len(text) > limit else "")
+    return None
 
 
 # ---- 共享 HTTP client（懒加载单例；store 调用方本来就是同步阻塞形状）----
@@ -201,30 +220,23 @@ class GatewaySessionStore:
             raise ValueError(f"会话不存在: {self._session_id}")
         response.raise_for_status()
 
-    def _load_segments(self) -> list[list[ModelMessage]]:
-        """读出全部段：段数 = currentSegment + 1（含空段）。"""
-        response = _get_client().get(f"/internal/sessions/{self._session_id}/messages")
+    def _current_segment(self) -> int:
+        response = _get_client().get(f"/internal/sessions/{self._session_id}")
+        if response.status_code == 404:
+            raise ValueError(f"会话不存在: {self._session_id}")
+        response.raise_for_status()
+        return int(response.json().get("currentSegment", 0))
+
+    def load_messages(self) -> list[ModelMessage]:
+        """发给模型的当前历史：current_segment 段（rewrite 后的新基线）。"""
+        response = _get_client().get(
+            f"/internal/sessions/{self._session_id}/messages",
+            params={"segmentNo": self._current_segment()},
+        )
         if response.status_code == 404:
             return []
         response.raise_for_status()
-        data = response.json()
-        segments: list[list[ModelMessage]] = [[] for _ in range(data["currentSegment"] + 1)]
-        for item in data["messages"]:
-            segments[item["segmentNo"]].append(_load_message(item["payload"]))
-        return segments
-
-    def load_messages(self) -> list[ModelMessage]:
-        """发给模型的当前历史：最大 segment_no 段（rewrite 后的新基线）。"""
-        segments = self._load_segments()
-        return segments[-1] if segments else []
-
-    def query_history(
-        self,
-        cursor: str | None = None,
-        limit: int | None = None,
-        direction: HistoryDirection = "forward",
-    ) -> tuple[list[ModelMessage], HistoryPage]:
-        return page_history(self._load_segments(), self._session_id, cursor, limit, direction)
+        return [_load_message(item["payload"]) for item in response.json()["messages"]]
 
 
 # ---- 按 user_id 的会话查询 ----

@@ -20,7 +20,6 @@ from spring_agent.core.agent.deps import CodingAgentDeps, RequestUsageEntry
 from spring_agent.core.approval import run_with_approval
 from spring_agent.core.billing import BillingContext, BillingGateway
 from spring_agent.core.config.model import setting
-from spring_agent.core.history import HistoryDirection, HistoryPage
 from spring_agent.core.log import logger
 from spring_agent.core.store.base import SessionStore
 from spring_agent.core.stream.adapter import AgentEventAdapter
@@ -167,7 +166,7 @@ class AgentSession:
                                                     self.session_id, turn_id)
             self._cancel_token = CancellationToken()
             if not self._history_loaded:
-                await self.query_history()
+                await self._ensure_history()
             # 愈合旧版本取消轮留下的中断尾（悬挂工具调用），否则本轮直接 UserError
             self._history = _settle_interrupted_tool_calls(self._history)
             agent = await self._in_thread(self._ensure_agent)
@@ -237,21 +236,13 @@ class AgentSession:
             task.cancel()
             await asyncio.gather(task, return_exceptions=True)
 
-    async def load_history(self) -> list[list[ModelMessage]]:
-        return (await self.query_history()).segments
-
-    async def query_history(
-        self,
-        cursor: str | None = None,
-        limit: int | None = None,
-        direction: HistoryDirection = "forward",
-    ) -> HistoryPage:
-        async with self._history_lock:
-            messages, page = await self._in_thread(self._store.query_history, cursor, limit, direction)
-            if not self._history_loaded:
-                self._history = messages
-                self._history_loaded = True
-            return page
+    async def _ensure_history(self) -> None:
+        """首次运行时加载发给模型的当前历史：current_segment 段（rewrite 后的新基线）。"""
+        if not self._history_loaded:
+            async with self._history_lock:
+                if not self._history_loaded:
+                    self._history = await self._in_thread(self._store.load_messages)
+                    self._history_loaded = True
 
     def set_model(self, model_name: str, effort: str | None = None) -> None:
         if self._busy:

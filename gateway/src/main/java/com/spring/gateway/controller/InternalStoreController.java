@@ -20,6 +20,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
@@ -81,14 +82,16 @@ public class InternalStoreController {
     }
 
     /**
-     * 查询会话全部消息（payload 为 JSON 原文）
+     * 查询会话消息（payload 为 JSON 原文）
      *
      * @param sessionId 会话 ID
+     * @param segmentNo 只取该段；缺省为全部段
      * @return 当前段号 + 消息列表
      */
     @GetMapping("/sessions/{sessionId}/messages")
-    public InternalMessagePage getMessages(@PathVariable String sessionId) {
-        return internalStoreService.getMessages(sessionId);
+    public InternalMessagePage getMessages(@PathVariable String sessionId,
+                                           @RequestParam(required = false) Integer segmentNo) {
+        return internalStoreService.getMessages(sessionId, segmentNo);
     }
 
     /**

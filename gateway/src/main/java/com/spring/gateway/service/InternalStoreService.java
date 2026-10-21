@@ -94,17 +94,18 @@ public class InternalStoreService {
     }
 
     /**
-     * 查询会话全部消息（按 segment_no, id 升序）与当前段号
+     * 查询会话消息（按 segment_no, id 升序）与当前段号
      *
      * @param sessionId 会话 ID
+     * @param segmentNo 只取该段；null 表示全部段
      * @return 当前段号 + 消息列表；会话行不存在时当前段号为 0、消息为空
      */
-    public InternalMessagePage getMessages(String sessionId) {
+    public InternalMessagePage getMessages(String sessionId, Integer segmentNo) {
         Session row = sessionMapper.selectById(sessionId);
         if (row == null) {
             return new InternalMessagePage(0, List.of());
         }
-        List<Message> rows = selectMessages(sessionId);
+        List<Message> rows = selectMessages(sessionId, segmentNo);
         List<InternalMessage> messages = new ArrayList<>(rows.size());
         for (Message item : rows) {
             messages.add(new InternalMessage(item.getSegmentNo(), readPayload(item.getPayload())));
@@ -161,10 +162,11 @@ public class InternalStoreService {
         return workService.workspacePath(workId);
     }
 
-    /** 按段号、主键升序查询会话的全部消息 */
-    private List<Message> selectMessages(String sessionId) {
+    /** 按段号、主键升序查询会话的消息；segmentNo 为 null 时查全部段 */
+    private List<Message> selectMessages(String sessionId, Integer segmentNo) {
         return messageMapper.selectList(new LambdaQueryWrapper<Message>()
                 .eq(Message::getSessionId, sessionId)
+                .eq(segmentNo != null, Message::getSegmentNo, segmentNo)
                 .orderByAsc(Message::getSegmentNo)
                 .orderByAsc(Message::getId));
     }

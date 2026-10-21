@@ -1,5 +1,3 @@
-from typing import Literal
-
 from pydantic import BaseModel, ConfigDict, Field
 
 
@@ -66,32 +64,6 @@ class SessionSummary(_WireModel):
 
 class SessionListResult(_WireModel):
     sessions: list[SessionSummary]
-
-
-class HistoryQueryParams(_WireModel):
-    """按消息数查询历史，结果始终正序；空游标从指定方向的端点开始。
-
-    limit=None 返回完整当前历史且不能携带 cursor。
-    nextCursor 向前续取，previousCursor 向后续取；hasMore 对应请求方向。
-    游标固定存储快照，重新传空游标才能看到后续追加的历史。
-    """
-
-    model_config = ConfigDict(extra="forbid")
-
-    session_id: str = Field(validation_alias="sessionId", serialization_alias="sessionId")
-    cursor: str | None = None
-    limit: int | None = Field(default=None, ge=1, strict=True)
-    direction: Literal["forward", "backward"] = "forward"
-
-
-class HistoryResult(_WireModel):
-    segments: list[list[dict]]
-    first_segment_index: int | None = Field(
-        default=None, ge=0, validation_alias="firstSegmentIndex", serialization_alias="firstSegmentIndex",
-    )
-    next_cursor: str | None = Field(default=None, validation_alias="nextCursor", serialization_alias="nextCursor")
-    previous_cursor: str | None = Field(default=None, validation_alias="previousCursor", serialization_alias="previousCursor")
-    has_more: bool = Field(validation_alias="hasMore", serialization_alias="hasMore")
 
 
 class PlanResult(_WireModel):

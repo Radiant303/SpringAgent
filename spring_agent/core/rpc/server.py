@@ -1,10 +1,8 @@
 import asyncio
-import time
 from collections.abc import Awaitable, Callable
 from typing import Any
 
 from pydantic import BaseModel, ValidationError
-from pydantic_ai.messages import ModelMessagesTypeAdapter
 
 from spring_agent.capabilities.planning import load_plan_items
 from spring_agent.core.log import logger
@@ -17,8 +15,6 @@ from spring_agent.core.rpc.connection import (
 from spring_agent.core.rpc.schema import (
     ApprovalRequestParams,
     ApprovalResult,
-    HistoryQueryParams,
-    HistoryResult,
     PlanResult,
     QuestionRequestParams,
     QuestionResult,
@@ -47,7 +43,6 @@ class AppServer:
         self._inflight_requests: dict[str, tuple[str, str]] = {}
         # 方法名 → (参数模型, 处理函数)；None 表示无参数
         self._routes: dict[str, tuple[type[BaseModel] | None, Callable[[Any], Awaitable[Any]]]] = {
-            "session/history": (HistoryQueryParams, self._session_history),
             "session/plan": (SessionParams, self._session_plan),
         }
 
@@ -84,21 +79,6 @@ class AppServer:
             session.set_model(selected_model, effort)
         except ValueError as e:
             raise JsonRpcError(INVALID_PARAMS, str(e)) from e
-
-    async def _session_history(self, p: HistoryQueryParams) -> HistoryResult:
-        started = time.perf_counter()
-        try:
-            page = await self._require(p.session_id).query_history(p.cursor, p.limit, p.direction)
-        except ValueError as e:
-            raise JsonRpcError(INVALID_PARAMS, str(e)) from e
-        logger.debug("session history query completed in {:.3f}s", time.perf_counter() - started)
-        return HistoryResult(
-            segments=[ModelMessagesTypeAdapter.dump_python(segment, mode="json") for segment in page.segments],
-            first_segment_index=page.first_segment_index,
-            next_cursor=page.next_cursor,
-            previous_cursor=page.previous_cursor,
-            has_more=page.has_more,
-        )
 
     async def _session_plan(self, p: SessionParams) -> PlanResult:
         # 只读已挂载的会话：归属校验由 attach 负责，这里不能绕过

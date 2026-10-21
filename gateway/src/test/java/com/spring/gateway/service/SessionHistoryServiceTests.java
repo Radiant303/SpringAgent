@@ -19,7 +19,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * SessionHistoryService 分页核心的纯逻辑单元测试：不连库、不启 Spring，
- * 直接对包私有的静态方法喂构造的段数据。
+ * 用内存行库伪造 RowFetcher 喂给静态分页方法。
  *
  * @author hanbing
  * @since 2026-10-03
@@ -30,7 +30,147 @@ class SessionHistoryServiceTests {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
-    // ---- 构造数据的小工具 ----
+    // ---- 构造消息 payload ----
+
+    private static JsonNode user(String text) {
+        return MAPPER.readTree("{\"kind\":\"request\",\"parts\":[{\"part_kind\":\"user-prompt\",\"content\":"
+                + MAPPER.writeValueAsString(text) + "}]}");
+    }
+
+    private static JsonNode ai(String text) {
+        return MAPPER.readTree("{\"kind\":\"response\",\"parts\":[{\"part_kind\":\"text\",\"content\":"
+                + MAPPER.writeValueAsString(text) + "}]}");
+    }
+
+    private static JsonNode toolCall(String id) {
+        return MAPPER.readTree("{\"kind\":\"response\",\"parts\":[{\"part_kind\":\"tool-call\",\"tool_call_id\":"
+                + MAPPER.writeValueAsString(id) + "}]}");
+    }
+
+    private static JsonNode toolRet(String id) {
+        return MAPPER.readTree("{\"kind\":\"request\",\"parts\":[{\"part_kind\":\"tool-return\",\"tool_call_id\":"
+                + MAPPER.writeValueAsString(id) + ",\"content\":\"ok\"}]}");
+    }
+
+    private static JsonNode inject(String text) {
+        return MAPPER.readTree("{\"kind\":\"request\",\"metadata\":{\"source\":\"file_monitor\"},"
+                + "\"parts\":[{\"part_kind\":\"user-prompt\",\"content\":"
+                + MAPPER.writeValueAsString(text) + "}]}");
+    }
+
+    // ---- 内存行库：id 从 1 递增，fake RowFetcher 从中切片 ----
+
+    private static final class FakeStore {
+        private final List<SessionHistoryService.Row> rows = new ArrayList<>();
+
+        void add(int segmentNo, JsonNode payload) {
+            rows.add(new SessionHistoryService.Row(rows.size() + 1, segmentNo, payload));
+        }
+
+        /** 一个回合：提问 + 若干轮（AI 说一句 + 调工具 + 工具返回）+ 最终回答 */
+        void addTurn(int segmentNo, String tag, int toolRounds) {
+            add(segmentNo, user("问题" + tag));
+            for (int i = 0; i < toolRounds; i++) {
+                add(segmentNo, ai(tag + "第" + i + "句"));
+                add(segmentNo, toolCall(tag + "-" + i));
+                add(segmentNo, toolRet(tag + "-" + i));
+            }
+            add(segmentNo, ai("回答" + tag));
+        }
+
+        long maxId() {
+            return rows.size();
+        }
+
+        SessionHistoryService.RowFetcher fetcher() {
+            return new SessionHistoryService.RowFetcher() {
+                @Override
+                public List<SessionHistoryService.Row> fetchBackward(long before, long anchor, int limit) {
+                    List<SessionHistoryService.Row> out = new ArrayList<>();
+                    for (long id = Math.min(before - 1, anchor); id >= 1 && out.size() < limit; id--) {
+                        out.add(rows.get((int) id - 1));
+                    }
+                    return out;
+                }
+
+                @Override
+                public List<SessionHistoryService.Row> fetchForward(long fromId, long anchor, int limit) {
+                    List<SessionHistoryService.Row> out = new ArrayList<>();
+                    for (long id = fromId; id <= Math.min(anchor, rows.size()) && out.size() < limit; id++) {
+                        if (id >= 1) {
+                            out.add(rows.get((int) id - 1));
+                        }
+                    }
+                    return out;
+                }
+            };
+        }
+    }
+
+    private static SessionHistoryService.HistoryPage backward(FakeStore store, String cursor, int limit) {
+        long anchor;
+        long boundary;
+        if (cursor == null) {
+            anchor = store.maxId();
+            boundary = anchor + 1;
+        } else {
+            long[] pos = decode(cursor);
+            anchor = pos[0];
+            boundary = pos[1];
+        }
+        return SessionHistoryService.backwardPage(store.fetcher(), MAPPER, SESSION_ID, anchor, boundary, limit);
+    }
+
+    private static long[] decode(String cursor) {
+        try {
+            JsonNode data = MAPPER.readTree(Base64.getUrlDecoder().decode(cursor));
+            return new long[]{data.get(2).asLong(), data.get(3).asLong()};
+        } catch (Exception e) {
+            throw new IllegalArgumentException(e);
+        }
+    }
+
+    private static List<JsonNode> flat(SessionHistoryService.HistoryPage page) {
+        List<JsonNode> out = new ArrayList<>();
+        for (List<JsonNode> segment : page.segments()) {
+            out.addAll(segment);
+        }
+        return out;
+    }
+
+    private static boolean isUser(JsonNode payload) {
+        for (JsonNode part : payload.path("parts")) {
+            if ("user-prompt".equals(part.path("part_kind").asText()) && part.path("content").isTextual()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static String firstText(SessionHistoryService.HistoryPage page) {
+        JsonNode first = flat(page).getFirst();
+        return first.path("parts").get(0).path("content").asText();
+    }
+
+    // ---- 跨段去重（limit=null 完整历史路径） ----
+
+    @Test
+    @DisplayName("跨段去重：剥掉与累计前缀重叠的尾部")
+    void dedupStripsOverlap() {
+        List<List<JsonNode>> result = SessionHistoryService.dedupSegments(
+                List.of(seg("a", "b", "c"), seg("b", "c", "d")));
+
+        assertEquals(List.of("[a, b, c]", "[d]"), texts(result));
+    }
+
+    @Test
+    @DisplayName("跨段去重：命中起始点取 s+k 最大者")
+    void dedupTakesLargestOverlap() {
+        List<List<JsonNode>> result = SessionHistoryService.dedupSegments(
+                List.of(seg("p", "q", "r"), seg("r", "p", "q", "r")));
+
+        assertEquals(List.of("[p, q, r]", "[r]"), texts(result));
+    }
 
     private static List<JsonNode> seg(String... texts) {
         List<JsonNode> segment = new ArrayList<>();
@@ -40,10 +180,6 @@ class SessionHistoryServiceTests {
         return segment;
     }
 
-    private static List<List<JsonNode>> segments(List<JsonNode>... segments) {
-        return new ArrayList<>(List.of(segments));
-    }
-
     private static List<String> texts(List<List<JsonNode>> segments) {
         return segments.stream()
                 .map(segment -> segment.stream().map(JsonNode::asText).toList())
@@ -51,258 +187,195 @@ class SessionHistoryServiceTests {
                 .toList();
     }
 
-    // ---- 跨段去重 ----
+    // ---- backward 分页 ----
 
     @Test
-    @DisplayName("跨段去重：剥掉与累计前缀重叠的尾部")
-    void dedupStripsOverlap() {
-        List<List<JsonNode>> result = SessionHistoryService.dedupSegments(
-                segments(seg("a", "b", "c"), seg("b", "c", "d")));
+    @DisplayName("backward：页首对齐到回合开头的用户消息")
+    void backwardAlignsToTurnStart() {
+        FakeStore store = new FakeStore();
+        store.addTurn(0, "A", 1);
+        store.addTurn(0, "B", 3);
+        store.addTurn(0, "C", 1);
 
-        assertEquals(List.of("[a, b, c]", "[d]"), texts(result));
+        // limit=4：从尾部数够 4 条可见（回答C、第0句C、问题C、回答B）后继续退到回合 B 的开头
+        SessionHistoryService.HistoryPage page = backward(store, null, 4);
+
+        assertEquals("问题B", firstText(page));
+        assertTrue(page.hasMore());
+        assertNull(page.nextCursor());
+
+        SessionHistoryService.HistoryPage older = backward(store, page.previousCursor(), 4);
+        assertEquals("问题A", firstText(older));
+        assertFalse(older.hasMore());
+        assertNull(older.previousCursor());
+        // 更旧一页的 nextCursor 指回较新一页的起点
+        assertEquals(flat(page).getFirst(), flat(backward(store, null, 4)).getFirst());
     }
 
     @Test
-    @DisplayName("跨段去重：命中起始点取 s+k 最大者")
-    void dedupTakesLargestOverlap() {
-        // acc=[p,q,r]，seg 在 s=0 处只有长度 1 的重叠，s=1 处有长度 3 的重叠，应取后者
-        List<List<JsonNode>> result = SessionHistoryService.dedupSegments(
-                segments(seg("p", "q", "r"), seg("r", "p", "q", "r")));
+    @DisplayName("backward：数够 limit 后不退即停，而是再退到上一个回合开头")
+    void backwardExtendsToPreviousTurnStart() {
+        FakeStore store = new FakeStore();
+        store.addTurn(0, "A", 0);
+        store.addTurn(0, "B", 0);
 
-        assertEquals(List.of("[p, q, r]", "[r]"), texts(result));
+        // limit=2 在回合 B 末尾已数够，但仍退到回合 A 的开头才切
+        SessionHistoryService.HistoryPage page = backward(store, null, 2);
+
+        assertEquals(List.of(user("问题A"), ai("回答A"), user("问题B"), ai("回答B")), flat(page));
+        assertFalse(page.hasMore());
     }
 
     @Test
-    @DisplayName("跨段去重：无重叠时段原样保留")
-    void dedupKeepsDisjoint() {
-        List<List<JsonNode>> result = SessionHistoryService.dedupSegments(
-                segments(seg("a"), seg("b"), List.of()));
+    @DisplayName("backward：单轮可见消息超过硬上限时硬截断，页首可以不是用户消息")
+    void backwardHardLimit() {
+        FakeStore store = new FakeStore();
+        store.add(0, user("巨回合"));
+        for (int i = 0; i < 600; i++) {
+            store.add(0, ai("第" + i + "句"));
+        }
 
-        assertEquals(List.of("[a]", "[b]", "[]"), texts(result));
+        SessionHistoryService.HistoryPage page = backward(store, null, 30);
+
+        assertEquals(500, flat(page).size());
+        assertFalse(isUser(flat(page).getFirst()));
+        assertTrue(page.hasMore());
+
+        SessionHistoryService.HistoryPage rest = backward(store, page.previousCursor(), 30);
+        assertEquals("巨回合", firstText(rest));
+        assertFalse(rest.hasMore());
     }
 
-    // ---- 分页切片 ----
+    @Test
+    @DisplayName("backward：自动注入的消息不算可见条目、不作页首")
+    void backwardSkipsAutoInjected() {
+        FakeStore store = new FakeStore();
+        store.addTurn(0, "A", 0);
+        store.add(0, inject("文件变更通知"));
+        store.addTurn(0, "B", 0);
+
+        SessionHistoryService.HistoryPage page = backward(store, null, 4);
+
+        assertEquals("问题A", firstText(page));
+        assertFalse(page.hasMore());
+    }
 
     @Test
-    @DisplayName("forward 翻页：空游标从头切，nextCursor 接力，hasMore 到尾为 false")
+    @DisplayName("backward：跨段重叠在流式翻页中剥掉，多页拼接不重复不缺漏")
+    void backwardCrossSegmentDedup() {
+        FakeStore store = new FakeStore();
+        store.add(0, user("问题A"));
+        store.add(0, ai("回答A"));
+        // 段 1 = 压缩基线：摘要（list content 的 user-prompt）+ 保留尾（回答A 的重复）+ 新内容
+        store.add(1, MAPPER.readTree("{\"kind\":\"request\",\"parts\":[{\"part_kind\":\"user-prompt\","
+                + "\"content\":[{\"type\":\"text\",\"text\":\"摘要\",\"metadata\":"
+                + "\"pydantic-ai-harness.compaction.receipt.v1\"}]}]}"));
+        store.add(1, ai("回答A"));
+        store.add(1, user("问题B"));
+        store.add(1, ai("回答B"));
+
+        List<JsonNode> joined = new ArrayList<>();
+        String cursor = null;
+        int pages = 0;
+        while (true) {
+            SessionHistoryService.HistoryPage page = backward(store, cursor, 1);
+            joined.addAll(0, flat(page));
+            pages++;
+            if (!page.hasMore()) {
+                break;
+            }
+            cursor = page.previousCursor();
+            assertTrue(pages < 20, "游标链不收敛");
+        }
+
+        // 摘要消息（content 为 list）不算用户消息，不作页首；重叠的「回答A」只出现一次
+        long occurrences = joined.stream().filter(m -> m.equals(ai("回答A"))).count();
+        assertEquals(1, occurrences);
+        assertEquals(user("问题A"), joined.getFirst());
+        assertEquals(ai("回答B"), joined.getLast());
+    }
+
+    @Test
+    @DisplayName("backward：段号跳跃时补空段占位")
+    void backwardFillsEmptySegments() {
+        FakeStore store = new FakeStore();
+        store.add(0, user("问题A"));
+        store.add(0, ai("回答A"));
+        store.add(2, user("问题B"));
+        store.add(2, ai("回答B"));
+
+        SessionHistoryService.HistoryPage page = backward(store, null, 100);
+
+        assertEquals(3, page.segments().size());
+        assertEquals(List.of(), page.segments().get(1));
+        assertEquals(0, page.firstSegmentIndex());
+    }
+
+    @Test
+    @DisplayName("backward：快照锚点之后追加的消息不可见")
+    void backwardAnchorPinsSnapshot() {
+        FakeStore store = new FakeStore();
+        store.addTurn(0, "A", 0);
+        long anchor = store.maxId();
+        store.addTurn(0, "B", 0);
+
+        SessionHistoryService.HistoryPage page = SessionHistoryService.backwardPage(
+                store.fetcher(), MAPPER, SESSION_ID, anchor, anchor + 1, 10);
+
+        assertEquals(List.of(user("问题A"), ai("回答A")), flat(page));
+        assertFalse(page.hasMore());
+    }
+
+    @Test
+    @DisplayName("backward：空会话返回空页")
+    void backwardEmpty() {
+        FakeStore store = new FakeStore();
+
+        SessionHistoryService.HistoryPage page = SessionHistoryService.backwardPage(
+                store.fetcher(), MAPPER, SESSION_ID, -1, 0, 10);
+
+        assertEquals(List.of(), page.segments());
+        assertNull(page.firstSegmentIndex());
+        assertFalse(page.hasMore());
+        assertNull(page.previousCursor());
+        assertNull(page.nextCursor());
+    }
+
+    // ---- forward 分页 ----
+
+    @Test
+    @DisplayName("forward：按原始消息数取页，nextCursor 接力到尾")
     void forwardPaging() {
-        List<List<JsonNode>> raw = segments(seg("a", "b", "c", "d", "e"));
+        FakeStore store = new FakeStore();
+        store.addTurn(0, "A", 1);
+        store.addTurn(0, "B", 0);
 
-        SessionHistoryService.HistoryPage first =
-                SessionHistoryService.pageHistory(MAPPER, raw, SESSION_ID, null, 2, "forward");
-        assertEquals(List.of("[a, b]"), texts(first.segments()));
-        assertEquals(0, first.firstSegmentIndex());
+        SessionHistoryService.HistoryPage first = SessionHistoryService.forwardPage(
+                store.fetcher(), MAPPER, SESSION_ID, store.maxId(), 0, 3);
+        assertEquals(3, flat(first).size());
         assertTrue(first.hasMore());
         assertNull(first.previousCursor());
 
-        SessionHistoryService.HistoryPage second = SessionHistoryService.pageHistory(
-                MAPPER, raw, SESSION_ID, first.nextCursor(), 2, "forward");
-        assertEquals(List.of("[c, d]"), texts(second.segments()));
+        SessionHistoryService.HistoryPage second = SessionHistoryService.forwardPage(
+                store.fetcher(), MAPPER, SESSION_ID, store.maxId(), decode(first.nextCursor())[1], 3);
+        assertEquals(List.of(toolRet("A-0"), ai("回答A"), user("问题B")), flat(second));
         assertTrue(second.hasMore());
 
-        SessionHistoryService.HistoryPage third = SessionHistoryService.pageHistory(
-                MAPPER, raw, SESSION_ID, second.nextCursor(), 2, "forward");
-        assertEquals(List.of("[e]"), texts(third.segments()));
+        SessionHistoryService.HistoryPage third = SessionHistoryService.forwardPage(
+                store.fetcher(), MAPPER, SESSION_ID, store.maxId(), decode(second.nextCursor())[1], 3);
+        assertEquals(List.of(ai("回答B")), flat(third));
         assertFalse(third.hasMore());
         assertNull(third.nextCursor());
-    }
-
-    @Test
-    @DisplayName("backward 翻页：空游标从尾部切，previousCursor 接力")
-    void backwardPaging() {
-        List<List<JsonNode>> raw = segments(seg("a", "b", "c", "d", "e"));
-
-        SessionHistoryService.HistoryPage first =
-                SessionHistoryService.pageHistory(MAPPER, raw, SESSION_ID, null, 2, "backward");
-        assertEquals(List.of("[d, e]"), texts(first.segments()));
-        assertEquals(0, first.firstSegmentIndex());
-        assertTrue(first.hasMore());
-        assertNull(first.nextCursor());
-
-        SessionHistoryService.HistoryPage second = SessionHistoryService.pageHistory(
-                MAPPER, raw, SESSION_ID, first.previousCursor(), 2, "backward");
-        assertEquals(List.of("[b, c]"), texts(second.segments()));
-        assertTrue(second.hasMore());
-
-        SessionHistoryService.HistoryPage third = SessionHistoryService.pageHistory(
-                MAPPER, raw, SESSION_ID, second.previousCursor(), 2, "backward");
-        assertEquals(List.of("[a]"), texts(third.segments()));
-        assertFalse(third.hasMore());
-        assertNull(third.previousCursor());
-    }
-
-    @Test
-    @DisplayName("跨段切片：窗口覆盖空段时保留空段占位，firstSegmentIndex 指向首个非空切片")
-    void slicingKeepsEmptySegment() {
-        List<List<JsonNode>> raw = segments(seg("a"), List.of(), seg("b"));
-
-        SessionHistoryService.HistoryPage page =
-                SessionHistoryService.pageHistory(MAPPER, raw, SESSION_ID, null, 2, "forward");
-
-        assertEquals(List.of("[a]", "[]", "[b]"), texts(page.segments()));
-        assertEquals(0, page.firstSegmentIndex());
-        assertFalse(page.hasMore());
-    }
-
-    @Test
-    @DisplayName("limit=null 返回完整当前历史，此时不接受 cursor")
-    void fullHistoryWithoutLimit() {
-        List<List<JsonNode>> raw = segments(seg("a", "b"), seg("c"));
-
-        SessionHistoryService.HistoryPage page =
-                SessionHistoryService.pageHistory(MAPPER, raw, SESSION_ID, null, null, "forward");
-
-        assertEquals(List.of("[a, b]", "[c]"), texts(page.segments()));
-        assertEquals(0, page.firstSegmentIndex());
-        assertFalse(page.hasMore());
-
-        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
-                () -> SessionHistoryService.pageHistory(
-                        MAPPER, raw, SESSION_ID, SessionHistoryService.encodeCursor(MAPPER, SESSION_ID, 2, 3, 1),
-                        null, "forward"));
-        assertEquals("history cursor requires a limit", e.getMessage());
-    }
-
-    @Test
-    @DisplayName("limit 边界：0 与负数拒绝，Integer.MAX_VALUE 不溢出")
-    void limitBounds() {
-        List<List<JsonNode>> raw = segments(seg("a", "b"));
-
-        for (Integer limit : List.of(0, -1)) {
-            IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
-                    () -> SessionHistoryService.pageHistory(MAPPER, raw, SESSION_ID, null, limit, "forward"));
-            assertEquals("invalid history limit", e.getMessage());
-        }
-
-        SessionHistoryService.HistoryPage page = SessionHistoryService.pageHistory(
-                MAPPER, raw, SESSION_ID, null, Integer.MAX_VALUE, "forward");
-        assertEquals(List.of("[a, b]"), texts(page.segments()));
-        assertFalse(page.hasMore());
-    }
-
-    @Test
-    @DisplayName("direction 只接受 forward / backward")
-    void invalidDirection() {
-        List<List<JsonNode>> raw = segments(seg("a"));
-
-        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
-                () -> SessionHistoryService.pageHistory(MAPPER, raw, SESSION_ID, null, 1, "sideways"));
-        assertEquals("invalid history direction", e.getMessage());
-    }
-
-    @Test
-    @DisplayName("空会话：无选中切片，firstSegmentIndex 为 null")
-    void emptySession() {
-        List<List<JsonNode>> raw = segments(List.of(), List.of());
-
-        SessionHistoryService.HistoryPage page =
-                SessionHistoryService.pageHistory(MAPPER, raw, SESSION_ID, null, 2, "backward");
-
-        assertEquals(List.of(), texts(page.segments()));
-        assertNull(page.firstSegmentIndex());
-        assertFalse(page.hasMore());
-        assertNull(page.nextCursor());
-        assertNull(page.previousCursor());
     }
 
     // ---- 游标编解码 ----
 
     @Test
-    @DisplayName("游标往返：encode → decode 后边界即编码时的 offset")
-    void cursorRoundTrip() {
-        List<List<JsonNode>> raw = segments(seg("a", "b"), seg("c", "d", "e"));
+    @DisplayName("游标编码为无 padding 的 base64url 紧凑 JSON，版本号 2")
+    void cursorEncodingShape() {
+        String cursor = SessionHistoryService.encodeCursor(MAPPER, SESSION_ID, 42, 7);
 
-        String cursor = SessionHistoryService.encodeCursor(MAPPER, SESSION_ID, 2, 5, 3);
-        SessionHistoryService.HistoryPage page = SessionHistoryService.pageHistory(
-                MAPPER, raw, SESSION_ID, cursor, 2, "forward");
-
-        // 快照钉住 2 段 5 条消息，边界 3 → 取第 4 条起的两条
-        assertEquals(List.of("[d, e]"), texts(page.segments()));
-        assertFalse(page.hasMore());
-        assertTrue(page.previousCursor() != null);
-    }
-
-    @Test
-    @DisplayName("游标快照：段数/消息数超出现有存储报越界")
-    void cursorSnapshotOutOfRange() {
-        List<List<JsonNode>> raw = segments(seg("a", "b"), seg("c"));
-
-        IllegalArgumentException tooManySegments = assertThrows(IllegalArgumentException.class,
-                () -> SessionHistoryService.pageHistory(
-                        MAPPER, raw, SESSION_ID, SessionHistoryService.encodeCursor(MAPPER, SESSION_ID, 3, 3, 0),
-                        1, "forward"));
-        assertEquals("history cursor snapshot is out of range", tooManySegments.getMessage());
-
-        IllegalArgumentException tooManyMessages = assertThrows(IllegalArgumentException.class,
-                () -> SessionHistoryService.pageHistory(
-                        MAPPER, raw, SESSION_ID, SessionHistoryService.encodeCursor(MAPPER, SESSION_ID, 2, 4, 0),
-                        1, "forward"));
-        assertEquals("history cursor snapshot is out of range", tooManyMessages.getMessage());
-    }
-
-    @Test
-    @DisplayName("游标快照：offset 超过去重后总数报越界")
-    void cursorOffsetOutOfRange() {
-        List<List<JsonNode>> raw = segments(seg("a", "b", "c"));
-
-        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
-                () -> SessionHistoryService.pageHistory(
-                        MAPPER, raw, SESSION_ID, SessionHistoryService.encodeCursor(MAPPER, SESSION_ID, 1, 3, 4),
-                        1, "forward"));
-        assertEquals("history cursor offset is out of range", e.getMessage());
-    }
-
-    @Test
-    @DisplayName("游标快照：后续追加不改变既有分页（前缀固定）")
-    void cursorSnapshotIsPrefix() {
-        // 游标生成时只有 1 段 2 条消息；现在存储长到 3 条，按旧游标翻页仍只看前缀
-        List<List<JsonNode>> grown = segments(seg("a", "b"), seg("c"));
-
-        SessionHistoryService.HistoryPage page = SessionHistoryService.pageHistory(
-                MAPPER, grown, SESSION_ID,
-                SessionHistoryService.encodeCursor(MAPPER, SESSION_ID, 1, 2, 2), 2, "forward");
-
-        assertEquals(List.of(), texts(page.segments()));
-        assertFalse(page.hasMore());
-    }
-
-    @Test
-    @DisplayName("非法游标一律 invalid history cursor")
-    void invalidCursors() {
-        List<String> cursors = List.of(
-                "!!!not-base64!!!",
-                SessionHistoryService.encodeCursor(MAPPER, SESSION_ID, 1, 1, 0) + "$$",
-                Base64.getUrlEncoder().withoutPadding().encodeToString("not-json".getBytes(StandardCharsets.UTF_8)),
-                Base64.getUrlEncoder().withoutPadding().encodeToString("{}".getBytes(StandardCharsets.UTF_8)),
-                Base64.getUrlEncoder().withoutPadding()
-                        .encodeToString(("[2,\"" + SESSION_ID + "\",1,1,0]").getBytes(StandardCharsets.UTF_8)),
-                Base64.getUrlEncoder().withoutPadding()
-                        .encodeToString(("[1,\"other-session\",1,1,0]").getBytes(StandardCharsets.UTF_8)),
-                Base64.getUrlEncoder().withoutPadding()
-                        .encodeToString(("[1,\"" + SESSION_ID + "\",1,1]").getBytes(StandardCharsets.UTF_8)),
-                Base64.getUrlEncoder().withoutPadding()
-                        .encodeToString(("[1,\"" + SESSION_ID + "\",-1,1,0]").getBytes(StandardCharsets.UTF_8)),
-                Base64.getUrlEncoder().withoutPadding()
-                        .encodeToString(("[1,\"" + SESSION_ID + "\",1.5,1,0]").getBytes(StandardCharsets.UTF_8)),
-                Base64.getUrlEncoder().withoutPadding()
-                        .encodeToString(("[true,\"" + SESSION_ID + "\",1,1,0]").getBytes(StandardCharsets.UTF_8)),
-                Base64.getUrlEncoder().withoutPadding()
-                        .encodeToString(("[1,\"" + SESSION_ID + "\",true,1,0]").getBytes(StandardCharsets.UTF_8)));
-        for (String cursor : cursors) {
-            IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
-                    () -> SessionHistoryService.pageHistory(
-                            MAPPER, segments(seg("a")), SESSION_ID, cursor, 1, "forward"),
-                    "游标 " + cursor + " 应被拒绝");
-            assertEquals("invalid history cursor", e.getMessage());
-        }
-    }
-
-    @Test
-    @DisplayName("游标编码为无 padding 的 base64url 紧凑 JSON")
-    void cursorEncodingMatchesPython() {
-        String cursor = SessionHistoryService.encodeCursor(MAPPER, SESSION_ID, 2, 5, 3);
-
-        assertEquals("[1,\"" + SESSION_ID + "\",2,5,3]",
+        assertEquals("[2,\"" + SESSION_ID + "\",42,7]",
                 new String(Base64.getUrlDecoder().decode(cursor), StandardCharsets.UTF_8));
         assertFalse(cursor.contains("="));
         assertFalse(cursor.contains("+"));
@@ -314,8 +387,8 @@ class SessionHistoryServiceTests {
     @Test
     @DisplayName("result 四键齐全，null 也序列化，segments 是消息 JSON 本身")
     void buildResultShape() {
-        SessionHistoryService.HistoryPage page = SessionHistoryService.pageHistory(
-                MAPPER, segments(List.of()), SESSION_ID, null, 2, "backward");
+        SessionHistoryService.HistoryPage page = SessionHistoryService.backwardPage(
+                new FakeStore().fetcher(), MAPPER, SESSION_ID, -1, 0, 10);
 
         JsonNode result = SessionHistoryService.buildResult(MAPPER, page);
 
@@ -325,18 +398,5 @@ class SessionHistoryServiceTests {
         assertTrue(result.get("previousCursor").isNull());
         assertFalse(result.get("hasMore").booleanValue());
         assertEquals(5, result.size());
-    }
-
-    @Test
-    @DisplayName("result 保留消息 payload 原文")
-    void buildResultKeepsPayload() {
-        List<List<JsonNode>> raw = segments(new ArrayList<>());
-        JsonNode message = MAPPER.readTree("{\"kind\":\"request\",\"parts\":[{\"content\":\"hi\"}]}");
-        raw.get(0).add(message);
-
-        JsonNode result = SessionHistoryService.buildResult(
-                MAPPER, SessionHistoryService.pageHistory(MAPPER, raw, SESSION_ID, null, 5, "forward"));
-
-        assertEquals(message, result.get("segments").get(0).get(0));
     }
 }
