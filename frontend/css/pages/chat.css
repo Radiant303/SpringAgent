@@ -976,6 +976,52 @@
   transition: transform 0.15s;
 }
 
+/* ---- 折叠动效：grid 行高过渡 + 内层散焦淡出 ---- */
+.fold-clip { overflow: hidden; min-height: 0; }
+
+/* 工作分组与回合折叠：时长与模糊度随内容高度自适应（--fold-duration / --fold-blur 由 JS 写入） */
+.work-body, .turn-fold-wrap {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows var(--fold-duration, 300ms) cubic-bezier(0.2, 0.8, 0.25, 1);
+}
+.work-group.expanded > .work-body,
+.work-group.live > .work-body,
+.turn-fold.expanded > .turn-fold-wrap { grid-template-rows: 1fr; }
+.work-items, .turn-fold-content {
+  transition:
+    opacity var(--fold-duration, 300ms) cubic-bezier(0.2, 0.8, 0.25, 1),
+    filter var(--fold-duration, 300ms) cubic-bezier(0.2, 0.8, 0.25, 1),
+    transform var(--fold-duration, 300ms) cubic-bezier(0.2, 0.8, 0.25, 1);
+}
+.work-group:not(.expanded):not(.live) .work-items,
+.turn-fold:not(.expanded) .turn-fold-content {
+  opacity: 0;
+  filter: blur(var(--fold-blur, 6px));
+  transform: translateY(-8px);
+}
+
+/* 思考区与工具卡片：固定模糊与微位移 */
+.thinking-body, .tool-body {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.25s cubic-bezier(0.2, 0.8, 0.25, 1);
+}
+.thinking.expanded .thinking-body,
+.tool-card.expanded .tool-body { grid-template-rows: 1fr; }
+.thinking-text, .tool-content {
+  transition:
+    opacity 0.25s cubic-bezier(0.2, 0.8, 0.25, 1),
+    filter 0.25s cubic-bezier(0.2, 0.8, 0.25, 1),
+    transform 0.25s cubic-bezier(0.2, 0.8, 0.25, 1);
+}
+.thinking:not(.expanded) .thinking-text,
+.tool-card:not(.expanded) .tool-content {
+  opacity: 0;
+  filter: blur(6px);
+  transform: translateY(-6px);
+}
+
 /* ---- 工作过程分组 ---- */
 .work-group {
   flex-shrink: 0;
@@ -1001,26 +1047,14 @@
 .work-group.live .work-icon { animation: spin 2.4s linear infinite; color: var(--text, rgba(0, 0, 0, 0.9)); }
 @keyframes spin { to { transform: rotate(360deg); } }
 
-.work-body {
-  display: none;
+.work-items {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
   margin: 2px 0 0;
-  padding: 0;
 }
-.work-group.expanded > .work-body {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
 .work-group.live > .work-header { display: none; }
-.work-group.live > .work-body {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  margin: 0;
-  padding: 0;
-  border-left: none;
-}
+.work-group.live .work-items { margin: 0; }
 
 /* ---- 思考区 ---- */
 .thinking { font-size: var(--fs-sm, 16px); }
@@ -1038,8 +1072,7 @@
 .thinking-header:hover .caret { color: var(--text-dim, rgba(0, 0, 0, 0.6)); }
 .thinking-icon { color: var(--text-dim, rgba(0, 0, 0, 0.6)); }
 .thinking.expanded .thinking-header .caret { transform: rotate(90deg); }
-.thinking-body {
-  display: none;
+.thinking-text {
   margin: 2px 0 6px 7.5px;
   padding: 2px 0 2px 14px;
   border-left: 1px dashed rgba(0, 0, 0, 0.18);
@@ -1051,7 +1084,6 @@
   max-height: 360px;
   overflow-y: auto;
 }
-.thinking.expanded .thinking-body { display: block; }
 
 /* ---- 工具卡片 ---- */
 .tool-card { flex-shrink: 0; align-self: stretch; }
@@ -1073,7 +1105,7 @@
 .tool-header:hover .caret { color: var(--text-dim, rgba(0, 0, 0, 0.6)); }
 .tool-icon { color: var(--text-faint, rgba(0, 0, 0, 0.45)); }
 .tool-header:hover .tool-icon { color: var(--text-dim, rgba(0, 0, 0, 0.6)); }
-.tool-verb { flex-shrink: 0; color: var(--text, rgba(0, 0, 0, 0.9)); }
+.tool-verb { flex-shrink: 0; }
 .tool-target {
   min-width: 0;
   overflow: hidden;
@@ -1114,8 +1146,7 @@
   border-radius: 999px;
   padding: 1px 8px;
 }
-.tool-body { display: none; padding: 4px 0 8px; }
-.tool-card.expanded .tool-body { display: block; }
+.tool-content { padding: 4px 0 8px; }
 
 pre.tool-args, pre.tool-result, pre.tool-diff {
   margin: 4px 0;
@@ -1145,6 +1176,43 @@ pre.tool-result.error { background: var(--diff-del-bg, rgba(192, 57, 43, 0.07));
 .tt-name { color: var(--text, rgba(0, 0, 0, 0.9)); }
 .tt-meta { color: var(--text-faint, rgba(0, 0, 0, 0.45)); }
 .tt-name, .tt-meta { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ---- 回合折叠：只留最终回答 ---- */
+.turn-fold {
+  flex-shrink: 0;
+  align-self: stretch;
+  border-bottom: 1px solid var(--border-soft, rgba(0, 0, 0, 0.05));
+}
+.turn-fold-head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  min-height: 30px;
+  padding: 4px 0 14px;
+  cursor: pointer;
+  user-select: none;
+  font-size: var(--fs-sm, 16px);
+  color: var(--text-dim, rgba(0, 0, 0, 0.6));
+}
+.turn-fold-head:hover { color: var(--text, rgba(0, 0, 0, 0.9)); }
+.turn-fold-head:hover .caret { color: var(--text-dim, rgba(0, 0, 0, 0.6)); }
+.turn-fold-summary {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.turn-fold > .turn-fold-head .caret { opacity: 0; }
+.turn-fold-head:hover .caret, .turn-fold.expanded > .turn-fold-head .caret { opacity: 1; }
+.turn-fold.expanded > .turn-fold-head .caret { transform: rotate(90deg); }
+.turn-fold.expanded > .turn-fold-head { padding-bottom: 0; }
+.turn-fold-content {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 2px 0 10px;
+}
 
 /* 文件卡片视图 */
 .file-view {
@@ -1905,14 +1973,14 @@ pre.tool-result.error { background: var(--diff-del-bg, rgba(192, 57, 43, 0.07));
 }
 
 /* ---- 滚动条：默认隐藏，悬停或滚动中浮现 ---- */
-:is(#messages, #sidebar-scroll, #input, .thinking-body, .fv-body)::-webkit-scrollbar { width: 8px; height: 8px; }
-:is(#messages, #sidebar-scroll, #input, .thinking-body, .fv-body)::-webkit-scrollbar-track { background: transparent; }
-:is(#messages, #sidebar-scroll, #input, .thinking-body, .fv-body)::-webkit-scrollbar-thumb {
+:is(#messages, #sidebar-scroll, #input, .thinking-text, .fv-body)::-webkit-scrollbar { width: 8px; height: 8px; }
+:is(#messages, #sidebar-scroll, #input, .thinking-text, .fv-body)::-webkit-scrollbar-track { background: transparent; }
+:is(#messages, #sidebar-scroll, #input, .thinking-text, .fv-body)::-webkit-scrollbar-thumb {
   background: transparent;
   border-radius: 999px;
 }
-:is(#messages, #sidebar-scroll, #input, .thinking-body, .fv-body):is(:hover, .is-scrolling)::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb, #c8c8c8); }
-:is(#messages, #sidebar-scroll, #input, .thinking-body, .fv-body)::-webkit-scrollbar-thumb:hover { background-color: var(--scrollbar-thumb-hover, #a8a8a8); }
+:is(#messages, #sidebar-scroll, #input, .thinking-text, .fv-body):is(:hover, .is-scrolling)::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb, #c8c8c8); }
+:is(#messages, #sidebar-scroll, #input, .thinking-text, .fv-body)::-webkit-scrollbar-thumb:hover { background-color: var(--scrollbar-thumb-hover, #a8a8a8); }
 
 #model-menu::-webkit-scrollbar { width: 8px; }
 #model-menu::-webkit-scrollbar-track { background: transparent; }
@@ -1932,7 +2000,7 @@ pre.tool-result.error { background: var(--diff-del-bg, rgba(192, 57, 43, 0.07));
 
 /* 不支持 ::-webkit-scrollbar 的浏览器（Firefox）退回标准属性 */
 @supports not selector(::-webkit-scrollbar) {
-  #messages, #sidebar-scroll, #input, pre, .thinking-body, .fv-body, #plan-items {
+  #messages, #sidebar-scroll, #input, pre, .thinking-text, .fv-body, #plan-items {
     scrollbar-width: thin;
     scrollbar-color: transparent transparent;
   }

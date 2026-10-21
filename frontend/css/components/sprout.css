@@ -79,6 +79,10 @@
   width: 100%;
 }
 
+.turn-content > .turn-fold {
+  width: 100%;
+}
+
 .turn-content > .msg.assistant {
   width: 100%;
 }

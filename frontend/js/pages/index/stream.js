@@ -42,6 +42,7 @@ import {
   thinkingNode,
   addToGroup,
   addSystem,
+  foldTurnProcess,
 } from "./chatView.js";
 import { updateInputState } from "./input.js";
 import { refreshSessionList } from "./sessions.js";
@@ -348,7 +349,7 @@ export function onSessionEvent(sid, event, seq) {
         addToGroup(group, state.thinking);
         setActive(state.thinking);
       }
-      const body = state.thinking.querySelector(".thinking-body");
+      const body = state.thinking.querySelector(".thinking-text");
       pumpFor(body, (text) => {
         appendKeepingBottom(body, text);
         maybeScroll();
@@ -467,6 +468,7 @@ export function finishTurn(event) {
   setActive(null);
   closeWork();
   foldTurnGroups();
+  if (state.currentTurn) foldTurnProcess(state.currentTurn.content, true);
   if (state.assistant) enhanceCodeBlocks(state.assistant.answer);
   state.assistant = null;
   state.tools.clear();

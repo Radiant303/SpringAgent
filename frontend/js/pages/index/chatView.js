@@ -333,6 +333,23 @@ export function setToolStatus(card, status) {
   card.el.classList.toggle("error", card.error);
 }
 
+/* ================= 折叠动效 ================= */
+
+/** 折叠时长与模糊度随内容高度自适应（效果A），由共享 ResizeObserver 写入 CSS 变量 */
+const foldObserver = new ResizeObserver((entries) => {
+  for (const entry of entries) {
+    const host = entry.target.closest(".work-group, .turn-fold");
+    if (!host) continue;
+    const h = entry.target.offsetHeight;
+    host.style.setProperty("--fold-duration", Math.round(Math.min(550, Math.max(200, 150 + h * 0.35))) + "ms");
+    host.style.setProperty("--fold-blur", Math.min(10, 4 + h * 0.01).toFixed(1) + "px");
+  }
+});
+
+function bindFoldDynamics(host, content) {
+  foldObserver.observe(content);
+}
+
 /* ================= 思考区与工作分组 ================= */
 
 export function thinkingNode(text) {
@@ -341,7 +358,10 @@ export function thinkingNode(text) {
   header.appendChild(icon("bulb", "thinking-icon"));
   header.appendChild(el("span", "thinking-title", "思考过程"));
   header.appendChild(icon("chevron", "caret"));
-  const body = el("div", "thinking-body", text);
+  const body = el("div", "thinking-body");
+  const clip = el("div", "fold-clip");
+  clip.appendChild(el("div", "thinking-text", text));
+  body.appendChild(clip);
   header.onclick = () => wrap.classList.toggle("expanded");
   wrap.appendChild(header);
   wrap.appendChild(body);
@@ -356,10 +376,15 @@ export function workGroupNode() {
   header.appendChild(summary);
   header.appendChild(icon("chevron", "caret"));
   const body = el("div", "work-body");
+  const clip = el("div", "fold-clip");
+  const items = el("div", "work-items");
+  clip.appendChild(items);
+  body.appendChild(clip);
   header.onclick = () => wrap.classList.toggle("expanded");
   wrap.appendChild(header);
   wrap.appendChild(body);
-  return { el: wrap, body, summary, items: [] };
+  bindFoldDynamics(wrap, items);
+  return { el: wrap, body: items, summary, items: [] };
 }
 
 export function addToGroup(group, item) {
@@ -369,20 +394,20 @@ export function addToGroup(group, item) {
   refreshWorkSummary(group);
 }
 
-export function refreshWorkSummary(group) {
+/** 汇总条目 {thought?, kind?, fileKey?, error?} → 文案与失败数 */
+function workSummaryText(items) {
   const files = { edit: new Set(), read: new Set() };
   const counts = { list: 0, search: 0, command: 0, other: 0 };
   let errors = 0;
   let thoughts = 0;
-  for (const item of group.items) {
-    if (item instanceof Element) {
+  for (const item of items) {
+    if (item.thought) {
       thoughts++;
       continue;
     }
-    const kind = toolMeta(item.name).kind;
     if (item.error) errors++;
-    if (files[kind]) files[kind].add(item.target || item.id);
-    else counts[kind]++;
+    if (files[item.kind]) files[item.kind].add(item.fileKey);
+    else counts[item.kind]++;
   }
   const parts = [];
   if (files.edit.size) parts.push(`编辑 ${files.edit.size} 个文件`);
@@ -393,8 +418,72 @@ export function refreshWorkSummary(group) {
   if (counts.other) parts.push(`调用 ${counts.other} 个工具`);
   let text = parts.join("、") || (thoughts ? "思考过程" : "工作过程");
   if (errors) text += `，${errors} 项失败`;
+  return { text, errors };
+}
+
+export function refreshWorkSummary(group) {
+  const items = group.items.map((item) =>
+    item instanceof Element
+      ? { thought: true }
+      : { kind: toolMeta(item.name).kind, fileKey: item.target || item.id, error: item.error });
+  const { text, errors } = workSummaryText(items);
   group.summary.textContent = text;
   group.el.classList.toggle("has-error", errors > 0);
+}
+
+/* ================= 回合折叠 ================= */
+
+function summarizeProcess(nodes) {
+  const items = [];
+  for (const node of nodes) {
+    node.querySelectorAll(".tool-card").forEach((card, i) => {
+      const name = card.querySelector(".tool-verb")?.title || "";
+      items.push({
+        kind: toolMeta(name).kind,
+        fileKey: card.querySelector(".tool-target")?.title || `${name}#${i}`,
+        error: card.classList.contains("error"),
+      });
+    });
+    node.querySelectorAll(".thinking").forEach(() => items.push({ thought: true }));
+  }
+  return workSummaryText(items).text;
+}
+
+/**
+ * 把一轮回答的过程内容（除最终回答外的全部节点）收进折叠条
+ *
+ * @param {HTMLElement} content 回合内容容器（.turn-content）
+ * @param {boolean} [animate] true 时先展开再收起，播放一次折叠动画
+ */
+export function foldTurnProcess(content, animate = false) {
+  if (!content) return;
+  const children = Array.from(content.children);
+  let lastAnswer = -1;
+  children.forEach((node, i) => {
+    if (node.classList.contains("msg") && node.classList.contains("assistant")) lastAnswer = i;
+  });
+  const process = (lastAnswer >= 0 ? children.slice(0, lastAnswer) : children)
+    .filter((node) => node.id !== "pending-indicator" && !node.classList.contains("turn-fold"));
+  if (!process.length) return;
+  const fold = el("div", "turn-fold");
+  const head = el("div", "turn-fold-head");
+  head.appendChild(el("span", "turn-fold-summary", summarizeProcess(process)));
+  head.appendChild(icon("chevron", "caret"));
+  const wrap = el("div", "turn-fold-wrap");
+  const clip = el("div", "fold-clip");
+  const inner = el("div", "turn-fold-content");
+  for (const node of process) inner.appendChild(node);
+  clip.appendChild(inner);
+  wrap.appendChild(clip);
+  fold.appendChild(head);
+  fold.appendChild(wrap);
+  content.insertBefore(fold, lastAnswer >= 0 ? children[lastAnswer] : null);
+  head.onclick = () => fold.classList.toggle("expanded");
+  bindFoldDynamics(fold, inner);
+  if (animate) {
+    fold.classList.add("expanded");
+    requestAnimationFrame(() => requestAnimationFrame(() => fold.classList.remove("expanded")));
+  }
 }
 
 export function colorizeDiff(pre, diff) {
@@ -581,14 +670,18 @@ export function buildToolCard(name, id) {
   header.appendChild(status);
   header.appendChild(icon("chevron", "caret"));
   const body = el("div", "tool-body");
+  const clip = el("div", "fold-clip");
+  const content = el("div", "tool-content");
   const args = el("pre", "tool-args");
   const diff = el("pre", "tool-diff diff hidden");
   const result = el("pre", "tool-result hidden");
   const fileView = el("div", "file-view hidden");
-  body.appendChild(fileView);
-  body.appendChild(args);
-  body.appendChild(diff);
-  body.appendChild(result);
+  content.appendChild(fileView);
+  content.appendChild(args);
+  content.appendChild(diff);
+  content.appendChild(result);
+  clip.appendChild(content);
+  body.appendChild(clip);
   card.appendChild(header);
   card.appendChild(body);
   header.onclick = () => card.classList.toggle("expanded");

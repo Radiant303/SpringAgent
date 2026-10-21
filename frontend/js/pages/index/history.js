@@ -18,6 +18,7 @@ import {
   refreshWorkSummary,
   historyToolCard,
   addSystem,
+  foldTurnProcess,
 } from "./chatView.js";
 
 export function clearMessages(loading = false) {
@@ -80,6 +81,7 @@ export function renderHistory(segments, prepend = false) {
 
   const endTurn = () => {
     endGroup();
+    if (currentTurn) foldTurnProcess(currentTurn.content);
     currentTurn = null;
   };
 
