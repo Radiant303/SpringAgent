@@ -6,6 +6,7 @@ from pydantic_ai.models.openai import OpenAIChatModel, OpenAIResponsesModel
 from pydantic_ai.providers.alibaba import AlibabaProvider
 from pydantic_ai.providers.deepseek import DeepSeekProvider
 from pydantic_ai.providers.openai import OpenAIProvider
+from pydantic_ai.settings import ModelSettings
 
 from spring_agent.core.config.settings import Model as ModelConfig
 from spring_agent.core.config.settings import Provider as ProviderConfig
@@ -39,6 +40,12 @@ def _profile(model_config: ModelConfig, native: bool = False) -> ModelProfile:
     )
 
 
+def _settings(model_config: ModelConfig) -> ModelSettings | None:
+    if model_config.max_output_size > 0:
+        return ModelSettings(max_tokens=model_config.max_output_size)
+    return None
+
+
 def _provider(
     provider_type: type[OpenAIProvider | AlibabaProvider | DeepSeekProvider], **kwargs: Any,
 ) -> OpenAIProvider | AlibabaProvider | DeepSeekProvider:
@@ -52,6 +59,7 @@ def _openai(model_name: str, provider_config: Any, model_config: Any) -> Model:
         provider=_provider(OpenAIProvider,
                            base_url=provider_config.base_url, api_key=provider_config.api_key),
         profile=_profile(model_config),
+        settings=_settings(model_config),
     )
 
 
@@ -62,6 +70,7 @@ def _alibaba(model_name: str, provider_config: Any, model_config: Any) -> Model:
                            base_url=provider_config.base_url or "https://dashscope.aliyuncs.com/compatible-mode/v1",
                            api_key=provider_config.api_key),
         profile=_profile(model_config, native=True),
+        settings=_settings(model_config),
     )
 
 
@@ -70,6 +79,7 @@ def _deepseek(model_name: str, provider_config: Any, model_config: Any) -> Model
         model_name,
         provider=_provider(DeepSeekProvider, api_key=provider_config.api_key),
         profile=_profile(model_config),
+        settings=_settings(model_config),
     )
 
 
@@ -79,6 +89,7 @@ def _responses(model_name: str, provider_config: Any, model_config: Any) -> Mode
         provider=_provider(OpenAIProvider,
                            base_url=provider_config.base_url, api_key=provider_config.api_key),
         profile=_profile(model_config),
+        settings=_settings(model_config),
     )
 
 

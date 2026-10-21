@@ -16,9 +16,9 @@ const CAPABILITIES = [
 ];
 
 /** 默认上下文窗口大小（tokens） */
-const DEFAULT_CONTEXT_SIZE = 131072;
+const DEFAULT_CONTEXT_SIZE = 262144;
 /** 默认输出上限大小（tokens） */
-const DEFAULT_OUTPUT_SIZE = 8192;
+const DEFAULT_OUTPUT_SIZE = 131072;
 
 function field(labelText, control, hintText, isLabel) {
   const wrap = h(isLabel ? "label" : "div", "ui-field");
