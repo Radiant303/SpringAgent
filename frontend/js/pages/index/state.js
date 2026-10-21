@@ -203,7 +203,7 @@ export function discardEmptyTurn() {
 /* ================= 流程重置与渐进展开 ================= */
 
 export function resetFlow() {
-  foldTurnGroups();
+  foldTurnGroups(true);
   state.assistant = null;
   state.work = null;
   state.thinking = null;
@@ -211,10 +211,16 @@ export function resetFlow() {
   state.currentTurn = null;
 }
 
-export function foldTurnGroups() {
+export function foldTurnGroups(instant = false) {
   for (const group of state.turnGroups) {
     refreshWorkSummary(group);
+    // 回合折叠动画覆盖整段过程时，分组自身收起必须瞬时完成，避免嵌套动画双重重绘
+    if (instant) group.el.classList.add("no-anim");
     group.el.classList.remove("live", "expanded");
+    if (instant) {
+      void group.el.offsetHeight;
+      group.el.classList.remove("no-anim");
+    }
   }
   state.turnGroups = [];
 }

@@ -468,7 +468,7 @@ loader().catch((e) => { UI.settleSkeletons(section); showError(e.message); });
 | 骨架 | `sk-pulse 1.6s` 呼吸 |
 | 折叠面板 | grid `0fr↔1fr` 高度过渡 + 内容散焦淡出（`chat.css` 的 `.fold-clip` 体系），缓动 `cubic-bezier(0.2, 0.8, 0.25, 1)` |
 
-折叠面板分两档：**思考区与工具卡片**用固定 0.25s、`blur(6px)`、`translateY(-6px)`；**工作过程分组与回合折叠条**的时长（200–550ms）与模糊度（4–10px）随内容高度由 JS 写入 `--fold-duration` / `--fold-blur`。新折叠组件复用 `.fold-clip`（裁剪层，禁用自己的内外边距）包一层内容元素的同构写法，不要用 `display: none` 或固定 `max-height`。
+折叠面板分两档：**思考区与工具卡片**用 0.35s 高度 + 淡出 + `translateY(-4px)` 微位移，不带模糊；**工作过程分组与回合折叠条**的时长（180–650ms）、模糊度（3–18px）、位移（3–12px）随内容高度由 JS 写入 `--fold-duration` / `--fold-blur` / `--fold-shift`，内容越长动画越慢、模糊越重。新折叠组件复用 `.fold-clip`（裁剪层，禁用自己的内外边距）包一层内容元素的同构写法，不要用 `display: none` 或固定 `max-height`。回合折叠动画播放时，内部工作分组用 `.no-anim` 瞬时收起，避免嵌套动画双重重绘。
 
 聊天区每个 AI 回合结束后，除最终回答外的过程内容收进 `.turn-fold` 折叠条（图标 + 汇总文案 + 悬停才出现的箭头，底部一条极淡分隔线），文案与工作分组共用同一套汇总逻辑；点击箭头展开查看完整过程。
 

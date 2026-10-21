@@ -467,7 +467,7 @@ export function finishTurn(event) {
   groups.forEach(refreshWorkSummary);
   setActive(null);
   closeWork();
-  foldTurnGroups();
+  foldTurnGroups(true);
   if (state.currentTurn) foldTurnProcess(state.currentTurn.content, true);
   if (state.assistant) enhanceCodeBlocks(state.assistant.answer);
   state.assistant = null;
