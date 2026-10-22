@@ -509,12 +509,12 @@ UI.enhanceDate(inp);               // 只换一个日期框
   - 段落（`p`）、列表（`ul, ol`）、引用（`blockquote`）底部统一留白 16px（`margin: 0 0 16px`），列表项行距 6px。
   - 分割线（`hr`）：`border-top: 1px solid var(--border)`，上下外边距 `32px 0`。
 - **行内代码**：
-  - `code`：16px / 26px，浅灰底 `var(--surface)`，圆角 4px，内边距 `2px 6px`。
+  - `code`：16px / 26px，字体用跨平台 UI 无衬线栈（等宽字体笔画偏重，中英文会一粗一细），浅灰底 `var(--surface)`，圆角 4px，内边距 `2px 6px`。
 - **图片**：块级居中（`margin: 0 auto`），`max-width: 100%`、`max-height: 60vh`，圆角 10px。
 - **代码块（`.code-block`）**：
   - 外部卡片：白底 `var(--bg, #fff)`、1px 细边框 `var(--border)`、12px 圆角、`margin: 16px 0`。
   - 顶部栏（`.code-header`）：高 38px，浅灰底 `var(--surface, #f5f5f5)`，左侧展示语言名（14px，字重 500），右侧放置 32×32 复制图标按钮（内部 SVG 20×20，圆角 8px 仿 iOS 图标比例，hover 底 `rgba(0,0,0,0.03)`）。
-  - 代码内容：14px 字号、22px 行高，等宽字体，透明背景，内边距 `14px 18px 24px`，横向滚动。
+  - 代码内容：14px 字号、22px 行高，等宽字体（栈尾补 `PingFang SC` / `Microsoft YaHei`，中文回退到正文黑体而非宋体），透明背景，内边距 `14px 18px 24px`，横向滚动。
   - 横向滚动条：彻底隐藏原生滚动条，由底部 14px 自绘指示轨（`.code-scrollbar`）承载；常态为 4px 细胶囊条（`rgba(0,0,0,0.18)`），底部间距 5px，左右内缩 18px 避开圆角；鼠标悬停指示轨或拖拽时，高度自底部基线单段平滑展开至 10px 并加深至 `rgba(0,0,0,0.55)`（`0.16s ease-out`），杜绝阶梯突跳与边缘形变。
   - 语法高亮：直接使用开源库 `highlight.js` 与外部样式表（`highlight.min.css`）的原生配色，不在业务 CSS 中手工重写颜色。
 
