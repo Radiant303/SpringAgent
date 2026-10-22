@@ -716,7 +716,7 @@
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, Roboto, "Noto Sans", Ubuntu, Cantarell, "Helvetica Neue", sans-serif, Arial, "PingFang SC", "Source Han Sans SC", "Microsoft YaHei UI", "Microsoft YaHei", "Noto Sans CJK SC";
   font-size: var(--markdown-body-font-size, 16px);
   line-height: var(--markdown-body-line-height, 26px);
-  background: var(--surface, rgba(0, 0, 0, 0.05));
+  background: var(--surface, #00000008);
   border-radius: 8px;
   padding: 2px 6px;
 }
