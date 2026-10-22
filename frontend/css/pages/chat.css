@@ -1211,7 +1211,6 @@ pre.tool-result.error { background: var(--diff-del-bg, rgba(192, 57, 43, 0.07));
 .turn-fold > .turn-fold-head .caret { opacity: 0; }
 .turn-fold-head:hover .caret, .turn-fold.expanded > .turn-fold-head .caret { opacity: 1; }
 .turn-fold.expanded > .turn-fold-head .caret { transform: rotate(90deg); }
-.turn-fold.expanded > .turn-fold-head { padding-bottom: 0; }
 .turn-fold-content {
   display: flex;
   flex-direction: column;
