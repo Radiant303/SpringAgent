@@ -320,8 +320,8 @@ async function openProviderDialog(p) {
         return { name: "apiKey", message: "新建 Provider 必须填写 API Key" };
       }
       const baseUrl = v.baseUrl.trim() || p?.base_url || "";
-      if (baseUrl.startsWith("https://api.stepfun.com") && v.type !== "responses") {
-        const message = "阶跃星辰模型请选择responses类型";
+      if (baseUrl.startsWith("https://api.stepfun.com") && v.type !== "anthropic") {
+        const message = "阶跃星辰模型请选择anthropic类型";
         UI.toast(message, { type: "error" });
         return { name: "type", message };
       }
