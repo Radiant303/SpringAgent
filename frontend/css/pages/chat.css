@@ -717,7 +717,7 @@
   font-size: var(--markdown-body-font-size, 16px);
   line-height: var(--markdown-body-line-height, 26px);
   background: var(--surface, rgba(0, 0, 0, 0.05));
-  border-radius: 4px;
+  border-radius: 8px;
   padding: 2px 6px;
 }
 
