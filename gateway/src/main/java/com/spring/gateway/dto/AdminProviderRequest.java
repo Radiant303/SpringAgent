@@ -10,7 +10,7 @@ import jakarta.validation.constraints.Size;
  * @author hanbing
  * @since 2026-10-09
  * @param name    Provider 名（模型定义经它引用）
- * @param type    类型：openai / alibaba / deepseek / responses
+ * @param type    类型：openai / alibaba / deepseek / responses / anthropic
  * @param apiKey  API Key；留空 = 保持不变（新建时必填由服务端判空）
  * @param baseUrl 自定义 base_url；留空 = 保持不变
  */

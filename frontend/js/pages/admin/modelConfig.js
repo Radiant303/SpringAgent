@@ -21,7 +21,7 @@ const CAP_LABELS = {
   thinking: "思考",
   image_in: "图像",
 };
-const PROVIDER_TYPES = ["openai", "alibaba", "deepseek", "responses"];
+const PROVIDER_TYPES = ["openai", "alibaba", "deepseek", "responses", "anthropic"];
 
 /* ---------- 通用小件 ---------- */
 
@@ -305,6 +305,11 @@ async function openProviderDialog(p) {
     ],
     onChange: (v, inputs) => {
       inputs.baseUrl.placeholder = p?.base_url || modelConfig.providerDefaults[v.type];
+      const hint = inputs.baseUrl.closest(".ui-field").querySelector(".ui-field-hint");
+      const addressHint = p?.base_url ? "留空保持当前地址" : "留空使用输入框提示的默认地址";
+      hint.textContent = v.type === "anthropic"
+        ? `${addressHint}；请填写 API 根地址，不含 /v1，接口路径会自动追加`
+        : addressHint;
     },
     okText: p ? "保存" : "添加",
     validate: (v) => {

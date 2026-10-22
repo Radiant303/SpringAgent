@@ -2,12 +2,14 @@ package com.spring.gateway.service;
 
 import com.spring.gateway.common.BizException;
 import com.spring.gateway.dto.AdminModelTestResult;
+import com.spring.gateway.dto.AdminProviderRequest;
 import com.spring.gateway.entity.ModelDefinition;
 import com.spring.gateway.entity.ModelProvider;
 import com.spring.gateway.mapper.ModelDefinitionMapper;
 import com.spring.gateway.mapper.ModelProviderMapper;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.web.client.RestClientException;
 import tools.jackson.databind.node.JsonNodeFactory;
 
@@ -20,6 +22,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
@@ -81,5 +84,30 @@ class AdminModelConfigServiceUnitTests {
         when(engineClient.testModel("p1/m1")).thenThrow(new RestClientException("engine down"));
         BizException unreachable = assertThrows(BizException.class, () -> service.testModel("p1/m1"));
         assertEquals(502, unreachable.getStatus());
+    }
+
+    @Test
+    @DisplayName("upsertProvider：支持新建和更新 Anthropic Provider")
+    void upsertAnthropicProvider() {
+        when(providerMapper.selectById("anthropic-new")).thenReturn(null);
+        service.upsertProvider(new AdminProviderRequest("anthropic-new", "anthropic", "key", null));
+        ArgumentCaptor<ModelProvider> inserted = ArgumentCaptor.forClass(ModelProvider.class);
+        verify(providerMapper).insert(inserted.capture());
+        assertEquals("anthropic", inserted.getValue().getType());
+        assertEquals("key", inserted.getValue().getApiKey());
+        assertNull(inserted.getValue().getBaseUrl());
+
+        ModelProvider existing = new ModelProvider();
+        existing.setName("anthropic-existing");
+        existing.setType("openai");
+        existing.setApiKey("old-key");
+        when(providerMapper.selectById("anthropic-existing")).thenReturn(existing);
+        service.upsertProvider(new AdminProviderRequest(
+                "anthropic-existing", "anthropic", "new-key", "https://example.com"));
+        ArgumentCaptor<ModelProvider> updated = ArgumentCaptor.forClass(ModelProvider.class);
+        verify(providerMapper).updateById(updated.capture());
+        assertEquals("anthropic", updated.getValue().getType());
+        assertEquals("new-key", updated.getValue().getApiKey());
+        assertEquals("https://example.com", updated.getValue().getBaseUrl());
     }
 }

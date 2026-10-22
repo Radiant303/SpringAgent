@@ -8,8 +8,13 @@ import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 import tools.jackson.databind.JsonNode;
 
+import java.net.URI;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.TreeSet;
 
 /**
@@ -44,6 +49,12 @@ public class ProviderModelsClient {
      */
     public List<String> listModels(ModelProvider provider) {
         String baseUrl = resolveBaseUrl(provider);
+        return "anthropic".equals(provider.getType())
+                ? listAnthropicModels(provider, baseUrl)
+                : listCompatibleModels(provider, baseUrl);
+    }
+
+    private List<String> listCompatibleModels(ModelProvider provider, String baseUrl) {
         JsonNode body;
         try {
             body = restClient.get()
@@ -59,13 +70,56 @@ public class ProviderModelsClient {
             throw new BizException(502, "拉取模型列表失败: 响应结构不符");
         }
         TreeSet<String> ids = new TreeSet<>();
+        addIds(data, ids);
+        return List.copyOf(ids);
+    }
+
+    private List<String> listAnthropicModels(ModelProvider provider, String baseUrl) {
+        TreeSet<String> ids = new TreeSet<>();
+        Set<String> cursors = new HashSet<>();
+        String afterId = null;
+        while (true) {
+            String url = baseUrl + "/v1/models" + (afterId == null ? ""
+                    : "?after_id=" + URLEncoder.encode(afterId, StandardCharsets.UTF_8));
+            JsonNode body;
+            try {
+                body = restClient.get()
+                        .uri(URI.create(url))
+                        .header("x-api-key", provider.getApiKey())
+                        .header("anthropic-version", "2023-06-01")
+                        .retrieve()
+                        .body(JsonNode.class);
+            } catch (RestClientException e) {
+                throw new BizException(502, "拉取模型列表失败: " + brief(e));
+            }
+            JsonNode data = body == null ? null : body.get("data");
+            if (data == null || !data.isArray()) {
+                throw new BizException(502, "拉取模型列表失败: 响应结构不符");
+            }
+            addIds(data, ids);
+            JsonNode hasMore = body.get("has_more");
+            if (hasMore == null || !hasMore.isBoolean()) {
+                throw new BizException(502, "拉取模型列表失败: 响应结构不符");
+            }
+            if (!hasMore.booleanValue()) {
+                return List.copyOf(ids);
+            }
+            JsonNode lastId = body.get("last_id");
+            if (lastId == null || !lastId.isTextual() || lastId.textValue().isBlank()
+                    || !cursors.add(lastId.textValue())) {
+                throw new BizException(502, "拉取模型列表失败: 分页游标无效");
+            }
+            afterId = lastId.textValue();
+        }
+    }
+
+    private static void addIds(JsonNode data, Set<String> ids) {
         for (JsonNode item : data) {
             JsonNode id = item.get("id");
             if (id != null && id.isTextual()) {
                 ids.add(id.textValue());
             }
         }
-        return List.copyOf(ids);
     }
 
     /** base_url 为空时按类型兜底官方地址，并去掉末尾斜杠。 */

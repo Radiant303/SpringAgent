@@ -379,7 +379,11 @@ class FileRow(Base):
 
 
 class ModelProviderRow(Base):
-    """模型 Provider：type（openai/alibaba/deepseek/responses）+ api_key + base_url。"""
+    """模型 Provider 凭据与地址配置。
+
+    @author hanbing
+    @since 2026-10-22
+    """
 
     __tablename__ = "model_providers"
 

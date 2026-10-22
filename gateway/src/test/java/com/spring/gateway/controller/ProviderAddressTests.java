@@ -44,6 +44,31 @@ class ProviderAddressTests {
         assertEquals(customView.baseUrl(), customView.effectiveBaseUrl());
     }
 
+    @Test
+    void exposesAnthropicDefaultRootAndUnchangedCustomAddress() {
+        AdminModelConfigService service = mock(AdminModelConfigService.class);
+        SystemSettingService settings = mock(SystemSettingService.class);
+        ModelProvider anthropic = provider("anthropic", "anthropic", null);
+        ModelProvider custom = provider("custom", "anthropic", "https://example.com/proxy/v1");
+        when(service.listProviders()).thenReturn(List.of(anthropic, custom));
+        when(service.listModels()).thenReturn(List.of());
+        when(service.getSubagentModels()).thenReturn(Map.of());
+        when(settings.getDefaultModel()).thenReturn("");
+
+        var response = new AdminModelConfigController(service, settings).get();
+
+        assertEquals(200, response.getCode());
+        Map<?, ?> defaults = (Map<?, ?>) response.getData().get("providerDefaults");
+        assertEquals("https://api.anthropic.com", defaults.get("anthropic"));
+        List<?> providers = (List<?>) response.getData().get("providers");
+        AdminProviderView defaultView = (AdminProviderView) providers.getFirst();
+        assertNull(defaultView.baseUrl());
+        assertEquals("https://api.anthropic.com", defaultView.effectiveBaseUrl());
+        AdminProviderView customView = (AdminProviderView) providers.get(1);
+        assertEquals("https://example.com/proxy/v1", customView.baseUrl());
+        assertEquals(customView.baseUrl(), customView.effectiveBaseUrl());
+    }
+
     private ModelProvider provider(String name, String type, String baseUrl) {
         ModelProvider provider = new ModelProvider();
         provider.setName(name);

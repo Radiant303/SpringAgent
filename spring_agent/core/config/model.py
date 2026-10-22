@@ -1,9 +1,12 @@
 from typing import Any, Protocol
 
+from anthropic import AsyncAnthropic
 from pydantic_ai import ModelProfile
 from pydantic_ai.models import Model
+from pydantic_ai.models.anthropic import AnthropicModel
 from pydantic_ai.models.openai import OpenAIChatModel, OpenAIResponsesModel
 from pydantic_ai.providers.alibaba import AlibabaProvider
+from pydantic_ai.providers.anthropic import AnthropicProvider
 from pydantic_ai.providers.deepseek import DeepSeekProvider
 from pydantic_ai.providers.openai import OpenAIProvider
 from pydantic_ai.settings import ModelSettings
@@ -93,11 +96,26 @@ def _responses(model_name: str, provider_config: Any, model_config: Any) -> Mode
     )
 
 
+def _anthropic(model_name: str, provider_config: Any, model_config: Any) -> Model:
+    client = AsyncAnthropic(
+        api_key=provider_config.api_key,
+        base_url=provider_config.base_url or "https://api.anthropic.com",
+        max_retries=0,
+    )
+    return AnthropicModel(
+        model_name,
+        provider=AnthropicProvider(anthropic_client=client),
+        profile=ModelProfile(supports_thinking="thinking" in model_config.capabilities),
+        settings=_settings(model_config),
+    )
+
+
 _MODEL_CREATORS = {
     "openai": _openai,
     "alibaba": _alibaba,
     "deepseek": _deepseek,
     "responses": _responses,
+    "anthropic": _anthropic,
 }
 
 
