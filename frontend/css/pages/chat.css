@@ -979,10 +979,10 @@
   transition: transform 0.15s;
 }
 
-/* ---- 折叠动效：grid 行高过渡 + 雾化遮罩 ---- */
+/* ---- 折叠动效：grid 行高过渡 + 高斯模糊 + 底部雾化遮罩 ---- */
 .fold-clip { overflow: hidden; min-height: 0; position: relative; }
 
-/* 工作分组与回合折叠：时长、模糊度随内容高度自适应（--fold-* 由 JS 写入） */
+/* 工作分组与回合折叠：时长随内容高度自适应（--fold-duration 由 JS 写入） */
 .work-body, .turn-fold-wrap {
   display: grid;
   grid-template-rows: 0fr;
@@ -992,27 +992,37 @@
 .work-group.live > .work-body,
 .turn-fold.expanded > .turn-fold-wrap { grid-template-rows: 1fr; }
 
-/* 内容比高度晚一步浮现 */
+/* 内容比高度晚一步浮现：先让空白长出来，再由模糊变清晰 */
 .work-items, .turn-fold-content {
   opacity: 0;
-  transition: opacity calc(var(--fold-duration, 300ms) * 0.3) ease calc(var(--fold-duration, 300ms) * 0.05);
+  filter: blur(var(--fold-blur, 7px));
+  transform: translateY(-2px);
+  transition:
+    opacity calc(var(--fold-duration, 300ms) * 0.35) ease calc(var(--fold-duration, 300ms) * 0.05),
+    filter calc(var(--fold-duration, 300ms) * 0.35) ease calc(var(--fold-duration, 300ms) * 0.05),
+    transform calc(var(--fold-duration, 300ms) * 0.35) ease calc(var(--fold-duration, 300ms) * 0.05);
 }
 .work-group.expanded > .work-body .work-items,
 .work-group.live > .work-body .work-items,
 .turn-fold.expanded .turn-fold-content {
   opacity: 1;
-  transition: opacity calc(var(--fold-duration, 300ms) * 0.45) cubic-bezier(0.2, 0.8, 0.25, 1)
-    calc(var(--fold-duration, 300ms) * 0.2);
+  filter: blur(0px);
+  transform: translateY(0);
+  transition:
+    opacity calc(var(--fold-duration, 300ms) * 0.45) cubic-bezier(0.2, 0.8, 0.25, 1) calc(var(--fold-duration, 300ms) * 0.18),
+    filter calc(var(--fold-duration, 300ms) * 0.5) cubic-bezier(0.2, 0.8, 0.25, 1) calc(var(--fold-duration, 300ms) * 0.18),
+    transform calc(var(--fold-duration, 300ms) * 0.45) cubic-bezier(0.2, 0.8, 0.25, 1) calc(var(--fold-duration, 300ms) * 0.18);
 }
 
-/* 雾化遮罩：模糊下层内容，底边用背景色渐隐 */
+/* 雾化遮罩：糊住下层内容，底部用背景色渐隐，让边缘不落在裁剪硬线上 */
 .fold-veil {
   position: absolute;
   inset: 0;
   pointer-events: none;
-  background: linear-gradient(to bottom, rgba(255, 255, 255, 0) 25%, var(--bg, #fff) 96%);
-  -webkit-backdrop-filter: blur(var(--fold-blur, 6px));
-  backdrop-filter: blur(var(--fold-blur, 6px));
+  background: linear-gradient(to bottom, rgba(255, 255, 255, 0) 35%, var(--bg, #fff) 96%);
+  -webkit-backdrop-filter: blur(var(--fold-blur, 7px));
+  backdrop-filter: blur(var(--fold-blur, 7px));
+  opacity: 1;
   transition: opacity calc(var(--fold-duration, 300ms) * 0.3) ease calc(var(--fold-duration, 300ms) * 0.05);
 }
 .work-group.expanded > .work-body .fold-veil,
@@ -1020,7 +1030,7 @@
 .turn-fold.expanded .fold-veil {
   opacity: 0;
   transition: opacity calc(var(--fold-duration, 300ms) * 0.5) cubic-bezier(0.4, 0, 0.6, 1)
-    calc(var(--fold-duration, 300ms) * 0.4);
+    calc(var(--fold-duration, 300ms) * 0.38);
 }
 .work-group .caret, .turn-fold-head .caret {
   transition: transform var(--fold-duration, 300ms) cubic-bezier(0.2, 0.8, 0.25, 1), color 0.15s;

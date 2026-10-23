@@ -335,22 +335,21 @@ export function setToolStatus(card, status) {
 
 /* ================= 折叠动效 ================= */
 
-/** 折叠时长、模糊度随内容高度自适应，由共享 ResizeObserver 写入 CSS 变量 */
-function applyFoldVars(host, h) {
+/** 折叠时长随内容高度自适应，由共享 ResizeObserver 写入 CSS 变量 */
+function applyFoldDuration(host, h) {
   host.style.setProperty("--fold-duration", Math.round(Math.min(Math.max(180, 150 + h * 1.3), 650)) + "ms");
-  host.style.setProperty("--fold-blur", Math.round(Math.min(Math.max(4, 3 + h * 0.03), 12)) + "px");
 }
 
 const foldObserver = new ResizeObserver((entries) => {
   for (const entry of entries) {
     const host = entry.target.closest(".work-group, .turn-fold");
     if (!host) continue;
-    applyFoldVars(host, entry.target.offsetHeight);
+    applyFoldDuration(host, entry.target.offsetHeight);
   }
 });
 
 function bindFoldDynamics(host, content) {
-  applyFoldVars(host, content.offsetHeight);
+  applyFoldDuration(host, content.offsetHeight);
   foldObserver.observe(content);
 }
 
