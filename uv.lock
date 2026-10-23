@@ -2274,7 +2274,7 @@ wheels = [
 
 [[package]]
 name = "springagent"
-version = "0.1.14"
+version = "0.1.19"
 source = { editable = "." }
 dependencies = [
     { name = "aio-pika" },

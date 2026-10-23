@@ -979,10 +979,10 @@
   transition: transform 0.15s;
 }
 
-/* ---- 折叠动效：grid 行高过渡 + 内层散焦淡出 ---- */
+/* ---- 折叠动效：grid 行高过渡 + 内容渐显 ---- */
 .fold-clip { overflow: hidden; min-height: 0; }
 
-/* 工作分组与回合折叠：时长、模糊度、位移随内容高度自适应（--fold-* 由 JS 写入） */
+/* 工作分组与回合折叠：时长随内容高度自适应（--fold-duration 由 JS 写入） */
 .work-body, .turn-fold-wrap {
   display: grid;
   grid-template-rows: 0fr;
@@ -991,22 +991,20 @@
 .work-group.expanded > .work-body,
 .work-group.live > .work-body,
 .turn-fold.expanded > .turn-fold-wrap { grid-template-rows: 1fr; }
+
 .work-items, .turn-fold-content {
-  transition:
-    opacity calc(var(--fold-duration, 300ms) * 0.8) cubic-bezier(0.2, 0.8, 0.25, 1),
-    filter var(--fold-duration, 300ms) cubic-bezier(0.2, 0.8, 0.25, 1),
-    transform var(--fold-duration, 300ms) cubic-bezier(0.2, 0.8, 0.25, 1);
-}
-.work-group:not(.expanded):not(.live) .work-items,
-.turn-fold:not(.expanded) .turn-fold-content {
   opacity: 0;
-  filter: blur(var(--fold-blur, 6px));
-  transform: translateY(var(--fold-shift, -8px));
+  transition: opacity calc(var(--fold-duration, 300ms) * 0.45) ease;
 }
+.work-group.expanded > .work-body .work-items,
+.work-group.live > .work-body .work-items,
+.turn-fold.expanded .turn-fold-content { opacity: 1; }
+
 .work-group .caret, .turn-fold-head .caret {
   transition: transform var(--fold-duration, 300ms) cubic-bezier(0.2, 0.8, 0.25, 1), color 0.15s;
 }
-.work-group.no-anim .work-body, .work-group.no-anim .work-items { transition: none; }
+.work-group.no-anim .work-body,
+.work-group.no-anim .work-items { transition: none; }
 
 /* 思考区与工具卡片：高度过渡 + 淡出微位移，不带模糊 */
 .thinking-body, .tool-body {
