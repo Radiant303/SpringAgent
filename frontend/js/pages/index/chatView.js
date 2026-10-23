@@ -335,11 +335,10 @@ export function setToolStatus(card, status) {
 
 /* ================= 折叠动效 ================= */
 
-/** 折叠时长、模糊度、位移随内容高度自适应（效果A），由共享 ResizeObserver 写入 CSS 变量 */
+/** 折叠时长、模糊度随内容高度自适应，由共享 ResizeObserver 写入 CSS 变量 */
 function applyFoldVars(host, h) {
   host.style.setProperty("--fold-duration", Math.round(Math.min(Math.max(180, 150 + h * 1.3), 650)) + "ms");
-  host.style.setProperty("--fold-blur", Math.round(Math.min(Math.max(3, 2 + h * 0.045), 18)) + "px");
-  host.style.setProperty("--fold-shift", -Math.round(Math.min(Math.max(3, 2 + h * 0.025), 12)) + "px");
+  host.style.setProperty("--fold-blur", Math.round(Math.min(Math.max(4, 3 + h * 0.03), 12)) + "px");
 }
 
 const foldObserver = new ResizeObserver((entries) => {
@@ -384,6 +383,7 @@ export function workGroupNode() {
   const clip = el("div", "fold-clip");
   const items = el("div", "work-items");
   clip.appendChild(items);
+  clip.appendChild(el("div", "fold-veil"));
   body.appendChild(clip);
   header.onclick = () => wrap.classList.toggle("expanded");
   wrap.appendChild(header);
@@ -479,6 +479,7 @@ export function foldTurnProcess(content, animate = false) {
   const inner = el("div", "turn-fold-content");
   for (const node of process) inner.appendChild(node);
   clip.appendChild(inner);
+  clip.appendChild(el("div", "fold-veil"));
   wrap.appendChild(clip);
   fold.appendChild(head);
   fold.appendChild(wrap);
