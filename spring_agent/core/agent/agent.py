@@ -96,7 +96,7 @@ def create_agent(
             planning(session_id, on_change=plan_on_change, root=root),
             code_mode(),
             subagents(str(root), model_id, effort, file_access=file_access),
-            researcher(),
+            researcher(native="native_search" in model_config.capabilities),
             ClampOversizedMessages(max_part_chars=100_000, tokenizer=count_text_tokens),
             ClearToolResults(
                 max_fraction=0.75,

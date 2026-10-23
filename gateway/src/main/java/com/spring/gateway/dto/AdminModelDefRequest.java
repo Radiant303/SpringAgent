@@ -48,7 +48,7 @@ public record AdminModelDefRequest(
         Long maxOutputSize,
 
         List<@NotNull(message = "不支持的模型能力")
-                @Pattern(regexp = "thinking|image_in|tool_use", message = "不支持的模型能力")
+                @Pattern(regexp = "thinking|image_in|tool_use|native_search", message = "不支持的模型能力")
                 String> capabilities,
 
         @Size(max = 7, message = "思考挡位最多 7 个")

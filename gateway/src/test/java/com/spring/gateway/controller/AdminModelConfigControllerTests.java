@@ -141,7 +141,7 @@ class AdminModelConfigControllerTests {
                         .content("{\"provider\":\"" + name + "\","
                                 + "\"model\":\"real-model\",\"displayName\":\"展示名\","
                                 + "\"maxContextSize\":1000000,\"maxOutputSize\":0,"
-                                + "\"capabilities\":[\"thinking\"],\"supportEfforts\":[\"high\"],"
+                                + "\"capabilities\":[\"thinking\",\"native_search\"],\"supportEfforts\":[\"high\"],"
                                 + "\"defaultEffort\":\"high\",\"enabled\":true}"))
                 .andExpect(status().isOk());
 

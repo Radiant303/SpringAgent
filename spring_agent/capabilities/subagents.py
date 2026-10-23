@@ -32,6 +32,7 @@ def _thinking(model_id: str | None, parent_model_id: str, effort: str | None):
 
 def searcher(parent_model_id: str, effort: str | None = None) -> SubAgent[CodingAgentDeps]:
     model, model_id = _resolve_model('searcher')
+    model_config = get_model_config(model_id or parent_model_id)
     return SubAgent[CodingAgentDeps](
         agent=Agent(
             model,
@@ -44,7 +45,8 @@ def searcher(parent_model_id: str, effort: str | None = None) -> SubAgent[Coding
             ),
             deps_type=CodingAgentDeps,
             capabilities=[_thinking(model_id, parent_model_id, effort),
-                          request_hooks(model_id or parent_model_id, agent_name="searcher"), researcher()],
+                          request_hooks(model_id or parent_model_id, agent_name="searcher"),
+                          researcher(native="native_search" in model_config.capabilities)],
             toolsets=[],
         ),
         timeout_seconds=360,

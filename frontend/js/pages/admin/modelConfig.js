@@ -20,6 +20,7 @@ let searchKeyword = "";
 const CAP_LABELS = {
   thinking: "思考",
   image_in: "图像",
+  native_search: "搜索",
 };
 const PROVIDER_TYPES = ["openai", "alibaba", "deepseek", "responses", "anthropic"];
 
@@ -578,6 +579,7 @@ function openAddModel({ model, displayName = "" }) {
     thinkingEfforts: modelConfig.thinkingEfforts,
     mode: "add",
     provider: currentProvider,
+    providerType: modelConfig.providers.find((p) => p.name === currentProvider)?.type,
     model,
     displayName,
     onSaved: async () => {
@@ -592,6 +594,7 @@ function openEditModel(m) {
     thinkingEfforts: modelConfig.thinkingEfforts,
     mode: "edit",
     provider: m.provider,
+    providerType: modelConfig.providers.find((p) => p.name === m.provider)?.type,
     model: m.model,
     existing: m,
     onSaved: async () => {

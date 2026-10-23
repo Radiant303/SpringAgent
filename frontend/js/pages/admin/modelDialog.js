@@ -13,6 +13,7 @@ import { closePopover } from "../../components/controls.js";
 const CAPABILITIES = [
   { value: "thinking", label: "思考" },
   { value: "image_in", label: "图像" },
+  { value: "native_search", label: "搜索", providerTypes: ["responses", "anthropic"] },
 ];
 
 /** 默认上下文窗口大小（tokens） */
@@ -28,7 +29,7 @@ function field(labelText, control, hintText, isLabel) {
   return wrap;
 }
 
-export function openModelDialog({ mode, provider, model, thinkingEfforts, displayName = "", existing = null, onSaved }) {
+export function openModelDialog({ mode, provider, providerType, model, thinkingEfforts, displayName = "", existing = null, onSaved }) {
   return new Promise((resolve) => {
     const prevFocus = document.activeElement;
     const isEdit = mode === "edit" && existing;
@@ -99,10 +100,12 @@ export function openModelDialog({ mode, provider, model, thinkingEfforts, displa
     const capsBox = h("div", "ui-choice-tags");
     capsBox.setAttribute("role", "group");
     capsBox.setAttribute("aria-label", "能力支持");
-    const capInputs = CAPABILITIES.map((c) => ({
-      value: c.value,
-      input: choiceTag(c.label, isEdit && existing.capabilities.includes(c.value), capsBox),
-    }));
+    const capInputs = CAPABILITIES
+      .filter((c) => !c.providerTypes || c.providerTypes.includes(providerType))
+      .map((c) => ({
+        value: c.value,
+        input: choiceTag(c.label, isEdit && existing.capabilities.includes(c.value), capsBox),
+      }));
     box.appendChild(field("能力支持", capsBox));
 
     const effortChoices = h("div", "ui-choice-tags");
