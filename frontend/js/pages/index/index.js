@@ -3,7 +3,8 @@
  */
 
 import { $, icon } from "../../utils/dom.js";
-import { getToken, clearToken, getRole, goLogin, WS_BASE, USER_KEY, ROLE_KEY, ROLE_LABELS } from "../../api/auth.js";
+import { getToken, getRole, goLogin, logout, refreshAccessToken, WS_BASE, USER_KEY, ROLE_LABELS } from "../../api/auth.js";
+import { api } from "../../api/client.js";
 import { rpc } from "../../api/rpc.js";
 import { UI } from "../../components/ui.js";
 import { state, runs, resetFlow, setStickToBottom, smoothScrollToBottom, updateStick } from "./state.js";
@@ -75,6 +76,7 @@ export async function connectAndSetup() {
     state.lastSeq = {};
   }
   setConnected(false);
+  await api("/api/account/me");
   const connection = rpc.connect(`${WS_BASE}/ws?token=${encodeURIComponent(getToken())}`);
   const socket = rpc.ws;
   await connection;
@@ -168,13 +170,26 @@ rpc.onClose = (code) => {
   hideApproval();
   hideQuestion();
   setConnected(false);
-  if (code === 4401 || code === 4403) {
+  if (code === 4401 || code === 4402 || code === 4403) {
     resumePending = false;
     for (const sid of Object.keys(runs)) delete runs[sid];
     state.lastSeq = {};
     resetFlow();
     state.tools.clear();
-    goLogin(code === 4401 ? "expired" : "disabled");
+    if (code === 4401) {
+      refreshAccessToken().then(() => {
+        addSystem("登录已续期，正在重连…");
+        scheduleReconnect();
+      }).catch((error) => {
+        if (error?.authReason) {
+          goLogin(error.authReason === "token_expired" ? "expired" : "invalid");
+        } else {
+          scheduleReconnect();
+        }
+      });
+    } else {
+      goLogin(code === 4403 ? "disabled" : "invalid");
+    }
     return;
   }
   if (wasReady && state.sessionId && !state.deletedSessions.has(state.sessionId)) {
@@ -244,13 +259,7 @@ export function toggleUserMenu(open) {
 
 export function bindAccountMenu() {
   if ($("logout-btn")) {
-    $("logout-btn").onclick = () => {
-      clearToken();
-      localStorage.removeItem(USER_KEY);
-      localStorage.removeItem(ROLE_KEY);
-      localStorage.removeItem("sa.sessionId");
-      goLogin();
-    };
+    $("logout-btn").onclick = logout;
   }
   if ($("user-chip")) {
     $("user-chip").onclick = (e) => {

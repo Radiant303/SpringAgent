@@ -1,7 +1,7 @@
 package com.spring.gateway.controller;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.spring.gateway.common.JwtUtils;
+import com.spring.gateway.service.AuthSessionService;
 import com.spring.gateway.common.SnowflakeIdGenerator;
 import com.spring.gateway.entity.Message;
 import com.spring.gateway.entity.PointsLedger;
@@ -55,7 +55,7 @@ class WorkDeletionTests {
     @Autowired
     private MockMvc mockMvc;
     @Autowired
-    private JwtUtils jwtUtils;
+    private AuthSessionService jwtUtils;
     @Autowired
     private SnowflakeIdGenerator idGenerator;
     @Autowired
@@ -167,7 +167,7 @@ class WorkDeletionTests {
     }
 
     private String bearer(User user) {
-        return "Bearer " + jwtUtils.createToken(user.getId(), user.getUsername());
+        return "Bearer " + jwtUtils.createSession(user.getId()).token();
     }
 
     private long ledgerCount(User user) {

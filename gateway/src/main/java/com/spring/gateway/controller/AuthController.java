@@ -2,6 +2,7 @@ package com.spring.gateway.controller;
 
 import com.spring.gateway.common.Result;
 import com.spring.gateway.dto.LoginRequest;
+import com.spring.gateway.dto.RefreshTokenRequest;
 import com.spring.gateway.dto.RegisterRequest;
 import com.spring.gateway.dto.ResetPasswordRequest;
 import com.spring.gateway.dto.SendCodeRequest;
@@ -98,5 +99,28 @@ public class AuthController {
     @PostMapping("/login")
     public Result<TokenResponse> login(@Valid @RequestBody LoginRequest req) {
         return Result.ok(authService.login(req));
+    }
+
+    /**
+     * 刷新访问令牌。
+     *
+     * @param req 刷新令牌
+     * @return 新双令牌
+     */
+    @PostMapping("/refresh")
+    public Result<TokenResponse> refresh(@Valid @RequestBody RefreshTokenRequest req) {
+        return Result.ok(authService.refresh(req.refreshToken()));
+    }
+
+    /**
+     * 退出当前登录会话。
+     *
+     * @param req 刷新令牌
+     * @return 空数据返回体
+     */
+    @PostMapping("/logout")
+    public Result<Void> logout(@Valid @RequestBody RefreshTokenRequest req) {
+        authService.logout(req.refreshToken());
+        return Result.ok(null);
     }
 }

@@ -39,7 +39,7 @@ SpringAgent是面向更多行业用户的云端Agent平台， 将云端 Agent �
 > [!IMPORTANT]
 > - 使用者必须合法取得上游 API Key、账号、模型服务或接口权限，并遵守上游服务条款及适用法律法规。
 > - 面向公众提供生成式人工智能服务时，使用者应遵守[《生成式人工智能服务管理暂行办法》](http://www.cac.gov.cn/2023-07/13/c_1690898327029107.htm)等监管要求，自行完成所在司法辖区要求的备案、许可、内容安全、实名、日志留存、税务和上游授权等合规义务。
-> - 默认密码、JWT 密钥和内部令牌写在 `docker-compose.yml` 中且公开，公网部署前必须更换。
+> - 默认密码和内部令牌写在 `docker-compose.yml` 中且公开，公网部署前必须更换。
 
 ---
 
@@ -137,7 +137,7 @@ YAML 已提供可运行的默认值，不修改也可以启动：
 | RabbitMQ 密码 | `springagent-rabbitmq` |
 | 应用镜像 | `ghcr.io/radiant303/springagent:latest` |
 
-密码、JWT 密钥、内部令牌和网页端口均在 `x-settings` 中修改一次，通过 YAML 锚点自动复用。JWT 密钥和内部令牌需各自至少 32 字节。
+密码、内部令牌和网页端口均在 `x-settings` 中修改一次，通过 YAML 锚点自动复用。内部令牌需至少 32 字节。
 
 > 默认密码和密钥公开。公网部署建议在首次启动前更换为独立随机值。
 
@@ -297,14 +297,14 @@ docker compose logs --tail=100 springagent
 | --- | --- | --- |
 | `SPRINGAGENT_CLOUD_DATABASE_URL` | 引擎数据库连接串 | 由 `MYSQL_*` 拼出 |
 | `SPRINGAGENT_CLOUD_DATA_ROOT` | 数据根目录 | `/data/cloud` |
-| `SPRINGAGENT_CLOUD_JWT_SECRET` | HS256 签名密钥 | 必须与网关 `JWT_SECRET` 一致，≥32 字节 |
-| `SPRINGAGENT_CLOUD_JWT_EXPIRE_MINUTES` | 登录有效期（分钟） | `10080` |
 | `SPRINGAGENT_CLOUD_REDIS_URL` | Redis 连接串 | `redis://redis:6379/0` |
 | `SPRINGAGENT_CLOUD_RABBITMQ_URL` | RabbitMQ 连接串 | 由 `RABBITMQ_*` 拼出 |
 | `SPRINGAGENT_CLOUD_GATEWAY_BASE_URL` | 引擎回调网关地址 | `http://127.0.0.1:16900` |
 | `SPRINGAGENT_CLOUD_INTERNAL_TOKEN` | 内部接口共享令牌 | 必须与网关 `INTERNAL_TOKEN` 一致，≥32 字节 |
 | `SPRINGAGENT_CLOUD_HOST` / `PORT` | 引擎监听地址 | `0.0.0.0:15900` |
-| `JWT_SECRET` / `INTERNAL_TOKEN` | 网关侧同名配置 | 与引擎保持一致 |
+| `AUTH_ACCESS_TTL_SECONDS` | 访问令牌有效期 | `3600` |
+| `AUTH_REFRESH_TTL_SECONDS` | 刷新令牌有效期 | `2592000` |
+| `INTERNAL_TOKEN` | 网关内部接口共享令牌 | 与引擎保持一致，≥32 字节 |
 | `APP_DATA_ROOT` | 网关数据根目录 | `/data/cloud` |
 | `ENGINE_BASE_URL` | 网关访问引擎地址 | `http://127.0.0.1:15900` |
 | `SPRING_DATASOURCE_*` | 网关数据源 | `jdbc:mysql://mysql:3306/springagent` |

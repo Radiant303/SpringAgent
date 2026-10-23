@@ -2,7 +2,7 @@ package com.spring.gateway.controller;
 
 import com.spring.gateway.common.AuthInterceptor;
 import com.spring.gateway.common.InternalAuthInterceptor;
-import com.spring.gateway.common.JwtUtils;
+import com.spring.gateway.service.AuthSessionService;
 import com.spring.gateway.dto.InternalAppendResult;
 import com.spring.gateway.dto.InternalMessage;
 import com.spring.gateway.dto.InternalMessagePage;
@@ -65,13 +65,13 @@ class InternalStoreControllerWireTest {
     @TestConfiguration
     static class WireTestConfig {
         @Bean
-        JwtUtils jwtUtils() {
-            return new JwtUtils("springagent-dev-secret-0123456789abcd", 10080);
+        AuthSessionService authSessionService() {
+            return Mockito.mock(AuthSessionService.class);
         }
 
         @Bean
-        AuthInterceptor authInterceptor(JwtUtils jwtUtils, ObjectMapper objectMapper) {
-            return new AuthInterceptor(jwtUtils, Mockito.mock(UserMapper.class), objectMapper);
+        AuthInterceptor authInterceptor(AuthSessionService authSessionService, ObjectMapper objectMapper) {
+            return new AuthInterceptor(authSessionService, Mockito.mock(UserMapper.class), objectMapper);
         }
 
         @Bean

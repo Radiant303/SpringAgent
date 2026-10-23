@@ -1,7 +1,15 @@
-import datetime
-from typing import Annotated
+"""Redis 登录会话鉴权。"""
 
-import jwt
+from __future__ import annotations
+
+import hashlib
+import json
+import uuid
+from dataclasses import dataclass
+from functools import lru_cache
+from typing import Annotated, Literal
+
+import redis
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session, sessionmaker
@@ -9,53 +17,82 @@ from sqlalchemy.orm import Session, sessionmaker
 from spring_agent.cloud.db import UserRow, get_sessionmaker
 from spring_agent.core.config.settings import config
 
-_ALGORITHM = "HS256"
 _bearer_scheme = HTTPBearer(auto_error=False)
 
 
-def create_token(user_id: int, username: str) -> str:
-    now = datetime.datetime.now(datetime.UTC)
-    payload = {
-        "sub": str(user_id),
-        "username": username,
-        "exp": now + datetime.timedelta(minutes=config.cloud.jwt_expire_minutes),
-    }
-    return jwt.encode(payload, config.cloud.jwt_secret, algorithm=_ALGORITHM)
+@dataclass(frozen=True)
+class AccessAuthentication:
+    """访问令牌鉴权结果。"""
+
+    user_id: int | None = None
+    failure: Literal["token_expired", "token_invalid"] | None = None
 
 
-def decode_user_id(token: str) -> int | None:
-    """验签并取 user_id；任何失败（过期/篡改/claims 缺失）返回 None。"""
+@lru_cache(maxsize=1)
+def get_auth_redis() -> redis.Redis:
+    """获取鉴权 Redis 客户端。"""
+    return redis.from_url(config.cloud.redis_url, decode_responses=True, protocol=2)
+
+
+def _token_hash(token: str) -> str | None:
     try:
-        payload = jwt.decode(token, config.cloud.jwt_secret, algorithms=[_ALGORITHM])
-        return int(payload["sub"])
-    except (jwt.PyJWTError, KeyError, TypeError, ValueError):
+        parsed = uuid.UUID(token)
+    except (ValueError, AttributeError):
         return None
+    if str(parsed) != token.lower():
+        return None
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
+def authenticate_access_token(token: str) -> AccessAuthentication:
+    """校验访问令牌及其用户会话版本。"""
+    token_hash = _token_hash(token)
+    if token_hash is None:
+        return AccessAuthentication(failure="token_invalid")
+    cache = get_auth_redis()
+    raw = cache.get(f"auth:access:{token_hash}")
+    if raw is None:
+        failure = "token_expired" if cache.exists(f"auth:expired:{token_hash}") else "token_invalid"
+        return AccessAuthentication(failure=failure)
+    try:
+        value = json.loads(raw)
+        user_id = int(value["userId"])
+        version = str(value["version"])
+    except (json.JSONDecodeError, KeyError, TypeError, ValueError):
+        return AccessAuthentication(failure="token_invalid")
+    if cache.get(f"auth:version:{user_id}") != version:
+        return AccessAuthentication(failure="token_invalid")
+    return AccessAuthentication(user_id=user_id)
 
 
 def get_session_factory() -> sessionmaker[Session]:
-    """FastAPI 依赖：进程内共享的 sessionmaker（指向 cloud 配置的数据库）。"""
+    """获取数据库会话工厂。"""
     return get_sessionmaker()
 
 
-# get_current_user 是本进程唯一保留的数据库读取路径（鉴权用）；
-# sessions/messages 两表不直连数据库，经内部 HTTP API 读写
 def get_current_user(
     factory: Annotated[sessionmaker[Session], Depends(get_session_factory)],
     credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(_bearer_scheme)],
 ) -> UserRow:
-    """解析 Bearer 令牌并加载用户；失败一律 401（不带 WWW-Authenticate 之外的细节），禁用 403。"""
-    unauthorized = HTTPException(
-        status.HTTP_401_UNAUTHORIZED, "未认证", headers={"WWW-Authenticate": "Bearer"},
-    )
+    """加载访问令牌对应的活跃用户。"""
     if credentials is None or credentials.scheme.lower() != "bearer":
-        raise unauthorized
-    user_id = decode_user_id(credentials.credentials)
-    if user_id is None:
-        raise unauthorized
+        authentication = AccessAuthentication(failure="token_invalid")
+    else:
+        authentication = authenticate_access_token(credentials.credentials)
+    if authentication.failure is not None or authentication.user_id is None:
+        failure = authentication.failure or "token_invalid"
+        raise HTTPException(
+            status.HTTP_401_UNAUTHORIZED,
+            "登录已过期" if failure == "token_expired" else "登录状态无效",
+            headers={"WWW-Authenticate": "Bearer", "X-Auth-Error": failure},
+        )
     with factory() as s:
-        user = s.get(UserRow, user_id)
+        user = s.get(UserRow, authentication.user_id)
     if user is None:
-        raise unauthorized
+        raise HTTPException(
+            status.HTTP_401_UNAUTHORIZED, "登录状态无效",
+            headers={"WWW-Authenticate": "Bearer", "X-Auth-Error": "token_invalid"},
+        )
     if user.status != "active":
         raise HTTPException(status.HTTP_403_FORBIDDEN, "账号已被禁用")
     return user

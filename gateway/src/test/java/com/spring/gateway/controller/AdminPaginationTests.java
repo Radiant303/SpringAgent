@@ -1,6 +1,6 @@
 package com.spring.gateway.controller;
 
-import com.spring.gateway.common.JwtUtils;
+import com.spring.gateway.service.AuthSessionService;
 import com.spring.gateway.common.SnowflakeIdGenerator;
 import com.spring.gateway.dto.AdminRedeemCreateRequest;
 import com.spring.gateway.dto.PageQuery;
@@ -48,7 +48,7 @@ class AdminPaginationTests {
     @Autowired
     private MockMvc mockMvc;
     @Autowired
-    private JwtUtils jwtUtils;
+    private AuthSessionService jwtUtils;
     @Autowired
     private UserMapper userMapper;
     @Autowired
@@ -73,7 +73,7 @@ class AdminPaginationTests {
         user.setRole(role);
         user.setStatus(User.STATUS_ACTIVE);
         userMapper.insert(user);
-        return jwtUtils.createToken(user.getId(), user.getUsername());
+        return jwtUtils.createSession(user.getId()).token();
     }
 
     private Long newUserId() {
@@ -219,7 +219,7 @@ class AdminPaginationTests {
         User owner = userMapper.selectById(ownerId);
         owner.setRole(User.ROLE_OWNER);
         userMapper.updateById(owner);
-        String token = jwtUtils.createToken(ownerId, owner.getUsername());
+        String token = jwtUtils.createSession(ownerId).token();
         long before = redeemService.page(null, new PageQuery(1, 1)).total();
 
         redeemService.generate(ownerId,
@@ -245,7 +245,7 @@ class AdminPaginationTests {
         userMapper.insert(user);
         Long uid = user.getId();
         Long otherId = newUserId();
-        String userToken = jwtUtils.createToken(uid, user.getUsername());
+        String userToken = jwtUtils.createSession(uid).token();
 
         for (int i = 0; i < 3; i++) {
             UsageRecord row = new UsageRecord();

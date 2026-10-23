@@ -11,16 +11,14 @@ from urllib.parse import quote
 
 def main() -> None:
     required = (
-        "MYSQL_USER", "MYSQL_PASSWORD", "RABBITMQ_PASSWORD",
-        "SPRINGAGENT_CLOUD_JWT_SECRET", "SPRINGAGENT_CLOUD_INTERNAL_TOKEN",
+        "MYSQL_USER", "MYSQL_PASSWORD", "RABBITMQ_PASSWORD", "SPRINGAGENT_CLOUD_INTERNAL_TOKEN",
     )
     for name in required:
         value = os.environ.get(name, "")
         if not value.strip():
             raise SystemExit(f"docker-compose.yml 中的 {name} 不能为空。")
-    for name in required[-2:]:
-        if len(os.environ[name].encode("utf-8")) < 32:
-            raise SystemExit(f"{name} 必须至少为 32 字节。")
+    if len(os.environ["SPRINGAGENT_CLOUD_INTERNAL_TOKEN"].encode("utf-8")) < 32:
+        raise SystemExit("SPRINGAGENT_CLOUD_INTERNAL_TOKEN 必须至少为 32 字节。")
     username = quote(os.environ["MYSQL_USER"], safe="")
     password = quote(os.environ["MYSQL_PASSWORD"], safe="")
     os.environ.setdefault(

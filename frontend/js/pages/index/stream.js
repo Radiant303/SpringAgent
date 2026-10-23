@@ -3,7 +3,7 @@
  */
 
 import { $, el, hidePending, appendKeepingBottom, icon } from "../../utils/dom.js";
-import { getToken } from "../../api/auth.js";
+import { apiFetch } from "../../api/client.js";
 import { rpc } from "../../api/rpc.js";
 import { enhanceCodeBlocks, setMarkdown } from "../../utils/markdown.js";
 import { SproutManager } from "../../components/sprout.js";
@@ -209,13 +209,12 @@ function settleFinishedTools() {
 
 export async function refreshPoints() {
   const value = $("points-value");
-  const token = getToken();
-  if (!value || !token) return;
+  if (!value) return;
   const settle = () => {
     if (value.querySelector(".sk")) value.textContent = "积分 -";
   };
   try {
-    const r = await fetch("/api/billing/me", { headers: { Authorization: "Bearer " + token } });
+    const r = await apiFetch("/api/billing/me");
     if (!r.ok) {
       settle();
       return;

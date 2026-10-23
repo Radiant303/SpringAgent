@@ -1,6 +1,6 @@
 package com.spring.gateway.controller;
 
-import com.spring.gateway.common.JwtUtils;
+import com.spring.gateway.service.AuthSessionService;
 import com.spring.gateway.common.SearchProviders;
 import com.spring.gateway.common.SnowflakeIdGenerator;
 import com.spring.gateway.entity.User;
@@ -42,7 +42,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @Transactional
 class AdminSearchSettingsTests {
     @Autowired private MockMvc mvc;
-    @Autowired private JwtUtils jwt;
+    @Autowired private AuthSessionService jwt;
     @Autowired private SnowflakeIdGenerator ids;
     @Autowired private UserMapper users;
     @Autowired private SystemSettingMapper settings;
@@ -71,7 +71,7 @@ class AdminSearchSettingsTests {
         user.setPointsBalance(new BigDecimal("100"));
         user.setQuotaBytes(0L);
         users.insert(user);
-        return "Bearer " + jwt.createToken(user.getId(), user.getUsername());
+        return "Bearer " + jwt.createSession(user.getId()).token();
     }
 
     private String request(boolean enabled, String provider, String nativePoints, String providers) {

@@ -152,6 +152,9 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
         await dispatcher.stop()
         await redis_client.aclose()
         catalog_cache.close()
+        from spring_agent.cloud.auth import get_auth_redis
+
+        get_auth_redis().close()
 
 
 def create_app() -> FastAPI:

@@ -9,14 +9,20 @@ import java.math.BigDecimal;
  *
  * @author hanbing
  * @since 2026-09-26
- * @param token         JWT
- * @param userId        用户 ID（字符串：雪花 ID 超 2^53，JS 数字会丢精度）
- * @param username      用户名
- * @param role          角色：owner / admin / user
- * @param pointsBalance 积分余额（登录时刻快照）
+ * @param token            访问令牌
+ * @param refreshToken     刷新令牌
+ * @param expiresIn        访问令牌有效期（秒）
+ * @param refreshExpiresIn 刷新令牌有效期（秒）
+ * @param userId           用户 ID（字符串：雪花 ID 超 2^53，JS 数字会丢精度）
+ * @param username         用户名
+ * @param role             角色：owner / admin / user
+ * @param pointsBalance    积分余额（登录时刻快照）
  */
 public record TokenResponse(
         String token,
+        @JsonProperty("refresh_token") String refreshToken,
+        @JsonProperty("expires_in") long expiresIn,
+        @JsonProperty("refresh_expires_in") long refreshExpiresIn,
         @JsonProperty("user_id") String userId,
         String username,
         String role,

@@ -2274,7 +2274,7 @@ wheels = [
 
 [[package]]
 name = "springagent"
-version = "0.1.20"
+version = "0.1.21"
 source = { editable = "." }
 dependencies = [
     { name = "aio-pika" },
@@ -2287,7 +2287,6 @@ dependencies = [
     { name = "loguru" },
     { name = "pydantic-ai" },
     { name = "pydantic-ai-harness", extra = ["codemode", "temporal"] },
-    { name = "pyjwt" },
     { name = "pymysql" },
     { name = "pytest" },
     { name = "python-dotenv" },
@@ -2315,7 +2314,6 @@ requires-dist = [
     { name = "loguru", specifier = ">=0.7.3" },
     { name = "pydantic-ai", extras = ["anthropic", "google-genai", "openai"], specifier = ">=2.57.0" },
     { name = "pydantic-ai-harness", extras = ["codemode", "temporal"], specifier = ">=0.24.0" },
-    { name = "pyjwt", specifier = ">=2.10" },
     { name = "pymysql", specifier = ">=1.1" },
     { name = "pytest", specifier = ">=9.1.1" },
     { name = "python-dotenv", specifier = ">=1.2.2" },

@@ -2,31 +2,68 @@
  * 统一 HTTP 请求客户端
  */
 
-import { getToken, goLogin } from "./auth.js";
+import { getToken, getValidToken, goLogin, refreshAccessToken } from "./auth.js";
+
+function authReason(response) {
+  return response.headers.get("X-Auth-Error") || "token_invalid";
+}
+
+function rejectAuthentication(reason) {
+  const expired = reason === "token_expired";
+  goLogin(expired ? "expired" : "invalid");
+  throw new Error(expired ? "登录已过期，请重新登录" : "登录状态无效，请重新登录");
+}
+
+function handleRefreshError(error) {
+  if (error?.authReason) rejectAuthentication(error.authReason);
+  throw error;
+}
+
+async function send(path, options, token) {
+  const headers = { ...(options.headers || {}) };
+  const isForm = typeof FormData !== "undefined" && options.body instanceof FormData;
+  if (options.body && !isForm && !Object.keys(headers).some((key) => key.toLowerCase() === "content-type")) {
+    headers["Content-Type"] = "application/json";
+  }
+  if (token) headers.Authorization = "Bearer " + token;
+  try {
+    return await fetch(path, { ...options, headers });
+  } catch (err) {
+    throw new Error(err?.message || "网络请求失败，请检查网络连接");
+  }
+}
 
 /**
- * 底层 Fetch 包装：自动附加 Bearer Token，处理 401 过期并抛错
+ * 底层 Fetch 包装：自动附加 Bearer Token、续期并重放过期请求
  * @param {string} path
  * @param {RequestInit} [options]
  * @returns {Promise<Response>}
  */
 export async function apiFetch(path, options = {}) {
-  const headers = { "Content-Type": "application/json", ...(options.headers || {}) };
-  const token = getToken();
-  if (token) {
-    headers["Authorization"] = "Bearer " + token;
-  }
-  let r;
+  let token;
   try {
-    r = await fetch(path, { ...options, headers });
-  } catch (err) {
-    throw new Error(err?.message || "网络请求失败，请检查网络连接");
+    token = await getValidToken();
+  } catch (error) {
+    handleRefreshError(error);
   }
-  if (r.status === 401) {
-    goLogin("expired");
-    throw new Error("登录已过期，请重新登录");
+  let response = await send(path, options, token);
+  if (response.status !== 401) return response;
+  const currentToken = getToken();
+  if (token && currentToken && currentToken !== token) {
+    token = currentToken;
+    response = await send(path, options, token);
+    if (response.status !== 401) return response;
   }
-  return r;
+  if (authReason(response) === "token_expired") {
+    try {
+      token = await refreshAccessToken();
+    } catch (error) {
+      handleRefreshError(error);
+    }
+    response = await send(path, options, token);
+    if (response.status !== 401) return response;
+  }
+  rejectAuthentication(authReason(response));
 }
 
 /**

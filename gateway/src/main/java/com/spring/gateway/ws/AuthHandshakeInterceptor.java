@@ -1,8 +1,8 @@
 package com.spring.gateway.ws;
 
-import com.spring.gateway.common.JwtUtils;
 import com.spring.gateway.config.WebSocketContainerConfig;
 import com.spring.gateway.mapper.UserMapper;
+import com.spring.gateway.service.AuthSessionService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.server.ServerHttpRequest;
@@ -16,7 +16,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * WS 握手鉴权：从 query 参数取 token 验签，通过后写入会话属性。
+ * WS 握手鉴权。
  *
  * @author hanbing
  * @since 2026-10-02
@@ -25,14 +25,14 @@ import java.util.concurrent.atomic.AtomicBoolean;
 @RequiredArgsConstructor
 public class AuthHandshakeInterceptor implements HandshakeInterceptor {
 
-    /** 握手成功后写入会话属性的键：用户 ID */
+    /** 用户 ID 会话属性。 */
     public static final String ATTR_USER_ID = "userId";
-    /** 握手成功后写入会话属性的键：原始 JWT */
+    /** 访问令牌会话属性。 */
     public static final String ATTR_TOKEN = "token";
-    /** 握手成功但用户已不存在时的标记键（值为 true） */
+    /** 用户不存在标记。 */
     public static final String ATTR_USER_MISSING = "authUserMissing";
 
-    private final JwtUtils jwtUtils;
+    private final AuthSessionService authSessionService;
     private final UserMapper userMapper;
 
     private static final AtomicBoolean SERVER_BUFFER_ENLARGED = new AtomicBoolean();
@@ -47,8 +47,9 @@ public class AuthHandshakeInterceptor implements HandshakeInterceptor {
                 SERVER_BUFFER_ENLARGED.compareAndSet(false, done);
             }
             String token = servletRequest.getServletRequest().getParameter("token");
-            Long userId = token == null ? null : jwtUtils.parseUserId(token);
-            if (userId != null) {
+            AuthSessionService.Authentication authentication = authSessionService.authenticate(token);
+            if (authentication.valid()) {
+                Long userId = authentication.userId();
                 attributes.put(ATTR_USER_ID, userId);
                 attributes.put(ATTR_TOKEN, token);
                 if (userMapper.selectById(userId) == null) {
@@ -56,6 +57,9 @@ public class AuthHandshakeInterceptor implements HandshakeInterceptor {
                 }
                 return true;
             }
+            response.getHeaders().set(AuthSessionService.AUTH_ERROR_HEADER,
+                    authentication.failure() == AuthSessionService.TokenFailure.EXPIRED
+                            ? "token_expired" : "token_invalid");
         }
         response.setStatusCode(HttpStatus.UNAUTHORIZED);
         return false;

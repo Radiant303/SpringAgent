@@ -217,4 +217,57 @@ class AuthControllerTests {
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.message").value("用户名或密码错误"));
     }
+
+    @Test
+    @DisplayName("登录、刷新、退出全链路返回双令牌并区分过期与无效")
+    void loginRefreshLogoutFlow() throws Exception {
+        disableMailRegister();
+        String username = "t_" + UUID.randomUUID().toString().substring(0, 8);
+        mockMvc.perform(post("/api/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"username\":\"" + username + "\",\"password\":\"secret123\"}"))
+                .andExpect(status().isOk());
+
+        String loginBody = mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"username\":\"" + username + "\",\"password\":\"secret123\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.expires_in").value(3600))
+                .andExpect(jsonPath("$.data.refresh_expires_in").value(2592000))
+                .andReturn().getResponse().getContentAsString();
+        String token = com.jayway.jsonpath.JsonPath.read(loginBody, "$.data.token");
+        String refreshToken = com.jayway.jsonpath.JsonPath.read(loginBody, "$.data.refresh_token");
+        String userId = com.jayway.jsonpath.JsonPath.read(loginBody, "$.data.user_id");
+        mockMvc.perform(get("/api/account/me").header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk());
+
+        String refreshBody = mockMvc.perform(post("/api/auth/refresh")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"refresh_token\":\"" + refreshToken + "\"}"))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        String renewedToken = com.jayway.jsonpath.JsonPath.read(refreshBody, "$.data.token");
+        mockMvc.perform(get("/api/account/me").header("Authorization", "Bearer " + token))
+                .andExpect(status().isUnauthorized())
+                .andExpect(result -> org.junit.jupiter.api.Assertions.assertEquals(
+                        "token_expired", result.getResponse().getHeader("X-Auth-Error")));
+        mockMvc.perform(get("/api/account/me").header("Authorization", "Bearer " + renewedToken))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/auth/logout")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"refresh_token\":\"" + refreshToken + "\"}"))
+                .andExpect(status().isOk());
+        mockMvc.perform(get("/api/account/me").header("Authorization", "Bearer " + renewedToken))
+                .andExpect(status().isUnauthorized())
+                .andExpect(result -> org.junit.jupiter.api.Assertions.assertEquals(
+                        "token_invalid", result.getResponse().getHeader("X-Auth-Error")));
+        mockMvc.perform(post("/api/auth/refresh")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"refresh_token\":\"" + refreshToken + "\"}"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(result -> org.junit.jupiter.api.Assertions.assertEquals(
+                        "token_invalid", result.getResponse().getHeader("X-Auth-Error")));
+        redis.delete("auth:version:" + userId);
+    }
 }

@@ -1,7 +1,7 @@
 package com.spring.gateway.service;
 
 import com.spring.gateway.common.BizException;
-import com.spring.gateway.common.JwtUtils;
+import com.spring.gateway.service.AuthSessionService;
 import com.spring.gateway.dto.ChangePasswordRequest;
 import com.spring.gateway.dto.LoginRequest;
 import com.spring.gateway.dto.RegisterRequest;
@@ -44,7 +44,7 @@ class AuthServiceTests {
     @Autowired
     private SystemSettingService systemSettingService;
     @Autowired
-    private JwtUtils jwtUtils;
+    private AuthSessionService jwtUtils;
     @Autowired
     private StringRedisTemplate redis;
 
@@ -112,7 +112,7 @@ class AuthServiceTests {
                 "雪花 ID 应是 18 位量级，实际: " + registered.userId());
 
         TokenResponse login = authService.login(new LoginRequest(username, "pass123456"));
-        assertEquals(Long.parseLong(registered.userId()), jwtUtils.parseUserId(login.token()));
+        assertEquals(Long.parseLong(registered.userId()), jwtUtils.authenticate(login.token()).userId());
         assertEquals(username, login.username());
         assertEquals(0, java.math.BigDecimal.ZERO.compareTo(login.pointsBalance()));
     }
@@ -285,10 +285,13 @@ class AuthServiceTests {
         String username = randomUsername();
         String email = randomEmail();
         register(username, email);
+        TokenResponse beforeReset = authService.login(new LoginRequest(username, "pass123456"));
 
         String code = issueResetCode(email);
         authService.resetPassword(new ResetPasswordRequest(email, code, "newpass789"));
 
+        assertEquals(AuthSessionService.TokenFailure.INVALID, jwtUtils.authenticate(beforeReset.token()).failure());
+        assertThrows(AuthSessionService.TokenException.class, () -> jwtUtils.refresh(beforeReset.refreshToken()));
         BizException oldPwd = assertThrows(BizException.class,
                 () -> authService.login(new LoginRequest(username, "pass123456")));
         assertEquals(401, oldPwd.getStatus());
@@ -351,6 +354,7 @@ class AuthServiceTests {
                 () -> authService.changePassword(userId, new ChangePasswordRequest(null, "000000", "changed456")));
         assertEquals(400, wrong.getStatus());
 
+        TokenResponse beforeChange = authService.login(new LoginRequest(username, "pass123456"));
         // 发码（注册发码已占限流锁，清锁模拟间隔已过）→ 正确验证码改密
         redis.delete("mail:code:lock:" + email);
         authService.sendMyCode(userId);
@@ -358,6 +362,8 @@ class AuthServiceTests {
         assertNotNull(code);
         authService.changePassword(userId, new ChangePasswordRequest(null, code, "changed456"));
 
+        assertEquals(AuthSessionService.TokenFailure.INVALID, jwtUtils.authenticate(beforeChange.token()).failure());
+        assertThrows(AuthSessionService.TokenException.class, () -> jwtUtils.refresh(beforeChange.refreshToken()));
         BizException oldPwd = assertThrows(BizException.class,
                 () -> authService.login(new LoginRequest(username, "pass123456")));
         assertEquals(401, oldPwd.getStatus());

@@ -5,6 +5,7 @@
 import { $ } from "../../utils/dom.js";
 import { fmtPoints } from "../../utils/format.js";
 import { api } from "../../api/client.js";
+import { goLogin } from "../../api/auth.js";
 import { UI } from "../../components/ui.js";
 
 let acEmail = "";
@@ -84,7 +85,7 @@ export function openChangePassword() {
         method: "POST",
         body: { code: v.code.trim(), newPassword: v.newPassword },
       }),
-    }).then((ok) => { if (ok) UI.toast("密码已修改"); });
+    }).then((ok) => { if (ok) goLogin("passwordChanged"); });
     return;
   }
   UI.dialog({
@@ -106,7 +107,7 @@ export function openChangePassword() {
       method: "POST",
       body: { oldPassword: v.oldPassword, newPassword: v.newPassword },
     }),
-  }).then((ok) => { if (ok) UI.toast("密码已修改"); });
+  }).then((ok) => { if (ok) goLogin("passwordChanged"); });
 }
 
 export function openBindEmailDialog(isChange) {

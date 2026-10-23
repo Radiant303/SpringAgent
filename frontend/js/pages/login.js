@@ -3,12 +3,14 @@
  */
 
 import { $ } from "../utils/dom.js";
-import { TOKEN_KEY, USER_KEY, ROLE_KEY, getToken } from "../api/auth.js";
+import { getToken, saveSession } from "../api/auth.js";
 
 const DEFAULT_NEXT = "/static/index.html";
 
 const REASONS = {
   expired: "登录已过期，请重新登录",
+  invalid: "登录状态已失效，请重新登录",
+  passwordChanged: "密码已修改，请使用新密码重新登录",
   disabled: "账号已被禁用，请联系管理员",
 };
 
@@ -265,9 +267,7 @@ export function initLoginPage() {
     }
     try {
       const data = await post("login", { username, password });
-      localStorage.setItem(TOKEN_KEY, data.token);
-      localStorage.setItem(USER_KEY, data.username);
-      localStorage.setItem(ROLE_KEY, data.role || "user");
+      saveSession(data);
       localStorage.removeItem("sa.sessionId");
       location.replace(next);
     } catch (err) {

@@ -1,7 +1,7 @@
 package com.spring.gateway.controller;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.spring.gateway.common.JwtUtils;
+import com.spring.gateway.service.AuthSessionService;
 import com.spring.gateway.common.SnowflakeIdGenerator;
 import com.spring.gateway.entity.*;
 import com.spring.gateway.mapper.*;
@@ -50,7 +50,7 @@ class SessionDeletionTests {
     }
 
     @Autowired MockMvc mvc;
-    @Autowired JwtUtils jwt;
+    @Autowired AuthSessionService jwt;
     @Autowired SnowflakeIdGenerator ids;
     @Autowired UserMapper users;
     @Autowired WorkMapper works;
@@ -105,7 +105,7 @@ class SessionDeletionTests {
     }
 
     private String bearer(User user) {
-        return "Bearer " + jwt.createToken(user.getId(), user.getUsername());
+        return "Bearer " + jwt.createSession(user.getId()).token();
     }
 
     private void uploadRecord(Fixture f, String type, long size, String name) {

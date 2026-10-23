@@ -9,7 +9,7 @@ from typing import ClassVar
 from fastapi import WebSocket, WebSocketDisconnect
 
 from spring_agent.cloud import gateway_store
-from spring_agent.cloud.auth import decode_user_id
+from spring_agent.cloud.auth import authenticate_access_token
 from spring_agent.cloud.db import UserRow, get_sessionmaker
 from spring_agent.cloud.gateway_store import GatewaySessionStore, find_active_session, list_sessions_for_user
 from spring_agent.cloud.registry import CloudSessionHandle, get_registry
@@ -330,8 +330,12 @@ class CloudAppServer(AppServer):
 async def ws_endpoint(websocket: WebSocket) -> None:
     await websocket.accept()
     token = websocket.query_params.get("token")
-    user_id = decode_user_id(token) if token else None
-    close_code = WS_UNAUTHORIZED_CLOSE_CODE if user_id is None else await asyncio.to_thread(_user_close_code, user_id)
+    authentication = await asyncio.to_thread(authenticate_access_token, token) if token else None
+    user_id = authentication.user_id if authentication else None
+    if user_id is None:
+        close_code = 4401 if authentication and authentication.failure == "token_expired" else 4402
+    else:
+        close_code = await asyncio.to_thread(_user_close_code, user_id)
     if close_code is not None:
         await websocket.close(code=close_code)
         return

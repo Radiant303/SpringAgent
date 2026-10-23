@@ -9,7 +9,7 @@ import org.springframework.web.socket.config.annotation.WebSocketConfigurer;
 import org.springframework.web.socket.config.annotation.WebSocketHandlerRegistry;
 
 /**
- * WS 配置：/ws 为聊天中继端点，握手时校验 JWT。
+ * WS 配置。
  *
  * @author hanbing
  * @since 2026-10-02

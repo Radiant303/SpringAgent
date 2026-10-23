@@ -54,9 +54,6 @@ class Log(ConfigBase):
 class Cloud(ConfigBase):
     database_url: str = "mysql+pymysql://root:root@127.0.0.1:18900/springagent?charset=utf8mb4"
     data_root: str = str(Path.home() / ".springagent" / "cloud")
-    # HS256 密钥需 ≥32 字节（RFC 7518）。
-    jwt_secret: str = "springagent-dev-secret-0123456789abcd"
-    jwt_expire_minutes: int = 10080
     host: str = "0.0.0.0"
     port: int = 15900
     rabbitmq_url: str = "amqp://guest:guest@127.0.0.1:20900/"

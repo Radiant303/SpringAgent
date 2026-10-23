@@ -1,6 +1,6 @@
 [project]
 name = "springagent"
-version = "0.1.20"
+version = "0.1.21"
 description = "SpringAgent 云端 Agent 平台"
 readme = "README.md"
 requires-python = ">=3.14"
@@ -15,7 +15,6 @@ dependencies = [
     "loguru>=0.7.3",
     "pydantic-ai[anthropic,google-genai,openai]>=2.57.0",
     "pydantic-ai-harness[codemode,temporal]>=0.24.0",
-    "pyjwt>=2.10",
     "pymysql>=1.1",
     "pytest>=9.1.1",
     "python-dotenv>=1.2.2",

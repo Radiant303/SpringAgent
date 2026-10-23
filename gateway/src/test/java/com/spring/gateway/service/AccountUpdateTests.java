@@ -3,7 +3,7 @@ package com.spring.gateway.service;
 import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
-import com.spring.gateway.common.JwtUtils;
+
 import com.spring.gateway.common.SnowflakeIdGenerator;
 import com.spring.gateway.dto.ChangePasswordRequest;
 import com.spring.gateway.dto.ResetPasswordRequest;
@@ -31,6 +31,7 @@ class AccountUpdateTests {
     private UserMapper users;
     private AuthService auth;
     private AdminUserService admin;
+    private AuthSessionService sessions;
 
     @BeforeEach
     void prepare() {
@@ -50,9 +51,10 @@ class AccountUpdateTests {
         BCryptPasswordEncoder encoder = mock(BCryptPasswordEncoder.class);
         when(encoder.encode("new-password")).thenReturn("new-hash");
         when(encoder.matches("old-password", "old-hash")).thenReturn(true);
-        auth = new AuthService(users, mock(SnowflakeIdGenerator.class), mock(JwtUtils.class), encoder,
+        sessions = mock(AuthSessionService.class);
+        auth = new AuthService(users, mock(SnowflakeIdGenerator.class), sessions, encoder,
                 mock(SystemSettingService.class), mock(MailCodeService.class));
-        admin = new AdminUserService(users, encoder);
+        admin = new AdminUserService(users, encoder, sessions);
     }
 
     @Test
@@ -65,6 +67,16 @@ class AccountUpdateTests {
     void changePasswordOnlyUpdatesPassword() {
         auth.changePassword(1L, new ChangePasswordRequest("old-password", null, "new-password"));
         assertOnlyColumn("password_hash", "new-hash");
+    }
+
+    @Test
+    void everyPasswordEntryRevokesSessions() {
+        auth.resetPassword(new ResetPasswordRequest("old@example.com", "123456", "new-password"));
+        verify(sessions).revokeAll(1L);
+        auth.changePassword(1L, new ChangePasswordRequest("old-password", null, "new-password"));
+        verify(sessions, times(2)).revokeAll(1L);
+        admin.resetPassword(User.ROLE_OWNER, 1L, "new-password");
+        verify(sessions, times(3)).revokeAll(1L);
     }
 
     @Test

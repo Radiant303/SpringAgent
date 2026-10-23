@@ -1,7 +1,7 @@
 package com.spring.gateway.controller;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.spring.gateway.common.JwtUtils;
+import com.spring.gateway.service.AuthSessionService;
 import com.spring.gateway.common.SnowflakeIdGenerator;
 import com.spring.gateway.entity.FileRecord;
 import com.spring.gateway.entity.Session;
@@ -51,7 +51,7 @@ import static org.mockito.Mockito.when;
 class FileControllerTests {
 
     @Autowired private MockMvc mvc;
-    @Autowired private JwtUtils jwt;
+    @Autowired private AuthSessionService jwt;
     @Autowired private SnowflakeIdGenerator ids;
     @Autowired private UserMapper userMapper;
     @Autowired private WorkMapper workMapper;
@@ -94,7 +94,7 @@ class FileControllerTests {
         session.setCreatedAt(now);
         session.setUpdatedAt(now);
         sessionMapper.insert(session);
-        bearer = "Bearer " + jwt.createToken(user.getId(), user.getUsername());
+        bearer = "Bearer " + jwt.createSession(user.getId()).token();
     }
 
     @AfterEach

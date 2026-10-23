@@ -76,25 +76,6 @@
             <artifactId>mysql-connector-j</artifactId>
         </dependency>
 
-        <!-- JWT 签发/校验（impl 与 jackson 序列化运行时才需要，故 runtime scope） -->
-        <dependency>
-            <groupId>io.jsonwebtoken</groupId>
-            <artifactId>jjwt-api</artifactId>
-            <version>0.12.6</version>
-        </dependency>
-        <dependency>
-            <groupId>io.jsonwebtoken</groupId>
-            <artifactId>jjwt-impl</artifactId>
-            <version>0.12.6</version>
-            <scope>runtime</scope>
-        </dependency>
-        <dependency>
-            <groupId>io.jsonwebtoken</groupId>
-            <artifactId>jjwt-jackson</artifactId>
-            <version>0.12.6</version>
-            <scope>runtime</scope>
-        </dependency>
-
         <!-- 只用 BCryptPasswordEncoder 做密码哈希，不引入完整 Spring Security -->
         <dependency>
             <groupId>org.springframework.security</groupId>

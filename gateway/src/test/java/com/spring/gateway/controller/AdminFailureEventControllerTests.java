@@ -4,7 +4,7 @@ import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.spring.gateway.common.AuthInterceptor;
-import com.spring.gateway.common.JwtUtils;
+import com.spring.gateway.service.AuthSessionService;
 import com.spring.gateway.entity.SearchBillingFailure;
 import com.spring.gateway.entity.User;
 import com.spring.gateway.mapper.SearchBillingFailureMapper;
@@ -35,7 +35,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class AdminFailureEventControllerTests {
     private final SearchBillingFailureMapper mapper = mock(SearchBillingFailureMapper.class);
     private final SearchBillingFailureService failures = mock(SearchBillingFailureService.class);
-    private final JwtUtils jwt = mock(JwtUtils.class);
+    private final AuthSessionService jwt = mock(AuthSessionService.class);
     private final UserMapper users = mock(UserMapper.class);
     private MockMvc mvc;
 
@@ -44,7 +44,9 @@ class AdminFailureEventControllerTests {
         TableInfoHelper.initTableInfo(new MapperBuilderAssistant(new MybatisConfiguration(), ""), SearchBillingFailure.class);
         mvc = MockMvcBuilders.standaloneSetup(new AdminFailureEventController(mapper, failures))
                 .addInterceptors(new AuthInterceptor(jwt, users, JsonMapper.builder().build())).build();
-        when(jwt.parseUserId("owner")).thenReturn(99L);
+        when(jwt.authenticate(nullable(String.class))).thenReturn(
+                new AuthSessionService.Authentication(AuthSessionService.TokenFailure.INVALID, null));
+        when(jwt.authenticate("owner")).thenReturn(new AuthSessionService.Authentication(null, 99L));
         User owner = new User(); owner.setId(99L); owner.setRole(User.ROLE_OWNER); owner.setStatus(User.STATUS_ACTIVE);
         when(users.selectById(99L)).thenReturn(owner);
     }
@@ -174,7 +176,8 @@ class AdminFailureEventControllerTests {
     @Test
     void onlyOwnerMayReadOrModifyFailureEvents() throws Exception {
         User admin = new User(); admin.setId(8L); admin.setRole(User.ROLE_ADMIN); admin.setStatus(User.STATUS_ACTIVE);
-        when(jwt.parseUserId("admin")).thenReturn(8L); when(users.selectById(8L)).thenReturn(admin);
+        when(jwt.authenticate("admin")).thenReturn(new AuthSessionService.Authentication(null, 8L));
+        when(users.selectById(8L)).thenReturn(admin);
         mvc.perform(get("/api/admin/failure-events").header("Authorization", "Bearer admin"))
                 .andExpect(status().isForbidden());
         mvc.perform(get("/api/admin/failure-events/1").header("Authorization", "Bearer admin"))

@@ -1,6 +1,6 @@
 package com.spring.gateway.controller;
 
-import com.spring.gateway.common.JwtUtils;
+import com.spring.gateway.service.AuthSessionService;
 import com.spring.gateway.common.SnowflakeIdGenerator;
 import com.spring.gateway.entity.User;
 import com.spring.gateway.mapper.UserMapper;
@@ -35,7 +35,7 @@ class AdminModelConfigControllerTests {
     @Autowired
     private MockMvc mockMvc;
     @Autowired
-    private JwtUtils jwtUtils;
+    private AuthSessionService jwtUtils;
     @Autowired
     private UserMapper userMapper;
     @Autowired
@@ -50,7 +50,7 @@ class AdminModelConfigControllerTests {
         user.setRole(role);
         user.setStatus(User.STATUS_ACTIVE);
         userMapper.insert(user);
-        return jwtUtils.createToken(user.getId(), user.getUsername());
+        return jwtUtils.createSession(user.getId()).token();
     }
 
     private static String bearer(String token) {

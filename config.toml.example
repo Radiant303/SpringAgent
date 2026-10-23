@@ -10,9 +10,6 @@ log_level = "INFO"
 database_url = "mysql+pymysql://root:root@127.0.0.1:18900/springagent?charset=utf8mb4"
 # 支持 ~ 开头。
 data_root = "~/.springagent/cloud"
-# HS256 密钥需 ≥32 字节；生产环境必须更换。
-jwt_secret = "springagent-dev-secret-0123456789abcd"
-jwt_expire_minutes = 10080
 host = "0.0.0.0"
 port = 15900
 rabbitmq_url = "amqp://guest:guest@127.0.0.1:20900/"

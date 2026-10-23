@@ -34,6 +34,16 @@ public class GlobalExceptionHandler {
     }
 
     /**
+     * 处理刷新令牌失效。
+     */
+    @ExceptionHandler(com.spring.gateway.service.AuthSessionService.TokenException.class)
+    public ResponseEntity<Result<Void>> token(com.spring.gateway.service.AuthSessionService.TokenException e) {
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                .header(com.spring.gateway.service.AuthSessionService.AUTH_ERROR_HEADER, e.getErrorCode())
+                .body(Result.error(HttpStatus.UNAUTHORIZED.value(), e.getMessage()));
+    }
+
+    /**
      * 处理参数校验失败异常，返回第一条字段校验错误信息
      */
     @ExceptionHandler(MethodArgumentNotValidException.class)

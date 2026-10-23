@@ -2,7 +2,7 @@ package com.spring.gateway.controller;
 
 import com.spring.gateway.common.AuthInterceptor;
 import com.spring.gateway.common.BizException;
-import com.spring.gateway.common.JwtUtils;
+import com.spring.gateway.service.AuthSessionService;
 import com.spring.gateway.dto.SessionSummary;
 import com.spring.gateway.entity.User;
 import com.spring.gateway.mapper.UserMapper;
@@ -54,26 +54,27 @@ class SessionControllerWireTest {
     @TestConfiguration
     static class WireTestConfig {
         @Bean
-        JwtUtils jwtUtils() {
-            return new JwtUtils("springagent-dev-secret-0123456789abcd", 10080);
+        AuthSessionService authSessionService() {
+            AuthSessionService service = Mockito.mock(AuthSessionService.class);
+            Mockito.when(service.authenticate("test-token"))
+                    .thenReturn(new AuthSessionService.Authentication(null, 42L));
+            return service;
         }
 
         @Bean
-        AuthInterceptor authInterceptor(JwtUtils jwtUtils, ObjectMapper objectMapper) {
-            // 拦截器现在按 sub 主键查 users 行收口权限：给测试 token 的 42L 配一个活跃用户
+        AuthInterceptor authInterceptor(AuthSessionService authSessionService, ObjectMapper objectMapper) {
             UserMapper userMapper = Mockito.mock(UserMapper.class);
             User active = new User();
             active.setId(42L);
             active.setRole(User.ROLE_USER);
             active.setStatus(User.STATUS_ACTIVE);
             Mockito.when(userMapper.selectById(42L)).thenReturn(active);
-            return new AuthInterceptor(jwtUtils, userMapper, objectMapper);
+            return new AuthInterceptor(authSessionService, userMapper, objectMapper);
         }
     }
 
     private String token() {
-        return "Bearer " + new JwtUtils("springagent-dev-secret-0123456789abcd", 10080)
-                .createToken(42L, "tester");
+        return "Bearer test-token";
     }
 
     @Test

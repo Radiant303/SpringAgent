@@ -12,6 +12,7 @@ import com.spring.gateway.mapper.UserMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
@@ -27,6 +28,7 @@ public class AdminUserService {
 
     private final UserMapper userMapper;
     private final BCryptPasswordEncoder passwordEncoder;
+    private final AuthSessionService authSessionService;
 
     /**
      * 用户分页列表，按注册时间升序
@@ -97,10 +99,12 @@ public class AdminUserService {
      * @param password  新密码明文
      * @throws BizException 目标不存在（404）；越权（403）
      */
+    @Transactional
     public void resetPassword(String actorRole, Long targetId, String password) {
         requireOperable(actorRole, requireTarget(targetId));
         userMapper.update(null, new LambdaUpdateWrapper<User>()
                 .eq(User::getId, targetId).set(User::getPasswordHash, passwordEncoder.encode(password)));
+        authSessionService.revokeAll(targetId);
     }
 
     /**

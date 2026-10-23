@@ -6,8 +6,7 @@
  */
 
 import { $ } from "../../utils/dom.js";
-import { getToken, goLogin } from "../../api/auth.js";
-import { api } from "../../api/client.js";
+import { api, apiFetch } from "../../api/client.js";
 import { rpc } from "../../api/rpc.js";
 import { UI } from "../../components/ui.js";
 import { state, isBusy } from "./state.js";
@@ -118,14 +117,7 @@ export async function uploadFiles(files) {
     const form = new FormData();
     form.append("sessionId", sessionId);
     for (const file of files) form.append("files", file);
-    const headers = {};
-    const token = getToken();
-    if (token) headers.Authorization = "Bearer " + token;
-    const r = await fetch("/api/files/batch", { method: "POST", headers, body: form });
-    if (r.status === 401) {
-      goLogin("expired");
-      throw new Error("登录已过期，请重新登录");
-    }
+    const r = await apiFetch("/api/files/batch", { method: "POST", body: form });
     const payload = await r.json().catch(() => null);
     if (!r.ok) {
       throw new Error((payload && payload.message) || `上传失败（${r.status}）`);

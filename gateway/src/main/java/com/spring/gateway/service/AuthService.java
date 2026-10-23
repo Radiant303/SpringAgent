@@ -3,7 +3,6 @@ package com.spring.gateway.service;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.spring.gateway.common.BizException;
-import com.spring.gateway.common.JwtUtils;
 import com.spring.gateway.common.SnowflakeIdGenerator;
 import com.spring.gateway.dto.ChangePasswordRequest;
 import com.spring.gateway.dto.LoginRequest;
@@ -33,7 +32,7 @@ public class AuthService {
 
     private final UserMapper userMapper;
     private final SnowflakeIdGenerator idGenerator;
-    private final JwtUtils jwtUtils;
+    private final AuthSessionService authSessionService;
     private final BCryptPasswordEncoder passwordEncoder;
     private final SystemSettingService systemSettingService;
     private final MailCodeService mailCodeService;
@@ -104,12 +103,11 @@ public class AuthService {
     }
 
     /**
-     * 登录并签发 JWT。标识符可以是用户名，也可以是注册邮箱
-     * （用户名查询未命中且输入形如邮箱时按邮箱再查一次；两种情况返回相同的 401，避免枚举）。
+     * 登录并创建独立会话。
      *
      * @param req 登录请求
-     * @return token 与用户信息
-     * @throws BizException 用户不存在或密码错误（401）；账号被禁用（403）
+     * @return 双令牌与用户信息
+     * @throws BizException 用户不存在或密码错误（401）；账号被禁用（403）；并发登录（429）
      */
     public TokenResponse login(LoginRequest req) {
         User user = userMapper.selectOne(
@@ -124,8 +122,40 @@ public class AuthService {
         if (User.STATUS_DISABLED.equals(user.getStatus())) {
             throw new BizException(403, "账号已被禁用");
         }
-        String token = jwtUtils.createToken(user.getId(), user.getUsername());
-        return new TokenResponse(token, String.valueOf(user.getId()), user.getUsername(), user.getRole(),
+        return tokenResponse(user, authSessionService.createSession(user.getId()));
+    }
+
+    /**
+     * 刷新当前会话的访问令牌。
+     *
+     * @param refreshToken 刷新令牌
+     * @return 新双令牌与用户信息
+     */
+    public TokenResponse refresh(String refreshToken) {
+        AuthSessionService.TokenBundle tokens = authSessionService.refresh(refreshToken);
+        User user = userMapper.selectById(tokens.userId());
+        if (user == null) {
+            authSessionService.revokeAll(tokens.userId());
+            throw new AuthSessionService.TokenException(AuthSessionService.TokenFailure.INVALID);
+        }
+        if (User.STATUS_DISABLED.equals(user.getStatus())) {
+            throw new BizException(403, "账号已被禁用");
+        }
+        return tokenResponse(user, tokens);
+    }
+
+    /**
+     * 退出单个登录会话。
+     *
+     * @param refreshToken 刷新令牌
+     */
+    public void logout(String refreshToken) {
+        authSessionService.logout(refreshToken);
+    }
+
+    private TokenResponse tokenResponse(User user, AuthSessionService.TokenBundle tokens) {
+        return new TokenResponse(tokens.token(), tokens.refreshToken(), tokens.expiresIn(), tokens.refreshExpiresIn(),
+                String.valueOf(user.getId()), user.getUsername(), user.getRole(),
                 user.getPointsBalance() == null ? BigDecimal.ZERO : user.getPointsBalance());
     }
 
@@ -183,6 +213,7 @@ public class AuthService {
         userMapper.update(null, new LambdaUpdateWrapper<User>()
                 .eq(User::getId, user.getId())
                 .set(User::getPasswordHash, passwordEncoder.encode(req.newPassword())));
+        authSessionService.revokeAll(user.getId());
     }
 
     /**
@@ -288,5 +319,6 @@ public class AuthService {
         userMapper.update(null, new LambdaUpdateWrapper<User>()
                 .eq(User::getId, user.getId())
                 .set(User::getPasswordHash, passwordEncoder.encode(req.newPassword())));
+        authSessionService.revokeAll(user.getId());
     }
 }

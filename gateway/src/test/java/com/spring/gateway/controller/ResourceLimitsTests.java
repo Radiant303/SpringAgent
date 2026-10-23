@@ -2,7 +2,7 @@ package com.spring.gateway.controller;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.spring.gateway.common.BizException;
-import com.spring.gateway.common.JwtUtils;
+import com.spring.gateway.service.AuthSessionService;
 import com.spring.gateway.common.ResourceLimits;
 import com.spring.gateway.common.SnowflakeIdGenerator;
 import com.spring.gateway.dto.AdminRedeemCreateRequest;
@@ -46,7 +46,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @Transactional
 class ResourceLimitsTests {
     @Autowired private MockMvc mvc;
-    @Autowired private JwtUtils jwt;
+    @Autowired private AuthSessionService jwt;
     @Autowired private SnowflakeIdGenerator ids;
     @Autowired private UserMapper users;
     @Autowired private RedeemCodeMapper codes;
@@ -63,7 +63,7 @@ class ResourceLimitsTests {
     void fixture() {
         owner = user(User.ROLE_OWNER);
         target = user(User.ROLE_USER);
-        bearer = "Bearer " + jwt.createToken(owner.getId(), owner.getUsername());
+        bearer = "Bearer " + jwt.createSession(owner.getId()).token();
     }
 
     private User user(String role) {
@@ -219,7 +219,7 @@ class ResourceLimitsTests {
                 .andExpect(status().isOk()).andExpect(jsonPath("$.data.pointsScale").value(6))
                 .andExpect(jsonPath("$.data.quotaMbMax").value(1048576));
         mvc.perform(get("/api/admin/resource-limits").header("Authorization",
-                        "Bearer " + jwt.createToken(target.getId(), target.getUsername())))
+                        "Bearer " + jwt.createSession(target.getId()).token()))
                 .andExpect(status().isForbidden());
     }
 

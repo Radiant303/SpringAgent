@@ -1,6 +1,6 @@
 package com.spring.gateway.controller;
 
-import com.spring.gateway.common.JwtUtils;
+import com.spring.gateway.service.AuthSessionService;
 import com.spring.gateway.common.SnowflakeIdGenerator;
 import com.spring.gateway.entity.Session;
 import com.spring.gateway.entity.User;
@@ -38,7 +38,7 @@ class SessionControllerTests {
     @Autowired
     private MockMvc mockMvc;
     @Autowired
-    private JwtUtils jwtUtils;
+    private AuthSessionService jwtUtils;
     @Autowired
     private UserMapper userMapper;
     @Autowired
@@ -104,7 +104,7 @@ class SessionControllerTests {
         String otherWork = insertWork(other);
         String mySession = insertSession(me, myWork);
         String othersSession = insertSession(other, otherWork);
-        String token = jwtUtils.createToken(me, "tester");
+        String token = jwtUtils.createSession(me).token();
 
         mockMvc.perform(get("/api/sessions")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))

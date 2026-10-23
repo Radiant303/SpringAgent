@@ -3,7 +3,7 @@ package com.spring.gateway.service;
 import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
 import com.spring.gateway.common.BizException;
-import com.spring.gateway.common.JwtUtils;
+
 import com.spring.gateway.common.SnowflakeIdGenerator;
 import com.spring.gateway.dto.LoginRequest;
 import com.spring.gateway.dto.RegisterRequest;
@@ -33,7 +33,7 @@ import static org.mockito.Mockito.*;
 class AuthRegistrationDomainsUnitTests {
     private final UserMapper users = mock(UserMapper.class);
     private final SnowflakeIdGenerator ids = mock(SnowflakeIdGenerator.class);
-    private final JwtUtils tokens = mock(JwtUtils.class);
+    private final AuthSessionService tokens = mock(AuthSessionService.class);
     private final BCryptPasswordEncoder passwords = mock(BCryptPasswordEncoder.class);
     private final SystemSettingService settings = mock(SystemSettingService.class);
     private final MailCodeService codes = mock(MailCodeService.class);
@@ -48,6 +48,8 @@ class AuthRegistrationDomainsUnitTests {
         when(users.selectCount(null)).thenReturn(1L);
         when(ids.nextId()).thenReturn(42L);
         when(passwords.encode(anyString())).thenReturn("hash");
+        when(tokens.createSession(anyLong())).thenReturn(new AuthSessionService.TokenBundle(
+                "00000000-0000-4000-8000-000000000001", "00000000-0000-4000-8000-000000000002", 3600, 2592000, 42L));
     }
 
     @ParameterizedTest

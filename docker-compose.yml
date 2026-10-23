@@ -9,7 +9,6 @@ x-settings:
   mysql-root-password: &mysql-root-password "springagent-mysql"
   rabbitmq-user: &rabbitmq-user "springagent"
   rabbitmq-password: &rabbitmq-password "springagent-rabbitmq"
-  jwt-secret: &jwt-secret "springagent-default-jwt-secret-0123456789abcdef"
   internal-token: &internal-token "springagent-default-internal-token-0123456789abcdef"
   web-ports: &web-ports ["17900:80"]
 
@@ -104,7 +103,6 @@ services:
       RABBITMQ_USER: *rabbitmq-user
       RABBITMQ_PASSWORD: *rabbitmq-password
       SPRINGAGENT_CLOUD_DATA_ROOT: /data/cloud
-      SPRINGAGENT_CLOUD_JWT_SECRET: *jwt-secret
       SPRINGAGENT_CLOUD_REDIS_URL: redis://redis:6379/0
       SPRINGAGENT_CLOUD_GATEWAY_BASE_URL: http://127.0.0.1:16900
       SPRINGAGENT_CLOUD_INTERNAL_TOKEN: *internal-token
@@ -119,7 +117,6 @@ services:
       SPRING_RABBITMQ_PASSWORD: *rabbitmq-password
       APP_DATA_ROOT: /data/cloud
       ENGINE_BASE_URL: http://127.0.0.1:15900
-      JWT_SECRET: *jwt-secret
       INTERNAL_TOKEN: *internal-token
     volumes:
       - app-data:/data/cloud

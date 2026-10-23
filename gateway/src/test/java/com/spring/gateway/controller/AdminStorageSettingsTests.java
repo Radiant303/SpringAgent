@@ -1,6 +1,6 @@
 package com.spring.gateway.controller;
 
-import com.spring.gateway.common.JwtUtils;
+import com.spring.gateway.service.AuthSessionService;
 import com.spring.gateway.common.SnowflakeIdGenerator;
 import com.spring.gateway.entity.SystemSetting;
 import com.spring.gateway.entity.User;
@@ -36,7 +36,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @Transactional
 class AdminStorageSettingsTests {
     @Autowired private MockMvc mvc;
-    @Autowired private JwtUtils jwt;
+    @Autowired private AuthSessionService jwt;
     @Autowired private SnowflakeIdGenerator ids;
     @Autowired private UserMapper users;
     @Autowired private SystemSettingMapper settings;
@@ -54,7 +54,7 @@ class AdminStorageSettingsTests {
         owner.setPointsBalance(new BigDecimal("100"));
         owner.setQuotaBytes(0L);
         users.insert(owner);
-        bearer = "Bearer " + jwt.createToken(owner.getId(), owner.getUsername());
+        bearer = "Bearer " + jwt.createSession(owner.getId()).token();
     }
 
     private void save(String cron, int status) throws Exception {
