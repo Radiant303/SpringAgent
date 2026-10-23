@@ -995,7 +995,7 @@
 /* 内容比高度晚一步浮现：先让空白长出来，再由模糊变清晰 */
 .work-items, .turn-fold-content {
   opacity: 0;
-  filter: blur(var(--fold-blur, 7px));
+  filter: blur(var(--fold-blur, 4px));
   transform: translateY(-2px);
   transition:
     opacity calc(var(--fold-duration, 300ms) * 0.35) ease calc(var(--fold-duration, 300ms) * 0.05),
@@ -1020,8 +1020,8 @@
   inset: 0;
   pointer-events: none;
   background: linear-gradient(to bottom, rgba(255, 255, 255, 0) 35%, var(--bg, #fff) 96%);
-  -webkit-backdrop-filter: blur(var(--fold-blur, 7px));
-  backdrop-filter: blur(var(--fold-blur, 7px));
+  -webkit-backdrop-filter: blur(var(--fold-blur, 4px));
+  backdrop-filter: blur(var(--fold-blur, 4px));
   opacity: 1;
   transition: opacity calc(var(--fold-duration, 300ms) * 0.3) ease calc(var(--fold-duration, 300ms) * 0.05);
 }
