@@ -382,7 +382,6 @@ export function workGroupNode() {
   const clip = el("div", "fold-clip");
   const items = el("div", "work-items");
   clip.appendChild(items);
-  clip.appendChild(el("div", "fold-veil"));
   body.appendChild(clip);
   header.onclick = () => wrap.classList.toggle("expanded");
   wrap.appendChild(header);
@@ -478,7 +477,6 @@ export function foldTurnProcess(content, animate = false) {
   const inner = el("div", "turn-fold-content");
   for (const node of process) inner.appendChild(node);
   clip.appendChild(inner);
-  clip.appendChild(el("div", "fold-veil"));
   wrap.appendChild(clip);
   fold.appendChild(head);
   fold.appendChild(wrap);
