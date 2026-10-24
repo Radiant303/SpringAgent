@@ -176,6 +176,7 @@ configs:
               internal;
               alias /data/cloud/works/;
               disable_symlinks on;
+              add_header Server-Timing $$upstream_http_server_timing always;
           }
           location /_internal/ {
               return 404;
