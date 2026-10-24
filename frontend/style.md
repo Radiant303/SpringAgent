@@ -155,8 +155,9 @@ font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-s
 | 宽度 | 用于 |
 |---|---|
 | 780px | 聊天内容与输入框（`--content-max`） |
-| 600px | 设置类页面（账号、积分、注册/存储/计费/社群） |
-| 1080px | 宽表格页（`.admin-page.wide`） |
+| 780px | 设置类页面（账号、积分、注册/存储/计费/社群） |
+| 1350px | 宽表格页（`.admin-page.wide`） |
+| 1404px | 分组卡片宽页（`.admin-page.wide-groups`，模型配置） |
 | 420px | 对话框 |
 | 380px | 登录/注册这类独立页面的表单栏 |
 | 240px | 侧栏 / 左侧导航 |
@@ -189,7 +190,7 @@ font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-s
 - 侧栏分组小标题：13px 弱文字，`padding: 16px 8px 4px`。
 - 侧栏列表行：36px 高、圆角 10px、hover `.04`、选中 `.06`。次要信息（大小、时间、删除按钮）**只在悬停时出现**，平时一行干净的名称。
 - 侧栏可滚动区底部用 `mask-image` 渐隐 40px，不加分隔线。
-- 设置类页面：主卡片内居中 600px 窄栏，依次是页面标题 → 分组小标题（`.section-caption`）→ 灰色分组卡片。
+- 设置类页面：主卡片内居中 780px 窄栏，依次是页面标题 → 分组小标题（`.section-caption`）→ 灰色分组卡片。
 
 **独立页面**（登录/注册这类不在应用外壳里的页面）：**不套主卡片，直接是"页面"**——白底一整页，
 品牌标钉在**左上角**当页头，表单是页面中间一条 380px 窄栏（只做水平居中），栏内全部**左对齐**；
