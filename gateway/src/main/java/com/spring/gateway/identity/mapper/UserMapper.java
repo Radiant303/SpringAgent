@@ -1,0 +1,93 @@
+package com.spring.gateway.identity.mapper;
+
+import com.baomidou.mybatisplus.core.mapper.BaseMapper;
+import com.spring.gateway.identity.entity.User;
+import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Param;
+import org.apache.ibatis.annotations.Options;
+import org.apache.ibatis.annotations.Select;
+import org.apache.ibatis.annotations.Update;
+
+import java.math.BigDecimal;
+
+/**
+ * users 表的 Mapper。
+ *
+ * @author hanbing
+ * @since 2026-09-26
+ */
+@Mapper
+public interface UserMapper extends BaseMapper<User> {
+
+    /**
+     * 行锁读积分余额（SELECT ... FOR UPDATE）。
+     *
+     * @param id 用户 ID
+     * @return 当前积分余额
+     */
+    @Options(useCache = false, flushCache = Options.FlushCachePolicy.TRUE)
+    @Select("SELECT points_balance FROM users WHERE id = #{id} FOR UPDATE")
+    BigDecimal selectBalanceForUpdate(@Param("id") Long id);
+
+    /**
+     * 写回积分余额（绝对值）；只允许在 selectBalanceForUpdate 之后同事务调用。
+     *
+     * @param id      用户 ID
+     * @param balance 新余额
+     * @return 受影响行数
+     */
+    @Update("UPDATE users SET points_balance = #{balance} WHERE id = #{id}")
+    int updateBalance(@Param("id") Long id, @Param("balance") BigDecimal balance);
+
+    /**
+     * 增加用户存储配额。
+     *
+     * @param id 用户 ID
+     * @param delta 增量字节数，非负
+     * @param max 配额上限，单位字节
+     * @return 受影响行数
+     */
+    @Update("UPDATE users SET quota_bytes = quota_bytes + #{delta} WHERE id = #{id}"
+            + " AND #{delta} >= 0 AND #{delta} <= #{max} AND quota_bytes <= #{max} - #{delta}")
+    int addQuotaBytes(@Param("id") Long id, @Param("delta") long delta, @Param("max") long max);
+
+    /**
+     * 增加单工作区存储配额。
+     *
+     * @param id 用户 ID
+     * @param base 未设置覆盖值时的基线，单位字节
+     * @param delta 增量字节数，非负
+     * @param max 配额上限，单位字节
+     * @return 受影响行数
+     */
+    @Update("UPDATE users SET work_quota_bytes = COALESCE(work_quota_bytes, #{base}) + #{delta}"
+            + " WHERE id = #{id} AND #{delta} >= 0 AND #{delta} <= #{max}"
+            + " AND COALESCE(work_quota_bytes, #{base}) <= #{max} - #{delta}")
+    int addWorkQuotaBytes(@Param("id") Long id, @Param("base") long base,
+                          @Param("delta") long delta, @Param("max") long max);
+
+    /**
+     * 锁定用户行并查询。
+     *
+     * @param id 用户 ID
+     * @return 用户行，不存在时为 null
+     */
+    @Options(useCache = false, flushCache = Options.FlushCachePolicy.TRUE)
+    @Select("SELECT * FROM users WHERE id = #{id} FOR UPDATE")
+    User selectForUpdate(@Param("id") Long id);
+
+    /**
+     * 写入用户存储总占用。
+     *
+     * @param id 用户 ID
+     * @param bytes 占用字节数
+     * @return 受影响行数
+     */
+    @Update("UPDATE users SET used_bytes = #{bytes} WHERE id = #{id}")
+    int updateUsedBytes(@Param("id") Long id, @Param("bytes") long bytes);
+
+    @Update("UPDATE users SET used_bytes = #{total}, knowledge_bytes = #{knowledge},"
+            + " storage_initialized = #{initialized} WHERE id = #{id}")
+    int updateStorage(@Param("id") Long id, @Param("total") long total,
+                      @Param("knowledge") long knowledge, @Param("initialized") boolean initialized);
+}

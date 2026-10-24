@@ -1,8 +1,8 @@
 package com.spring.gateway.ws;
 
 import com.spring.gateway.config.WebSocketContainerConfig;
-import com.spring.gateway.mapper.UserMapper;
-import com.spring.gateway.service.AuthSessionService;
+import com.spring.gateway.identity.service.UserProfileService;
+import com.spring.gateway.identity.service.AuthSessionService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.server.ServerHttpRequest;
@@ -33,7 +33,7 @@ public class AuthHandshakeInterceptor implements HandshakeInterceptor {
     public static final String ATTR_USER_MISSING = "authUserMissing";
 
     private final AuthSessionService authSessionService;
-    private final UserMapper userMapper;
+    private final UserProfileService userProfileService;
 
     private static final AtomicBoolean SERVER_BUFFER_ENLARGED = new AtomicBoolean();
 
@@ -52,7 +52,7 @@ public class AuthHandshakeInterceptor implements HandshakeInterceptor {
                 Long userId = authentication.userId();
                 attributes.put(ATTR_USER_ID, userId);
                 attributes.put(ATTR_TOKEN, token);
-                if (userMapper.selectById(userId) == null) {
+                if (userProfileService.find(userId) == null) {
                     attributes.put(ATTR_USER_MISSING, Boolean.TRUE);
                 }
                 return true;

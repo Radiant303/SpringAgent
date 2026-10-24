@@ -1,10 +1,10 @@
 package com.spring.gateway.ws;
 
-import com.spring.gateway.entity.Session;
-import com.spring.gateway.service.EngineClient;
-import com.spring.gateway.service.InternalStoreService;
-import com.spring.gateway.service.SessionHistoryService;
-import com.spring.gateway.service.TurnDispatchService;
+import com.spring.gateway.workspace.entity.Session;
+import com.spring.gateway.engine.client.EngineClient;
+import com.spring.gateway.workspace.service.InternalStoreService;
+import com.spring.gateway.workspace.service.SessionHistoryService;
+import com.spring.gateway.messaging.service.TurnDispatchService;
 import jakarta.websocket.WebSocketContainer;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.redis.core.StringRedisTemplate;

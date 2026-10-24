@@ -1,8 +1,8 @@
 package com.spring.gateway.common;
 
-import com.spring.gateway.entity.User;
-import com.spring.gateway.mapper.UserMapper;
-import com.spring.gateway.service.AuthSessionService;
+import com.spring.gateway.identity.entity.User;
+import com.spring.gateway.identity.service.UserProfileService;
+import com.spring.gateway.identity.service.AuthSessionService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
@@ -40,7 +40,7 @@ public class AuthInterceptor implements HandlerInterceptor {
     private static final String ADMIN_PATH_PREFIX = "/api/admin/";
 
     private final AuthSessionService authSessionService;
-    private final UserMapper userMapper;
+    private final UserProfileService userProfileService;
     private final ObjectMapper objectMapper;
 
     @Override
@@ -54,7 +54,7 @@ public class AuthInterceptor implements HandlerInterceptor {
             return false;
         }
         Long userId = authentication.userId();
-        User user = userMapper.selectById(userId);
+        User user = userProfileService.find(userId);
         if (user == null) {
             rejectAuthentication(response, AuthSessionService.TokenFailure.INVALID);
             return false;

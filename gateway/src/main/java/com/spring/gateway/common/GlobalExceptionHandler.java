@@ -36,10 +36,10 @@ public class GlobalExceptionHandler {
     /**
      * 处理刷新令牌失效。
      */
-    @ExceptionHandler(com.spring.gateway.service.AuthSessionService.TokenException.class)
-    public ResponseEntity<Result<Void>> token(com.spring.gateway.service.AuthSessionService.TokenException e) {
+    @ExceptionHandler(com.spring.gateway.identity.service.AuthSessionService.TokenException.class)
+    public ResponseEntity<Result<Void>> token(com.spring.gateway.identity.service.AuthSessionService.TokenException e) {
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                .header(com.spring.gateway.service.AuthSessionService.AUTH_ERROR_HEADER, e.getErrorCode())
+                .header(com.spring.gateway.identity.service.AuthSessionService.AUTH_ERROR_HEADER, e.getErrorCode())
                 .body(Result.error(HttpStatus.UNAUTHORIZED.value(), e.getMessage()));
     }
 
@@ -104,8 +104,8 @@ public class GlobalExceptionHandler {
     /**
      * 存储后端失败，统一返回 502
      */
-    @ExceptionHandler(com.spring.gateway.service.storage.StorageException.class)
-    public ResponseEntity<Result<Void>> storage(com.spring.gateway.service.storage.StorageException e) {
+    @ExceptionHandler(com.spring.gateway.storage.infrastructure.StorageException.class)
+    public ResponseEntity<Result<Void>> storage(com.spring.gateway.storage.infrastructure.StorageException e) {
         log.warn("存储操作失败: {}", e.getMessage());
         return ResponseEntity.status(HttpStatus.BAD_GATEWAY)
                 .body(Result.error(HttpStatus.BAD_GATEWAY.value(), e.getMessage()));
@@ -117,9 +117,9 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(org.springframework.web.multipart.MaxUploadSizeExceededException.class)
     public ResponseEntity<Result<Void>> tooLarge(
             org.springframework.web.multipart.MaxUploadSizeExceededException e) {
-        long maxMb = com.spring.gateway.service.FileStorageService.MAX_FILE_BYTES / 1024 / 1024;
+        long maxMb = com.spring.gateway.storage.service.FileStorageService.MAX_FILE_BYTES / 1024 / 1024;
         String message = "文件数量或大小超限：单文件不能超过 " + maxMb + " MB，一次最多上传 "
-                + com.spring.gateway.controller.FileController.MAX_BATCH_FILES + " 个";
+                + com.spring.gateway.storage.service.FileStorageService.MAX_BATCH_FILES + " 个";
         return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE)
                 .body(Result.error(HttpStatus.PAYLOAD_TOO_LARGE.value(), message));
     }

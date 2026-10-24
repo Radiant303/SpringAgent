@@ -1,5 +1,6 @@
 package com.spring.gateway.ws;
 
+import com.spring.gateway.workspace.service.SessionStreamControl;
 import jakarta.annotation.PreDestroy;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.connection.stream.MapRecord;
@@ -33,7 +34,7 @@ import java.util.concurrent.Future;
  */
 @Slf4j
 @Component
-public class TurnStreamReader {
+public class TurnStreamReader implements SessionStreamControl {
 
     private static final String KEY_PREFIX = "stream:session:";
     private static final int READ_BATCH = 500;
