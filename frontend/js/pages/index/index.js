@@ -52,6 +52,17 @@ UI.saveSkeleton("session-list");
 let reconnectTimer = null;
 let reconnectDelay = 1000;
 let resumePending = false;
+const connNotices = new Set();
+
+function addConnNotice(text) {
+  const node = addSystem(text);
+  if (node) connNotices.add(node);
+}
+
+function clearConnNotices() {
+  for (const node of connNotices) node.remove();
+  connNotices.clear();
+}
 
 export function setConnected(ok) {
   state.connected = ok;
@@ -96,6 +107,7 @@ export async function connectAndSetup() {
   populateModelSelect();
   if ($("input-ws")) $("input-ws").title = state.workspace;
   setConnected(true);
+  clearConnNotices();
   await loadWorks();
   if (generation !== state.viewGeneration || rpc.ws !== socket || !state.connected) return;
   if (resuming) {
@@ -178,7 +190,7 @@ rpc.onClose = (code) => {
     state.tools.clear();
     if (code === 4401) {
       refreshAccessToken().then(() => {
-        addSystem("登录已续期，正在重连…");
+        addConnNotice("登录已续期，正在重连…");
         scheduleReconnect();
       }).catch((error) => {
         if (error?.authReason) {
@@ -202,7 +214,7 @@ rpc.onClose = (code) => {
     state.tools.clear();
   }
   if (!reconnectTimer) {
-    addSystem("连接已断开，正在重连…");
+    addConnNotice("连接已断开，正在重连…");
     scheduleReconnect();
   }
 };

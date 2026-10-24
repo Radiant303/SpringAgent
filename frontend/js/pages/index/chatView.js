@@ -169,8 +169,11 @@ export function addSystem(text, isError = false) {
   closeWork();
   state.assistant = null;
   const msgBox = $("messages");
-  if (msgBox) msgBox.appendChild(systemNode(text, isError));
+  if (!msgBox) return null;
+  const node = systemNode(text, isError);
+  msgBox.appendChild(node);
   maybeScroll();
+  return node;
 }
 
 /* ================= 工具元数据 ================= */
