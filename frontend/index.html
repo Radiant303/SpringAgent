@@ -16,6 +16,16 @@
   <link rel="stylesheet" href="/static/css/components/skeleton.css">
   <link rel="stylesheet" href="/static/css/components/controls.css">
   <link rel="stylesheet" href="/static/css/components/sprout.css">
+  <link rel="stylesheet" href="/static/css/components/glass.css">
+  <noscript>
+    <style>
+      .glass {
+        background: rgba(255, 255, 255, 0.5) !important;
+        -webkit-backdrop-filter: blur(14px) !important;
+        backdrop-filter: blur(14px) !important;
+      }
+    </style>
+  </noscript>
   <link rel="stylesheet" href="/static/vendor/highlight.min.css">
   <link rel="stylesheet" href="/static/css/pages/chat.css">
 </head>
@@ -162,11 +172,6 @@
         </div>
       </div>
 
-      <button id="scroll-bottom" class="hidden" type="button">
-        <svg class="sb-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
-        <span>最新消息</span>
-      </button>
-
       <footer id="input-area">
         <!-- 空会话首页：字标 + 居中输入框（#main.is-empty 时显示） -->
         <div id="hero" aria-hidden="true">SPRINGAGENT</div>
@@ -195,6 +200,9 @@
         </div>
 
         <div id="input-card">
+          <button id="scroll-bottom" class="glass hidden" type="button" data-glass data-radius="999" data-bezel="16" data-rim="9" data-mag="0.09" title="显示最新消息" aria-label="显示最新消息">
+            <svg class="sb-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v16m0 0-6-6m6 6 6-6"/></svg>
+          </button>
           <div id="input" class="is-empty" contenteditable="true" role="textbox" aria-multiline="true" aria-label="输入消息"
                data-placeholder="输入消息，Enter 发送，Shift+Enter 换行，Esc 中断运行"></div>
           <div id="input-toolbar">
@@ -293,6 +301,7 @@
   <script src="/static/vendor/marked.min.js"></script>
   <script src="/static/vendor/purify.min.js"></script>
   <script src="/static/vendor/highlight.min.js"></script>
+  <script src="/static/js/components/glass.js"></script>
   <script type="module" src="/static/js/pages/index.js"></script>
 </body>
 </html>
