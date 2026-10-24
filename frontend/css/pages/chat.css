@@ -595,6 +595,9 @@
   );
   -webkit-mask-image: radial-gradient(farthest-side, transparent calc(100% - 4.2px), #000 calc(100% - 3.4px));
   mask-image: radial-gradient(farthest-side, transparent calc(100% - 4.2px), #000 calc(100% - 3.4px));
+  position: relative;
+  /* 位于消息区可视中线偏下 */
+  top: 64px;
   animation: spin 0.9s linear infinite;
 }
 
@@ -762,22 +765,84 @@
   line-height: var(--markdown-body-line-height, 26px);
 }
 
-.markdown-body table {
-  border-collapse: collapse;
-  margin: 0 0 16px;
-}
-
-.markdown-body th,
-.markdown-body td {
+/* ---- 表格卡片：与代码块同一套卡片语言 ---- */
+.markdown-body .md-table {
+  margin: 12px 0;
+  background: var(--bg, #ffffff);
   border: 1px solid var(--border, rgba(0, 0, 0, 0.08));
-  padding: 8px 12px;
-  font-size: var(--markdown-body-font-size, 16px);
-  line-height: 24px;
+  border-radius: 12px;
+  overflow: hidden;
 }
 
-.markdown-body th {
+.markdown-body .md-table-scroll {
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0, 0, 0, 0.18) transparent;
+}
+
+.markdown-body .md-table-scroll::-webkit-scrollbar {
+  height: 8px;
+}
+
+.markdown-body .md-table-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.markdown-body .md-table-scroll::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.18);
+  border-radius: 999px;
+}
+
+.markdown-body .md-table-scroll:hover::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.55);
+}
+
+.markdown-body .md-table table {
+  width: max-content;
+  min-width: 100%;
+  margin: 0;
+  border-collapse: separate;
+  border-spacing: 0;
+  table-layout: auto;
+}
+
+.markdown-body .md-table th,
+.markdown-body .md-table td {
+  padding: 9px 18px;
+  border: 0;
+  border-top: 1px solid var(--admin-line, rgba(0, 0, 0, 0.06));
+  text-align: left;
+  vertical-align: top;
+  font-size: 14px;
+  line-height: 22px;
+}
+
+.markdown-body .md-table code {
+  font-size: 13px;
+  line-height: 20px;
+  white-space: nowrap;
+}
+
+.markdown-body .md-table thead th {
+  border-top: 0;
   background: var(--surface, #f5f5f5);
-  font-weight: 600;
+  font-weight: 500;
+  color: var(--text, rgba(0, 0, 0, 0.9));
+  white-space: nowrap;
+}
+
+.markdown-body .md-table :is(th, td)[align="right"] {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.markdown-body .md-table :is(th, td)[align="center"] {
+  text-align: center;
+}
+
+.markdown-body .md-table tbody tr:first-child td {
+  border-top: 0;
 }
 
 .markdown-body a {

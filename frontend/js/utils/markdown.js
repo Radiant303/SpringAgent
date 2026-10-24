@@ -33,7 +33,24 @@ export function renderMarkdown(text) {
     link.target = "_blank";
     link.rel = "noopener noreferrer";
   }
+  enhanceTables(template.content);
   return template.innerHTML;
+}
+
+/**
+ * 给表格套上与代码块一致的卡片外壳。
+ *
+ * @param root 待处理的 DOM 片段
+ */
+function enhanceTables(root) {
+  for (const table of root.querySelectorAll("table")) {
+    if (table.parentElement && table.parentElement.classList.contains("md-table-scroll")) continue;
+    const card = el("div", "md-table");
+    const scroll = el("div", "md-table-scroll");
+    table.parentNode.insertBefore(card, table);
+    card.appendChild(scroll);
+    scroll.appendChild(table);
+  }
 }
 
 export function enhanceCodeBlocks(container) {
