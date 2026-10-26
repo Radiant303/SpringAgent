@@ -1,5 +1,6 @@
 """项目与个人知识工作区的文件工具。"""
 
+from collections.abc import Callable
 from functools import wraps
 from pathlib import Path
 from typing import Any
@@ -10,6 +11,12 @@ from pydantic_ai.toolsets import ApprovalRequiredToolset
 from spring_agent.core.agent.deps import CodingAgentDeps
 from spring_agent.core.filesystem import WorkspaceFiles, run_file_operation
 from spring_agent.core.workspace import FileAccessContext, FileScope, WorkspaceResource
+from spring_agent.toolsets.syntax_validation import (
+    SyntaxValidationResult,
+    validate_css_source,
+    validate_html_source,
+    validate_javascript_source,
+)
 
 
 def _recoverable(function):
@@ -54,6 +61,11 @@ def filesystem(root_dir: str, read_only: bool = False, *, access: FileAccessCont
             await ctx.deps.storage_on_change()
         return result
 
+    async def validate(ctx: RunContext[CodingAgentDeps], scope: FileScope, path: str,
+                       validator: Callable[[str], SyntaxValidationResult]) -> SyntaxValidationResult:
+        target = selected(ctx, scope).target(path)
+        return await run_file_operation(lambda _: validator(target.read_text(encoding="utf-8")))
+
     @_recoverable
     async def read_file(ctx: RunContext[CodingAgentDeps], path: str, *, offset: int = 0,
                         limit: int | None = None, scope: FileScope = FileScope.WORKSPACE) -> str:
@@ -85,6 +97,24 @@ def filesystem(root_dir: str, read_only: bool = False, *, access: FileAccessCont
         return await selected(ctx, scope).read("file_info", path)
 
     @_recoverable
+    async def validate_html(ctx: RunContext[CodingAgentDeps], path: str, *,
+                            scope: FileScope = FileScope.WORKSPACE) -> SyntaxValidationResult:
+        """校验所选工作区内 HTML 文件的语法，返回问题行列与原因。"""
+        return await validate(ctx, scope, path, validate_html_source)
+
+    @_recoverable
+    async def validate_js(ctx: RunContext[CodingAgentDeps], path: str, *,
+                          scope: FileScope = FileScope.WORKSPACE) -> SyntaxValidationResult:
+        """校验所选工作区内 JavaScript 文件的语法，返回问题行列与原因。"""
+        return await validate(ctx, scope, path, validate_javascript_source)
+
+    @_recoverable
+    async def validate_css(ctx: RunContext[CodingAgentDeps], path: str, *,
+                           scope: FileScope = FileScope.WORKSPACE) -> SyntaxValidationResult:
+        """校验所选工作区内 CSS 文件的语法，返回问题行列与原因。"""
+        return await validate(ctx, scope, path, validate_css_source)
+
+    @_recoverable
     async def write_file(ctx: RunContext[CodingAgentDeps], path: str, content: str, *,
                          expected_hash: str | None = None, scope: FileScope = FileScope.WORKSPACE) -> str:
         """新建或覆盖所选工作区的文本文件；父目录不存在时自动创建；覆盖时提供读取所得的 expected_hash。"""
@@ -109,7 +139,10 @@ def filesystem(root_dir: str, read_only: bool = False, *, access: FileAccessCont
         """删除所选工作区内的文件或子目录，返回实际删除项数和释放字节数。"""
         return await change(ctx, scope, "delete_path", path)
 
-    tools = FunctionToolset(tools=[read_file, list_directory, search_files, find_files, file_info])
+    tools = FunctionToolset(tools=[
+        read_file, list_directory, search_files, find_files, file_info,
+        validate_html, validate_js, validate_css,
+    ])
     if not read_only:
         tools.add_function(write_file, sequential=True)
         tools.add_function(edit_file, sequential=True)

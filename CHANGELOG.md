@@ -1,5 +1,17 @@
 # 更新日志
 
+## v0.1.26 (2026-10-27)：新增 HTML、JavaScript 与 CSS 语法校验工具
+
+### 功能新增
+
+* 新增 `validate_html`、`validate_js`、`validate_css` 三个工具，分别使用 html5lib、Tree-sitter JavaScript 与 tinycss2 解析工作区内的 HTML、JavaScript 和 CSS 文件，返回问题数量及每项问题的行号、列号与原因。
+* 工具沿用文件工具的路径与权限校验，`path` 使用工作区相对路径；JavaScript 仅做语法解析，不执行源码，支持 ES 模块与 JSX。
+* 全局提示词引导模型按 HTML、CSS、JavaScript 分文件组织页面，并在创建或修改后调用对应工具校验；校验失败时修复并复验后再报告完成。
+
+### 优化与修复
+
+* CSS 校验递归检查规则、嵌套规则与声明，兼容自定义属性、嵌套语法及未知 at-rule，并识别文件末尾缺失的闭合符。
+
 ## v0.1.25 (2026-10-25)：最新消息按钮改为液态玻璃，表格与设置页同步优化
 
 ### 功能新增

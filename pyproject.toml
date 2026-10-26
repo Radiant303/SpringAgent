@@ -1,6 +1,6 @@
 [project]
 name = "springagent"
-version = "0.1.25"
+version = "0.1.26"
 description = "SpringAgent 云端 Agent 平台"
 readme = "README.md"
 requires-python = ">=3.14"
@@ -11,6 +11,7 @@ dependencies = [
     "cryptography>=50.0.1",
     "exa-py==2.25.0",
     "fastapi>=0.121",
+    "html5lib>=1.1",
     "httpx>=0.28",
     "loguru>=0.7.3",
     "pydantic-ai[anthropic,google-genai,openai]>=2.57.0",
@@ -22,6 +23,9 @@ dependencies = [
     "sqlalchemy>=2.0",
     "tavily-python==0.8.5",
     "tiktoken>=0.14",
+    "tinycss2>=1.5",
+    "tree-sitter>=0.25",
+    "tree-sitter-javascript>=0.25",
     "uvicorn[standard]>=0.52.3",
 ]
 
