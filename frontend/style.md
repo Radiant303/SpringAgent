@@ -155,9 +155,8 @@ font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-s
 | 宽度 | 用于 |
 |---|---|
 | 780px | 聊天内容与输入框（`--content-max`） |
-| 780px | 设置类页面（账号、积分、注册/存储/计费/社群） |
+| 780px | 设置类页面（账号、积分、模型配置、注册/存储/计费/社群/平台） |
 | 1350px | 宽表格页（`.admin-page.wide`） |
-| 1404px | 分组卡片宽页（`.admin-page.wide-groups`，模型配置） |
 | 420px | 对话框 |
 | 380px | 登录/注册这类独立页面的表单栏 |
 | 240px | 侧栏 / 左侧导航 |

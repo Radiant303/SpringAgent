@@ -99,9 +99,6 @@ body {
 .admin-page.wide {
   width: min(100%, 1350px);
 }
-.admin-page.wide-groups {
-  width: min(100%, 1404px);
-}
 .admin-page.active {
   display: block;
   animation: page-in 0.2s ease both;
