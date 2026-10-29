@@ -231,8 +231,6 @@ export function showUserChip() {
     }
     const role = getRole();
     if ($("user-badge")) $("user-badge").textContent = ROLE_LABELS[role] || "用户";
-    if ($("um-admin")) $("um-admin").classList.toggle("hidden", role !== "owner" && role !== "admin");
-    if ($("um-settings")) $("um-settings").classList.toggle("hidden", role !== "owner");
     if ($("user-chip")) $("user-chip").classList.remove("hidden");
     if ($("points-card")) $("points-card").classList.remove("hidden");
     loadCommunityLink();

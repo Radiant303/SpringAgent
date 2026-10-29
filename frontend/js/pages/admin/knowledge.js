@@ -6,11 +6,12 @@ import { $ } from "../../utils/dom.js";
 import { api, apiText } from "../../api/client.js";
 import { UI } from "../../components/ui.js";
 import { setMarkdown } from "../../utils/markdown.js";
+import { bindKnowledgeToc, clearKnowledgeToc, renderKnowledgeToc } from "./knowledgeToc.js";
 
 const DOCUMENTS = [
-  { type: "declarative", title: "陈述性知识", description: "是什么：概念、事实与已确认的理解。" },
-  { type: "procedural", title: "程序性知识", description: "怎么做：方法、步骤与实践经验。" },
-  { type: "conditional", title: "条件性知识", description: "何时与为什么：适用条件、原因与判断依据。" },
+  { type: "declarative", title: "陈述性知识" },
+  { type: "procedural", title: "程序性知识" },
+  { type: "conditional", title: "条件性知识" },
 ];
 
 let activeType = DOCUMENTS[0].type;
@@ -49,12 +50,12 @@ function renderTabs() {
     tab.setAttribute("aria-selected", String(selected));
     tab.tabIndex = selected ? 0 : -1;
   });
-  if ($("knowledge-description")) $("knowledge-description").textContent = current.description;
   $("knowledge-content")?.setAttribute("aria-labelledby", `knowledge-tab-${current.type}`);
 }
 
 function beginLoad() {
   const currentGeneration = ++generation;
+  clearKnowledgeToc();
   setControlsDisabled(true);
   $("knowledge-empty")?.classList.add("hidden");
   const content = $("knowledge-content");
@@ -99,6 +100,7 @@ async function renderActive(currentGeneration) {
   if (content) {
     content.classList.remove("hidden");
     setMarkdown(content, text, false);
+    renderKnowledgeToc();
   }
 }
 
@@ -136,6 +138,7 @@ export async function loadKnowledge() {
 }
 
 export function bindKnowledge() {
+  bindKnowledgeToc();
   const tabs = $("knowledge-tabs");
   tabs?.addEventListener("click", (event) => {
     const tab = event.target.closest("button[data-type]");

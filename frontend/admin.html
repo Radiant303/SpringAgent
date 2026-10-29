@@ -173,27 +173,38 @@
       </section>
 
       <!-- 我的知识库：所有角色可见 -->
-      <section class="admin-page" data-page="knowledge">
+      <section class="admin-page knowledge-page" data-page="knowledge">
         <div class="page-head">
           <h1 class="page-title">我的知识库</h1>
           <button id="knowledge-refresh" class="admin-btn" type="button">刷新</button>
         </div>
-        <div id="knowledge-tabs" class="knowledge-tabs" role="tablist" aria-label="知识类型">
-          <button id="knowledge-tab-declarative" class="knowledge-tab active" type="button" role="tab" data-type="declarative" aria-selected="true" aria-controls="knowledge-content">陈述性知识</button>
-          <button id="knowledge-tab-procedural" class="knowledge-tab" type="button" role="tab" data-type="procedural" aria-selected="false" aria-controls="knowledge-content" tabindex="-1">程序性知识</button>
-          <button id="knowledge-tab-conditional" class="knowledge-tab" type="button" role="tab" data-type="conditional" aria-selected="false" aria-controls="knowledge-content" tabindex="-1">条件性知识</button>
-        </div>
-        <p id="knowledge-description" class="knowledge-description">是什么：概念、事实与已确认的理解。</p>
-        <article id="knowledge-content" class="markdown-body knowledge-content" role="tabpanel" aria-labelledby="knowledge-tab-declarative" aria-busy="true" tabindex="0">
-          <div class="sk-block sk-fade knowledge-skeleton" aria-hidden="true">
-            <span class="sk" style="--w:38%;--h:24px"></span>
-            <span class="sk" style="--w:92%"></span>
-            <span class="sk" style="--w:100%"></span>
-            <span class="sk" style="--w:76%"></span>
-            <span class="sk" style="--w:86%"></span>
+        <div class="knowledge-head">
+          <div>
+            <div id="knowledge-tabs" class="knowledge-tabs" role="tablist" aria-label="知识类型">
+              <button id="knowledge-tab-declarative" class="knowledge-tab active" type="button" role="tab" data-type="declarative" aria-selected="true" aria-controls="knowledge-content">陈述性知识</button>
+              <button id="knowledge-tab-procedural" class="knowledge-tab" type="button" role="tab" data-type="procedural" aria-selected="false" aria-controls="knowledge-content" tabindex="-1">程序性知识</button>
+              <button id="knowledge-tab-conditional" class="knowledge-tab" type="button" role="tab" data-type="conditional" aria-selected="false" aria-controls="knowledge-content" tabindex="-1">条件性知识</button>
+            </div>
           </div>
-        </article>
-        <div id="knowledge-empty" class="empty-tip knowledge-empty hidden" role="status"></div>
+        </div>
+        <div class="knowledge-layout">
+          <details id="knowledge-toc" class="knowledge-toc hidden" open>
+            <summary>本页目录</summary>
+            <nav id="knowledge-toc-nav" aria-label="知识文档章节"></nav>
+          </details>
+          <div class="knowledge-main">
+            <article id="knowledge-content" class="markdown-body knowledge-content" role="tabpanel" aria-labelledby="knowledge-tab-declarative" aria-busy="true" tabindex="0">
+              <div class="sk-block sk-fade knowledge-skeleton" aria-hidden="true">
+                <span class="sk" style="--w:38%;--h:24px"></span>
+                <span class="sk" style="--w:92%"></span>
+                <span class="sk" style="--w:100%"></span>
+                <span class="sk" style="--w:76%"></span>
+                <span class="sk" style="--w:86%"></span>
+              </div>
+            </article>
+            <div id="knowledge-empty" class="empty-tip knowledge-empty hidden" role="status"></div>
+          </div>
+        </div>
       </section>
 
       <!-- 账单与用量：所有角色可见 -->

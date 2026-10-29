@@ -838,6 +838,15 @@ input.switch:focus-visible { outline: 2px solid rgba(23, 131, 255, 0.4); outline
 .group-card .settings-number:focus { border-color: rgba(0, 0, 0, 0.16); }
 
 /* ---- 我的知识库 ---- */
+.knowledge-page { width: min(100%, 1120px); }
+.knowledge-head,
+.knowledge-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 780px) 220px;
+  gap: 32px;
+}
+.knowledge-layout { grid-template-areas: "main toc"; align-items: start; }
+.knowledge-main { grid-area: main; min-width: 0; }
 .knowledge-tabs {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -864,18 +873,19 @@ input.switch:focus-visible { outline: 2px solid rgba(23, 131, 255, 0.4); outline
   font-weight: 500;
 }
 .knowledge-tab:disabled { cursor: default; }
-.knowledge-description {
-  min-height: 20px;
-  margin: 16px 4px 0;
-  font-size: 13px;
-  line-height: 20px;
-  color: var(--text-faint, rgba(0, 0, 0, 0.45));
-}
 .knowledge-content {
   min-height: 240px;
-  padding: 24px 4px 0;
+  max-height: 720px;
+  margin-top: 24px;
+  padding: 24px;
+  border: 1px solid var(--border, rgba(0, 0, 0, 0.08));
+  border-radius: 12px;
+  background: var(--bg, #fff);
+  overflow-y: auto;
   overflow-wrap: anywhere;
+  overscroll-behavior: contain;
 }
+.knowledge-content :is(h1, h2, h3, h4) { scroll-margin-top: 24px; }
 .knowledge-skeleton { display: flex; flex-direction: column; gap: 18px; }
 .knowledge-empty {
   min-height: 240px;
@@ -883,6 +893,93 @@ input.switch:focus-visible { outline: 2px solid rgba(23, 131, 255, 0.4); outline
   place-items: center;
   padding: 32px 16px;
   text-align: center;
+}
+.knowledge-toc {
+  grid-area: toc;
+  position: sticky;
+  top: 24px;
+  max-height: calc(100vh - 80px);
+  padding: 4px 0;
+  overflow-y: auto;
+  font-size: 13px;
+}
+.knowledge-toc summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 32px;
+  color: var(--text-faint, rgba(0, 0, 0, 0.45));
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+}
+.knowledge-toc summary::-webkit-details-marker { display: none; }
+.knowledge-toc summary::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(-45deg);
+  transition: transform 0.15s;
+}
+.knowledge-toc[open] summary::before { transform: rotate(45deg); }
+.knowledge-toc nav { margin-top: 8px; }
+.knowledge-toc-root,
+.knowledge-toc-children { margin: 0; padding: 0; list-style: none; }
+.knowledge-toc-children { margin-left: 12px; }
+.knowledge-toc-item { min-width: 0; }
+.knowledge-toc-row { display: flex; align-items: flex-start; min-width: 0; }
+.knowledge-toc-toggle,
+.knowledge-toc-spacer { width: 20px; height: 28px; flex: 0 0 20px; }
+.knowledge-toc-toggle {
+  position: relative;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-faint, rgba(0, 0, 0, 0.45));
+  cursor: pointer;
+}
+.knowledge-toc-toggle:hover { background: var(--hover-bg, rgba(0, 0, 0, 0.04)); color: var(--text, rgba(0, 0, 0, 0.9)); }
+.knowledge-toc-toggle::before {
+  content: "";
+  position: absolute;
+  left: 7px;
+  top: 10px;
+  width: 5px;
+  height: 5px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(45deg);
+}
+.knowledge-toc-toggle[aria-expanded="false"]::before { transform: rotate(-45deg); }
+.knowledge-toc-link {
+  display: block;
+  flex: 1;
+  min-width: 0;
+  padding: 5px 0;
+  color: var(--text-dim, rgba(0, 0, 0, 0.6));
+  line-height: 20px;
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+.knowledge-toc-link:hover,
+.knowledge-toc-link.active { color: var(--text, rgba(0, 0, 0, 0.9)); }
+.knowledge-toc-link.active { font-weight: 500; }
+
+@media (max-width: 1100px) {
+  .knowledge-page { width: min(100%, 780px); }
+  .knowledge-head,
+  .knowledge-layout { grid-template-columns: minmax(0, 1fr); gap: 0; }
+  .knowledge-layout { grid-template-areas: "toc" "main"; }
+  .knowledge-toc {
+    position: static;
+    max-height: none;
+    margin-top: 16px;
+    padding: 0;
+  }
+  .knowledge-toc nav { margin-top: 4px; }
 }
 
 /* ---- 滚动条：与主站一致，悬停浮现 ---- */
