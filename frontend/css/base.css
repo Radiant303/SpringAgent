@@ -47,8 +47,14 @@ button:disabled {
   cursor: not-allowed;
 }
 
-.ripple-host { overflow: hidden; }
 .ripple-relative { position: relative; }
+.ripple-viewport {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  overflow: hidden;
+  pointer-events: none;
+}
 .ripple-ink {
   position: absolute;
   border-radius: 50%;

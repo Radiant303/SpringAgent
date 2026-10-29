@@ -15,18 +15,20 @@ function ripple(host, x, y) {
   const rect = host.getBoundingClientRect();
   const size = Math.max(rect.width, rect.height) * 2;
   host.classList.toggle("ripple-relative", window.getComputedStyle(host).position === "static");
-  host.classList.add("ripple-host");
-  host.querySelectorAll(".ripple-ink").forEach((ink) => ink.remove());
+  host.querySelectorAll(".ripple-viewport").forEach((viewport) => viewport.remove());
+  const viewport = document.createElement("span");
+  viewport.className = "ripple-viewport";
+  viewport.setAttribute("aria-hidden", "true");
   const ink = document.createElement("span");
   ink.className = "ripple-ink";
-  ink.setAttribute("aria-hidden", "true");
   ink.style.width = `${size}px`;
   ink.style.height = `${size}px`;
   ink.style.left = `${x - size / 2}px`;
   ink.style.top = `${y - size / 2}px`;
-  ink.addEventListener("animationend", () => ink.remove(), { once: true });
-  host.appendChild(ink);
-  setTimeout(() => ink.remove(), 700);
+  ink.addEventListener("animationend", () => viewport.remove(), { once: true });
+  viewport.appendChild(ink);
+  host.appendChild(viewport);
+  setTimeout(() => viewport.remove(), 700);
 }
 
 export function initRipple() {
