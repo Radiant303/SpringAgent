@@ -8,6 +8,7 @@ import { UI } from "../../components/ui.js";
 
 export const PAGE_TITLES = {
   account: "账号与安全",
+  knowledge: "我的知识库",
   points: "账单与用量",
   "my-usage": "使用日志",
   users: "用户管理",

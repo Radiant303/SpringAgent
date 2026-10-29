@@ -8,6 +8,7 @@ import { UI } from "../components/ui.js";
 import { registerPageLoader, switchPage, pageFromHash } from "./admin/nav.js";
 import { loadAccount, openChangePassword, onBindEmail } from "./admin/account.js";
 import { loadMyPoints, onUserRedeem } from "./admin/points.js";
+import { loadKnowledge, bindKnowledge } from "./admin/knowledge.js";
 import { ensureUsers, loadUsers, onUserAction, onUsersUpdated } from "./admin/users.js";
 import { loadUsage, renderUsageUserOptions } from "./admin/usage.js";
 import { loadUsageRecords, loadMyUsage, renderUsageRecordsUserOptions } from "./admin/usageRecords.js";
@@ -27,6 +28,7 @@ import {
 
 // 注册各页数据加载器
 registerPageLoader("account", loadAccount);
+registerPageLoader("knowledge", loadKnowledge);
 registerPageLoader("points", loadMyPoints);
 registerPageLoader("my-usage", loadMyUsage);
 registerPageLoader("users", () => loadUsers());
@@ -90,6 +92,7 @@ export function init() {
   // 账户安全（所有角色可用）：修改密码与绑定/换绑邮箱
   if ($("ac-change-pw")) $("ac-change-pw").onclick = openChangePassword;
   if ($("ac-bind-email")) $("ac-bind-email").onclick = onBindEmail;
+  bindKnowledge();
 
   if (staff) {
     $("user-tbody")?.addEventListener("click", (e) => {
