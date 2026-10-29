@@ -15,41 +15,20 @@ body {
   background: #8dd7b0;
   opacity: 0;
   pointer-events: none;
+  transition: width 0.5s ease;
+}
+.admin-loading-bar:not(.is-active):not(.is-complete) {
+  transition: none;
 }
 .admin-loading-bar.is-active {
   opacity: 1;
-  animation: admin-loading-progress 2.4s cubic-bezier(0.2, 0.65, 0.3, 1) forwards;
 }
 .admin-loading-bar.is-complete {
-  width: 100%;
   opacity: 0;
-  transition: width 0.16s ease, opacity 0.25s ease 0.16s;
-}
-@keyframes admin-loading-progress {
-  0% { width: 0; }
-  55% { width: 62%; }
-  100% { width: 88%; }
+  transition: width 0.5s ease, opacity 0.3s ease 1s;
 }
 @media (prefers-reduced-motion: reduce) {
-  .admin-loading-bar.is-active { width: 80%; animation: none; }
-  .admin-loading-bar.is-complete { transition: none; }
-}
-
-.ripple-host { position: relative; overflow: hidden; }
-.ripple-ink {
-  position: absolute;
-  border-radius: 50%;
-  background: currentColor;
-  opacity: 0.12;
-  pointer-events: none;
-  transform: scale(0);
-  animation: ripple-ink 0.55s ease-out forwards;
-}
-@keyframes ripple-ink {
-  to { transform: scale(1); opacity: 0; }
-}
-@media (prefers-reduced-motion: reduce) {
-  .ripple-ink { display: none; }
+  .admin-loading-bar { transition: none; }
 }
 
 #admin-app {
@@ -971,12 +950,8 @@ input.switch:focus-visible { outline: 2px solid rgba(23, 131, 255, 0.4); outline
 .knowledge-toc-toggle {
   position: relative;
   padding: 0;
-  border: 0;
-  background: transparent;
   color: var(--text-faint, rgba(0, 0, 0, 0.45));
-  cursor: pointer;
 }
-.knowledge-toc-toggle:hover { color: var(--text, rgba(0, 0, 0, 0.9)); }
 .knowledge-toc-toggle::before {
   content: "";
   position: absolute;
@@ -988,7 +963,7 @@ input.switch:focus-visible { outline: 2px solid rgba(23, 131, 255, 0.4); outline
   border-bottom: 1.5px solid currentColor;
   transform: rotate(45deg);
 }
-.knowledge-toc-toggle[aria-expanded="false"]::before { transform: rotate(-45deg); }
+.knowledge-toc-parent[aria-expanded="false"] .knowledge-toc-toggle::before { transform: rotate(-45deg); }
 .knowledge-toc-link {
   display: block;
   flex: 1;
@@ -998,6 +973,22 @@ input.switch:focus-visible { outline: 2px solid rgba(23, 131, 255, 0.4); outline
   line-height: 20px;
   text-decoration: none;
   overflow-wrap: anywhere;
+}
+button.knowledge-toc-parent {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  text-align: left;
+}
+button.knowledge-toc-parent:hover { background: transparent; }
+.knowledge-toc-label {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 2px;
 }
 .knowledge-toc-link:hover,
 .knowledge-toc-link.active { color: var(--text, rgba(0, 0, 0, 0.9)); }

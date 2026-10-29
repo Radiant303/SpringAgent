@@ -87,31 +87,33 @@ function renderNodes(nodes, container) {
     const text = heading.textContent.trim();
     const item = el("li", "knowledge-toc-item");
     const row = el("div", "knowledge-toc-row");
-    let toggle;
+    let navigation;
     if (node.children.length) {
-      toggle = el("button", "knowledge-toc-toggle");
-      toggle.type = "button";
-      toggle.dataset.title = text;
-      toggle.setAttribute("aria-expanded", "true");
-      toggle.setAttribute("aria-label", `折叠 ${text}`);
+      navigation = el("button", "knowledge-toc-link knowledge-toc-parent");
+      navigation.type = "button";
+      navigation.dataset.title = text;
+      navigation.setAttribute("aria-expanded", "true");
+      navigation.setAttribute("aria-label", `折叠 ${text}`);
+      const caret = el("span", "knowledge-toc-toggle");
+      caret.setAttribute("aria-hidden", "true");
+      navigation.append(caret, el("span", "knowledge-toc-label", text));
     } else {
-      toggle = el("span", "knowledge-toc-spacer");
-      toggle.setAttribute("aria-hidden", "true");
+      const spacer = el("span", "knowledge-toc-spacer");
+      spacer.setAttribute("aria-hidden", "true");
+      row.appendChild(spacer);
+      navigation = el("a", "knowledge-toc-link", text);
+      navigation.href = "#knowledge";
     }
-    row.appendChild(toggle);
-
-    const link = el("a", "knowledge-toc-link", text);
-    link.href = "#knowledge";
-    link.dataset.heading = heading.id;
-    links.set(heading.id, link);
-    row.appendChild(link);
+    navigation.dataset.heading = heading.id;
+    links.set(heading.id, navigation);
+    row.appendChild(navigation);
     item.appendChild(row);
 
     if (node.children.length) {
       const group = el("ul", "knowledge-toc-children");
       group.id = `${heading.id}-children`;
-      toggle.setAttribute("aria-controls", group.id);
-      toggles.set(group.id, toggle);
+      navigation.setAttribute("aria-controls", group.id);
+      toggles.set(group.id, navigation);
       renderNodes(node.children, group);
       item.appendChild(group);
     }
@@ -147,24 +149,25 @@ export function renderKnowledgeToc() {
   syncActive();
 }
 
+function navigate(target) {
+  const heading = document.getElementById(target.dataset.heading);
+  if (!heading) return;
+  setActive(heading.id);
+  const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  heading.scrollIntoView({ behavior: reduced ? "auto" : "smooth", block: "start" });
+}
+
 export function bindKnowledgeToc() {
   const toc = $("knowledge-toc");
   toc?.addEventListener("click", (event) => {
-    const toggle = event.target.closest("button[aria-controls]");
-    if (toggle) {
-      const group = document.getElementById(toggle.getAttribute("aria-controls"));
-      if (group) setGroupExpanded(group, toggle.getAttribute("aria-expanded") !== "true");
-      return;
-    }
-
-    const link = event.target.closest("a[data-heading]");
-    if (!link) return;
+    const target = event.target.closest("[data-heading]");
+    if (!target) return;
     event.preventDefault();
-    const heading = document.getElementById(link.dataset.heading);
-    if (!heading) return;
-    setActive(heading.id);
-    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    heading.scrollIntoView({ behavior: reduced ? "auto" : "smooth", block: "start" });
+    if (target.matches("button[aria-controls]")) {
+      const group = document.getElementById(target.getAttribute("aria-controls"));
+      if (group) setGroupExpanded(group, target.getAttribute("aria-expanded") !== "true");
+    }
+    navigate(target);
   });
 
   $("knowledge-content")?.addEventListener("scroll", scheduleActive, { passive: true });

@@ -4,6 +4,9 @@
 
 import { $ } from "../utils/dom.js";
 import { getToken, saveSession } from "../api/auth.js";
+import { initRipple } from "../components/ripple.js";
+
+initRipple();
 
 const DEFAULT_NEXT = "/static/index.html";
 

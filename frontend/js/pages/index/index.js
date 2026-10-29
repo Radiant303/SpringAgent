@@ -39,6 +39,9 @@ import {
 import { initUpload } from "./upload.js";
 import { initVersionNotice } from "./version.js";
 import { syncPlaceholder } from "./editor.js";
+import { initRipple } from "../../components/ripple.js";
+
+initRipple();
 
 // Markdown 配置
 if (typeof marked !== "undefined" && marked.setOptions) {
@@ -311,7 +314,14 @@ export function bind() {
   if ($("new-session-btn")) $("new-session-btn").onclick = newSession;
   if ($("new-work-btn")) $("new-work-btn").onclick = createWork;
 
-  const toggleSidebar = () => $("app")?.classList.toggle("sidebar-collapsed");
+  const toggleSidebar = () => {
+    const app = $("app");
+    const sidebar = $("sidebar");
+    if (!app || !sidebar) return;
+    const collapsed = app.classList.toggle("sidebar-collapsed");
+    sidebar.inert = collapsed;
+    sidebar.setAttribute("aria-hidden", String(collapsed));
+  };
   if ($("toggle-sidebar")) $("toggle-sidebar").onclick = toggleSidebar;
   if ($("expand-sidebar")) $("expand-sidebar").onclick = toggleSidebar;
 

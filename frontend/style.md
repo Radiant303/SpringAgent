@@ -234,7 +234,7 @@ body.login-page { display: flex; flex-direction: column; min-height: 100vh; back
 - 键盘焦点给按钮画**一圈** `:focus-visible` outline（`2px solid rgba(23,131,255,0.4)`，`outline-offset: 1px`，与 `input.switch` 一致）；
   鼠标点击不显示焦点样式。不要用"边框变色 + 底变白"来表示按钮焦点——那是输入框的做法，会叠成双层框。
 - 禁用状态 `opacity: 0.5 ~ 0.55`。
-- 点击水波纹从指针位置扩散，键盘触发时从按钮中心扩散；使用 `currentColor` 低透明度，禁用按钮不触发，`prefers-reduced-motion` 下关闭。
+- 全站按钮与侧栏导航统一使用点击水波纹：从指针位置扩散，键盘触发时从按钮中心扩散；使用 `currentColor` 低透明度，禁用按钮不触发，`prefers-reduced-motion` 下关闭。
 
 #### 胶囊多选标签
 

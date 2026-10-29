@@ -14,6 +14,7 @@ function allowed(target) {
 function ripple(host, x, y) {
   const rect = host.getBoundingClientRect();
   const size = Math.max(rect.width, rect.height) * 2;
+  host.classList.toggle("ripple-relative", window.getComputedStyle(host).position === "static");
   host.classList.add("ripple-host");
   host.querySelectorAll(".ripple-ink").forEach((ink) => ink.remove());
   const ink = document.createElement("span");
