@@ -5,6 +5,7 @@
 import { $ } from "../utils/dom.js";
 import { getToken, getUsername, getRole, isStaff, goLogin, logout, ROLE_LABELS } from "../api/auth.js";
 import { UI } from "../components/ui.js";
+import { initRipple } from "../components/ripple.js";
 import { registerPageLoader, switchPage, pageFromHash } from "./admin/nav.js";
 import { loadAccount, openChangePassword, onBindEmail } from "./admin/account.js";
 import { loadMyPoints, onUserRedeem } from "./admin/points.js";
@@ -76,6 +77,7 @@ export function init() {
 
   // 下拉框与日期框换成自绘控件
   UI.enhance();
+  initRipple();
 
   // 账号页静态信息
   if ($("account-name")) $("account-name").textContent = myName;

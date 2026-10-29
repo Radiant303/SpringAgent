@@ -5,6 +5,7 @@
 import { $ } from "../../utils/dom.js";
 import { getRole, isStaff } from "../../api/auth.js";
 import { UI } from "../../components/ui.js";
+import { startLoadingBar, finishLoadingBar } from "./loadingBar.js";
 
 export const PAGE_TITLES = {
   account: "账号与安全",
@@ -63,13 +64,16 @@ export function switchPage(page) {
   const main = $("admin-main");
   if (main) main.scrollTop = 0;
   
+  const loading = startLoadingBar();
   const loader = pageLoaders[page];
   const section = document.querySelector(`.admin-page[data-page="${page}"]`);
   section?.querySelectorAll("tbody").forEach((tb) => { if (!tb.rows.length) UI.tableSkeleton(tb); });
   if (loader) {
-    loader().catch((e) => {
+    Promise.resolve().then(loader).catch((e) => {
       if (section) UI.settleSkeletons(section);
       UI.toast(e.message, { type: "error" });
-    });
+    }).finally(() => finishLoadingBar(loading));
+  } else {
+    finishLoadingBar(loading);
   }
 }

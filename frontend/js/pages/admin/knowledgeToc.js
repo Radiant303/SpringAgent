@@ -32,6 +32,7 @@ function setActive(id) {
   for (const [headingId, link] of links) {
     const active = headingId === id;
     link.classList.toggle("active", active);
+    link.parentElement.classList.toggle("active", active);
     if (active) link.setAttribute("aria-current", "location");
     else link.removeAttribute("aria-current");
   }
@@ -122,6 +123,7 @@ export function clearKnowledgeToc() {
   headings = [];
   links.clear();
   toggles.clear();
+  document.querySelector(".knowledge-layout")?.classList.add("no-toc");
   $("knowledge-toc")?.classList.add("hidden");
   if ($("knowledge-toc-nav")) $("knowledge-toc-nav").innerHTML = "";
 }
@@ -140,15 +142,9 @@ export function renderKnowledgeToc() {
   const root = el("ul", "knowledge-toc-root");
   renderNodes(tree, root);
   nav.appendChild(root);
+  document.querySelector(".knowledge-layout")?.classList.toggle("no-toc", headings.length === 0);
   toc.classList.toggle("hidden", headings.length === 0);
   syncActive();
-}
-
-function syncTocMode(media) {
-  const toc = $("knowledge-toc");
-  if (!toc) return;
-  if (media.matches) toc.removeAttribute("open");
-  else toc.setAttribute("open", "");
 }
 
 export function bindKnowledgeToc() {
@@ -171,9 +167,6 @@ export function bindKnowledgeToc() {
     heading.scrollIntoView({ behavior: reduced ? "auto" : "smooth", block: "start" });
   });
 
-  const media = window.matchMedia("(max-width: 1100px)");
-  syncTocMode(media);
-  media.addEventListener("change", () => syncTocMode(media));
   $("knowledge-content")?.addEventListener("scroll", scheduleActive, { passive: true });
   $("admin-main")?.addEventListener("scroll", scheduleActive, { passive: true });
   window.addEventListener("scroll", scheduleActive, { passive: true });

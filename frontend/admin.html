@@ -24,6 +24,7 @@
   <link rel="stylesheet" href="/static/css/pages/admin.css">
 </head>
 <body>
+  <div id="admin-loading-bar" class="admin-loading-bar" role="progressbar" aria-label="页面加载进度" aria-hidden="true"></div>
   <div id="admin-app">
     <aside id="admin-nav">
       <a id="back-link" href="/static/index.html">
@@ -176,7 +177,6 @@
       <section class="admin-page knowledge-page" data-page="knowledge">
         <div class="page-head">
           <h1 class="page-title">我的知识库</h1>
-          <button id="knowledge-refresh" class="admin-btn" type="button">刷新</button>
         </div>
         <div class="knowledge-head">
           <div>
@@ -188,10 +188,9 @@
           </div>
         </div>
         <div class="knowledge-layout">
-          <details id="knowledge-toc" class="knowledge-toc hidden" open>
-            <summary>本页目录</summary>
+          <aside id="knowledge-toc" class="knowledge-toc hidden">
             <nav id="knowledge-toc-nav" aria-label="知识文档章节"></nav>
-          </details>
+          </aside>
           <div class="knowledge-main">
             <article id="knowledge-content" class="markdown-body knowledge-content" role="tabpanel" aria-labelledby="knowledge-tab-declarative" aria-busy="true" tabindex="0">
               <div class="sk-block sk-fade knowledge-skeleton" aria-hidden="true">

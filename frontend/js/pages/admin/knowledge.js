@@ -23,7 +23,6 @@ function definition(type) {
 }
 
 function setControlsDisabled(disabled) {
-  if ($("knowledge-refresh")) $("knowledge-refresh").disabled = disabled;
   document.querySelectorAll("#knowledge-tabs .knowledge-tab").forEach((tab) => {
     tab.disabled = disabled;
   });
@@ -155,9 +154,4 @@ export function bindKnowledge() {
     if (event.key === "End") next = DOCUMENTS.length - 1;
     selectDocument(DOCUMENTS[next].type, true);
   });
-  if ($("knowledge-refresh")) {
-    $("knowledge-refresh").onclick = () => loadKnowledge().catch((error) => {
-      UI.toast(error.message, { type: "error" });
-    });
-  }
 }
