@@ -837,6 +837,54 @@ input.switch:focus-visible { outline: 2px solid rgba(23, 131, 255, 0.4); outline
 
 .group-card .settings-number:focus { border-color: rgba(0, 0, 0, 0.16); }
 
+/* ---- 我的知识库 ---- */
+.knowledge-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+  padding: 4px;
+  border-radius: 12px;
+  background: var(--surface, #f5f5f5);
+}
+.knowledge-tab {
+  min-width: 0;
+  height: 40px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text-dim, rgba(0, 0, 0, 0.6));
+  font-size: 14px;
+  cursor: pointer;
+}
+.knowledge-tab:hover:not(:disabled) { background: var(--hover-bg, rgba(0, 0, 0, 0.04)); }
+.knowledge-tab.active {
+  background: var(--bg, #fff);
+  color: var(--text, rgba(0, 0, 0, 0.9));
+  font-weight: 500;
+}
+.knowledge-tab:disabled { cursor: default; }
+.knowledge-description {
+  min-height: 20px;
+  margin: 16px 4px 0;
+  font-size: 13px;
+  line-height: 20px;
+  color: var(--text-faint, rgba(0, 0, 0, 0.45));
+}
+.knowledge-content {
+  min-height: 240px;
+  padding: 24px 4px 0;
+  overflow-wrap: anywhere;
+}
+.knowledge-skeleton { display: flex; flex-direction: column; gap: 18px; }
+.knowledge-empty {
+  min-height: 240px;
+  display: grid;
+  place-items: center;
+  padding: 32px 16px;
+  text-align: center;
+}
+
 /* ---- 滚动条：与主站一致，悬停浮现 ---- */
 #admin-main::-webkit-scrollbar, .table-card::-webkit-scrollbar, .mc-list::-webkit-scrollbar { width: 8px; height: 8px; }
 #admin-main::-webkit-scrollbar-thumb, .table-card::-webkit-scrollbar-thumb, .mc-list::-webkit-scrollbar-thumb {

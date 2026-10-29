@@ -28,8 +28,6 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.file.Files;
-import java.nio.file.LinkOption;
-import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.BasicFileAttributes;
@@ -38,6 +36,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+
+import static com.spring.gateway.storage.infrastructure.StoragePaths.checkedAttributes;
 
 /**
  * 用户文件工作区的增量计量。
@@ -344,27 +344,5 @@ public class UserStorageServiceImpl implements UserStorageService {
     }
 
     private record TreeUsage(long totalBytes, long internalBytes) { }
-
-    private static BasicFileAttributes checkedAttributes(Path target) {
-        Path current = target.getRoot();
-        BasicFileAttributes attributes = null;
-        try {
-            for (Path segment : target) {
-                current = current.resolve(segment);
-                attributes = Files.readAttributes(current, BasicFileAttributes.class, LinkOption.NOFOLLOW_LINKS);
-                if (attributes.isSymbolicLink() || attributes.isOther()
-                        || !current.toRealPath().equals(current.toRealPath(LinkOption.NOFOLLOW_LINKS))
-                        || (!current.equals(target) && !attributes.isDirectory())
-                        || (current.equals(target) && !attributes.isDirectory() && !attributes.isRegularFile())) {
-                    throw new StorageException("文件资源须由普通目录和普通文件组成");
-                }
-            }
-            return attributes;
-        } catch (NoSuchFileException ignored) {
-            return null;
-        } catch (IOException | SecurityException e) {
-            throw new StorageException("文件资源状态读取失败", e);
-        }
-    }
 
 }

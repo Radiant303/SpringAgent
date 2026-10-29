@@ -25,7 +25,7 @@ public class WebConfig implements WebMvcConfigurer {
     public void addInterceptors(InterceptorRegistry registry) {
         registry.addInterceptor(authInterceptor)
                 .addPathPatterns("/api/sessions/**", "/api/admin/**", "/api/works/**", "/api/billing/**",
-                        "/api/account/**", "/api/files/**");
+                        "/api/account/**", "/api/files/**", "/api/knowledge/**");
         // 内部接口：持共享静态令牌访问
         registry.addInterceptor(internalAuthInterceptor).addPathPatterns("/internal/**");
     }

@@ -20,6 +20,7 @@
   <link rel="stylesheet" href="/static/css/components/skeleton.css">
   <link rel="stylesheet" href="/static/css/components/controls.css">
   <link rel="stylesheet" href="/static/css/components/table.css">
+  <link rel="stylesheet" href="/static/css/components/markdown.css">
   <link rel="stylesheet" href="/static/css/pages/admin.css">
 </head>
 <body>
@@ -34,6 +35,10 @@
         <div class="nav-item" data-page="account">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.8"/><path d="M4.8 20c1.3-3.4 4.1-5 7.2-5s5.9 1.6 7.2 5"/></svg>
           账号与安全
+        </div>
+        <div class="nav-item" data-page="knowledge">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5a2 2 0 0 1 2-2h5v17H6a2 2 0 0 0-2 2z"/><path d="M20 5a2 2 0 0 0-2-2h-5v17h5a2 2 0 0 1 2 2z"/></svg>
+          我的知识库
         </div>
         <div class="nav-item" data-page="points">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3.5h12a1 1 0 0 1 1 1v16l-3-2-2 2-2-2-2 2-2-2-3 2v-16a1 1 0 0 1 1-1z"/><path d="M9 8.5h6M9 12.5h6"/></svg>
@@ -165,6 +170,30 @@
         </div>
 
         <button id="account-logout" class="wide-btn">退出登录</button>
+      </section>
+
+      <!-- 我的知识库：所有角色可见 -->
+      <section class="admin-page" data-page="knowledge">
+        <div class="page-head">
+          <h1 class="page-title">我的知识库</h1>
+          <button id="knowledge-refresh" class="admin-btn" type="button">刷新</button>
+        </div>
+        <div id="knowledge-tabs" class="knowledge-tabs" role="tablist" aria-label="知识类型">
+          <button id="knowledge-tab-declarative" class="knowledge-tab active" type="button" role="tab" data-type="declarative" aria-selected="true" aria-controls="knowledge-content">陈述性知识</button>
+          <button id="knowledge-tab-procedural" class="knowledge-tab" type="button" role="tab" data-type="procedural" aria-selected="false" aria-controls="knowledge-content" tabindex="-1">程序性知识</button>
+          <button id="knowledge-tab-conditional" class="knowledge-tab" type="button" role="tab" data-type="conditional" aria-selected="false" aria-controls="knowledge-content" tabindex="-1">条件性知识</button>
+        </div>
+        <p id="knowledge-description" class="knowledge-description">是什么：概念、事实与已确认的理解。</p>
+        <article id="knowledge-content" class="markdown-body knowledge-content" role="tabpanel" aria-labelledby="knowledge-tab-declarative" aria-busy="true" tabindex="0">
+          <div class="sk-block sk-fade knowledge-skeleton" aria-hidden="true">
+            <span class="sk" style="--w:38%;--h:24px"></span>
+            <span class="sk" style="--w:92%"></span>
+            <span class="sk" style="--w:100%"></span>
+            <span class="sk" style="--w:76%"></span>
+            <span class="sk" style="--w:86%"></span>
+          </div>
+        </article>
+        <div id="knowledge-empty" class="empty-tip knowledge-empty hidden" role="status"></div>
       </section>
 
       <!-- 账单与用量：所有角色可见 -->
@@ -858,6 +887,8 @@
       </section>
     </main>
   </div>
+  <script src="/static/vendor/marked.min.js"></script>
+  <script src="/static/vendor/purify.min.js"></script>
   <script type="module" src="/static/js/pages/admin.js"></script>
 </body>
 </html>
