@@ -85,3 +85,23 @@ export async function api(path, options = {}) {
   }
   return payload ? payload.data : null;
 }
+
+/**
+ * 业务文本 API 调用：校验错误状态并返回完整文本
+ * @param {string} path
+ * @param {object} [options]
+ * @returns {Promise<string>}
+ */
+export async function apiText(path, options = {}) {
+  const fetchOptions = {
+    method: options.method || "GET",
+    headers: options.headers,
+    body: options.body ? (typeof options.body === "string" ? options.body : JSON.stringify(options.body)) : undefined,
+  };
+  const r = await apiFetch(path, fetchOptions);
+  if (!r.ok) {
+    const payload = await r.json().catch(() => null);
+    throw new Error((payload && payload.message) || `请求失败（${r.status}）`);
+  }
+  return r.text();
+}

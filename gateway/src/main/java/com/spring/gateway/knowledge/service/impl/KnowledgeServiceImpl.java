@@ -1,6 +1,8 @@
 package com.spring.gateway.knowledge.service.impl;
 
-import com.spring.gateway.knowledge.dto.KnowledgeDocumentView;
+import com.spring.gateway.common.BizException;
+import com.spring.gateway.knowledge.dto.KnowledgeDocumentContent;
+import com.spring.gateway.knowledge.dto.KnowledgeDocumentSummary;
 import com.spring.gateway.knowledge.service.KnowledgeService;
 import com.spring.gateway.storage.infrastructure.StorageException;
 import com.spring.gateway.storage.service.UserStorageService;
@@ -8,11 +10,16 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
+import java.nio.channels.Channels;
+import java.nio.channels.FileChannel;
+import java.nio.file.LinkOption;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.List;
+
+import static com.spring.gateway.storage.infrastructure.StoragePaths.checkedAttributes;
 
 /**
  * 基于用户知识目录的文档查询。
@@ -32,21 +39,42 @@ public class KnowledgeServiceImpl implements KnowledgeService {
     private final UserStorageService userStorageService;
 
     @Override
-    public List<KnowledgeDocumentView> list(long userId) {
-        userStorageService.knowledgeBytes(userId);
+    public List<KnowledgeDocumentSummary> list(long userId) {
         Path root = userStorageService.knowledgeRoot(userId);
-        return DOCUMENTS.stream().map(document -> read(root, document)).toList();
+        return DOCUMENTS.stream().map(document -> summarize(root, document)).toList();
     }
 
-    private static KnowledgeDocumentView read(Path root, DocumentDefinition document) {
+    @Override
+    public KnowledgeDocumentContent open(long userId, String type) {
+        DocumentDefinition document = DOCUMENTS.stream()
+                .filter(candidate -> candidate.type().equals(type))
+                .findFirst()
+                .orElseThrow(() -> new BizException(404, "知识文档不存在"));
+        Path path = userStorageService.knowledgeRoot(userId).resolve(document.fileName());
+        if (checkedAttributes(path) == null) throw new BizException(404, "知识文档不存在");
         try {
-            String content = Files.readString(root.resolve(document.fileName()), StandardCharsets.UTF_8);
-            return new KnowledgeDocumentView(document.type(), content);
+            FileChannel channel = FileChannel.open(path, StandardOpenOption.READ, LinkOption.NOFOLLOW_LINKS);
+            try {
+                return new KnowledgeDocumentContent(Channels.newInputStream(channel), channel.size());
+            } catch (IOException | RuntimeException e) {
+                channel.close();
+                throw e;
+            }
         } catch (NoSuchFileException e) {
-            return new KnowledgeDocumentView(document.type(), "");
+            throw new BizException(404, "知识文档不存在");
         } catch (IOException e) {
             throw new StorageException("知识文档读取失败", e);
         }
+    }
+
+    private static KnowledgeDocumentSummary summarize(Path root, DocumentDefinition document) {
+        BasicFileAttributes attributes = checkedAttributes(root.resolve(document.fileName()));
+        if (attributes == null) {
+            return new KnowledgeDocumentSummary(document.type(), false, 0L, null);
+        }
+        if (!attributes.isRegularFile()) throw new StorageException("知识文档需要为普通文件");
+        return new KnowledgeDocumentSummary(document.type(), true, attributes.size(),
+                attributes.lastModifiedTime().toInstant().toString());
     }
 
     private record DocumentDefinition(String type, String fileName) {

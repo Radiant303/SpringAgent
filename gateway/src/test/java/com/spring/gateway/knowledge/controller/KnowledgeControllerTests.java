@@ -30,6 +30,8 @@ import static org.mockito.ArgumentMatchers.nullable;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -71,11 +73,14 @@ class KnowledgeControllerTests {
     void requiresAuthentication() throws Exception {
         mockMvc.perform(get("/api/knowledge"))
                 .andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/api/knowledge/declarative"))
+                .andExpect(status().isUnauthorized());
     }
 
     @Test
-    void returnsOnlyCurrentUsersDocuments() throws Exception {
-        writeDocument(USER_ID, "declarative.md", "## Java\n\n当前用户的知识");
+    void returnsMetadataWithoutDocumentContent() throws Exception {
+        String declarative = "## Java\n\n当前用户的知识";
+        writeDocument(USER_ID, "declarative.md", declarative);
         writeDocument(USER_ID, "conditional.md", "适用条件");
         writeDocument(8L, "declarative.md", "其他用户的知识");
 
@@ -84,11 +89,31 @@ class KnowledgeControllerTests {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.length()").value(3))
                 .andExpect(jsonPath("$.data[0].type").value("declarative"))
-                .andExpect(jsonPath("$.data[0].content").value("## Java\n\n当前用户的知识"))
+                .andExpect(jsonPath("$.data[0].exists").value(true))
+                .andExpect(jsonPath("$.data[0].sizeBytes")
+                        .value(declarative.getBytes(StandardCharsets.UTF_8).length))
+                .andExpect(jsonPath("$.data[0].updatedAt").isString())
+                .andExpect(jsonPath("$.data[0].content").doesNotExist())
                 .andExpect(jsonPath("$.data[1].type").value("procedural"))
-                .andExpect(jsonPath("$.data[1].content").value(""))
+                .andExpect(jsonPath("$.data[1].exists").value(false))
+                .andExpect(jsonPath("$.data[1].sizeBytes").value(0))
                 .andExpect(jsonPath("$.data[2].type").value("conditional"))
-                .andExpect(jsonPath("$.data[2].content").value("适用条件"));
+                .andExpect(jsonPath("$.data[2].exists").value(true));
+    }
+
+    @Test
+    void streamsCurrentUsersCompleteDocument() throws Exception {
+        String declarative = "## Java\n\n当前用户的完整知识";
+        writeDocument(USER_ID, "declarative.md", declarative);
+        writeDocument(8L, "declarative.md", "其他用户的知识");
+
+        mockMvc.perform(get("/api/knowledge/declarative")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer user"))
+                .andExpect(status().isOk())
+                .andExpect(content().contentType("text/markdown;charset=UTF-8"))
+                .andExpect(header().longValue(HttpHeaders.CONTENT_LENGTH,
+                        declarative.getBytes(StandardCharsets.UTF_8).length))
+                .andExpect(content().string(declarative));
     }
 
     @Test
@@ -97,16 +122,36 @@ class KnowledgeControllerTests {
                         .header(HttpHeaders.AUTHORIZATION, "Bearer user"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.length()").value(3))
-                .andExpect(jsonPath("$.data[0].content").value(""))
-                .andExpect(jsonPath("$.data[1].content").value(""))
-                .andExpect(jsonPath("$.data[2].content").value(""));
+                .andExpect(jsonPath("$.data[0].exists").value(false))
+                .andExpect(jsonPath("$.data[1].exists").value(false))
+                .andExpect(jsonPath("$.data[2].exists").value(false));
 
         assertFalse(Files.exists(dataRoot.resolve("users").resolve(Long.toString(USER_ID))));
     }
 
-    private void writeDocument(long userId, String name, String content) throws Exception {
+    @Test
+    void missingOrUnknownDocumentReturns404() throws Exception {
+        mockMvc.perform(get("/api/knowledge/procedural")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer user"))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(get("/api/knowledge/unknown")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer user"))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void directoryAtDocumentPathIsRejected() throws Exception {
+        Files.createDirectories(dataRoot.resolve("users").resolve(Long.toString(USER_ID))
+                .resolve("knowledge").resolve("declarative.md"));
+
+        mockMvc.perform(get("/api/knowledge")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer user"))
+                .andExpect(status().isBadGateway());
+    }
+
+    private void writeDocument(long userId, String name, String text) throws Exception {
         Path directory = dataRoot.resolve("users").resolve(Long.toString(userId)).resolve("knowledge");
         Files.createDirectories(directory);
-        Files.writeString(directory.resolve(name), content, StandardCharsets.UTF_8);
+        Files.writeString(directory.resolve(name), text, StandardCharsets.UTF_8);
     }
 }

@@ -3,7 +3,7 @@
  */
 
 import { $ } from "../../utils/dom.js";
-import { api } from "../../api/client.js";
+import { api, apiText } from "../../api/client.js";
 import { UI } from "../../components/ui.js";
 import { setMarkdown } from "../../utils/markdown.js";
 
@@ -41,7 +41,7 @@ function showMessage(message) {
   }
 }
 
-function renderActive() {
+function renderTabs() {
   const current = definition(activeType);
   document.querySelectorAll("#knowledge-tabs .knowledge-tab").forEach((tab) => {
     const selected = tab.dataset.type === current.type;
@@ -50,29 +50,10 @@ function renderActive() {
     tab.tabIndex = selected ? 0 : -1;
   });
   if ($("knowledge-description")) $("knowledge-description").textContent = current.description;
-  const content = $("knowledge-content");
-  if (content) content.setAttribute("aria-labelledby", `knowledge-tab-${current.type}`);
-
-  const text = documents.get(current.type) || "";
-  if (!text.trim()) {
-    showMessage(`暂无${current.title}，可在与 AI 的对话中确认并记录。`);
-    return;
-  }
-  $("knowledge-empty")?.classList.add("hidden");
-  if (content) {
-    content.classList.remove("hidden");
-    setMarkdown(content, text, false);
-  }
+  $("knowledge-content")?.setAttribute("aria-labelledby", `knowledge-tab-${current.type}`);
 }
 
-function selectDocument(type, focus = false) {
-  if (!DOCUMENTS.some((document) => document.type === type)) return;
-  activeType = type;
-  renderActive();
-  if (focus) $(`knowledge-tab-${type}`)?.focus();
-}
-
-export async function loadKnowledge() {
+function beginLoad() {
   const currentGeneration = ++generation;
   setControlsDisabled(true);
   $("knowledge-empty")?.classList.add("hidden");
@@ -89,21 +70,68 @@ export async function loadKnowledge() {
         <span class="sk" style="--w:86%"></span>
       </div>`;
   }
+  return currentGeneration;
+}
 
+function finishLoad(currentGeneration) {
+  if (currentGeneration !== generation) return;
+  setControlsDisabled(false);
+  $("knowledge-content")?.setAttribute("aria-busy", "false");
+}
+
+async function renderActive(currentGeneration) {
+  renderTabs();
+  const current = definition(activeType);
+  const summary = documents.get(current.type);
+  if (!summary?.exists) {
+    showMessage(`暂无${current.title}，可在与 AI 的对话中确认并记录。`);
+    return;
+  }
+
+  const text = await apiText(`/api/knowledge/${current.type}`);
+  if (currentGeneration !== generation) return;
+  if (!text.trim()) {
+    showMessage(`暂无${current.title}，可在与 AI 的对话中确认并记录。`);
+    return;
+  }
+  $("knowledge-empty")?.classList.add("hidden");
+  const content = $("knowledge-content");
+  if (content) {
+    content.classList.remove("hidden");
+    setMarkdown(content, text, false);
+  }
+}
+
+async function selectDocument(type, focus = false) {
+  if (!DOCUMENTS.some((document) => document.type === type)) return;
+  activeType = type;
+  if (focus) $(`knowledge-tab-${type}`)?.focus();
+  const currentGeneration = beginLoad();
+  try {
+    await renderActive(currentGeneration);
+  } catch (error) {
+    if (currentGeneration === generation) {
+      showMessage("知识文档加载失败，请重试。");
+      UI.toast(error.message, { type: "error" });
+    }
+  } finally {
+    finishLoad(currentGeneration);
+  }
+}
+
+export async function loadKnowledge() {
+  const currentGeneration = beginLoad();
   try {
     const list = await api("/api/knowledge");
     if (currentGeneration !== generation) return;
-    const received = new Map((list || []).map((document) => [document.type, document.content || ""]));
-    documents = new Map(DOCUMENTS.map((document) => [document.type, received.get(document.type) || ""]));
-    renderActive();
+    const received = new Map((list || []).map((document) => [document.type, document]));
+    documents = new Map(DOCUMENTS.map((document) => [document.type, received.get(document.type)]));
+    await renderActive(currentGeneration);
   } catch (error) {
     if (currentGeneration === generation) showMessage("知识库加载失败，请点击刷新重试。");
     throw error;
   } finally {
-    if (currentGeneration === generation) {
-      setControlsDisabled(false);
-      content?.setAttribute("aria-busy", "false");
-    }
+    finishLoad(currentGeneration);
   }
 }
 
