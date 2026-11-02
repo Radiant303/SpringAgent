@@ -117,15 +117,17 @@ class SystemSettingAdminServiceUnitTests {
     void getPreservesFieldsButNeverReturnsMailOrOssSecrets() {
         committed.put(SystemSetting.KEY_MAIL_USERNAME, "sender@example.test");
         committed.put(SystemSetting.KEY_MAIL_AUTH_CODE, "fakeMailSecret");
+        committed.put(SystemSetting.KEY_REGISTRATION_INITIAL_POINTS, "12.5");
         seedOss();
         Map<String, Object> data = controller.snapshot();
+        assertEquals("12.5", data.get("registrationInitialPoints"));
         assertEquals("sender@example.test", data.get("mailUsername"));
         assertEquals(true, data.get("mailAuthCodeConfigured"));
         assertEquals("https://oss.example.test", data.get("ossEndpoint"));
         assertEquals("bucket", data.get("ossBucket"));
         assertEquals("fakeId", data.get("ossAccessKeyId"));
         assertEquals(true, data.get("ossAccessKeySecretConfigured"));
-        assertTrue(data.keySet().containsAll(Set.of("registrationOpen", "workMaxBytes",
+        assertTrue(data.keySet().containsAll(Set.of("registrationOpen", "registrationInitialPoints", "workMaxBytes",
                 "billingEstCacheReadTokens", "billingEstInputTokens", "billingEstOutputTokens",
                 "mailRegisterEnabled", "mailResendIntervalSeconds", "mailCodeTtlSeconds", "communityLink",
                 "platformDomain", "platformHttps", "storageType", "storageReconcileCron", "search")));
@@ -152,20 +154,50 @@ class SystemSettingAdminServiceUnitTests {
     }
 
     @Test
+    void registrationInitialPointsCommitWithSwitchAndDomains() {
+        controller.setRegistration(new com.spring.gateway.settings.dto.AdminRegistrationRequest(true,
+                List.of(), new java.math.BigDecimal("123.456")));
+        assertEquals(Map.of(SystemSetting.KEY_REGISTRATION_OPEN, "true",
+                SystemSetting.KEY_REGISTRATION_INITIAL_POINTS, "123.456",
+                SystemSetting.KEY_MAIL_REGISTER_DOMAINS, "[]"), committed);
+        assertEquals("123.456", controller.snapshot().get("registrationInitialPoints"));
+        assertEquals(1, transactions.commits);
+        assertEquals(0, transactions.rollbacks);
+    }
+
+    @Test
+    void invalidRegistrationInitialPointsRejectAllWrites() {
+        for (java.math.BigDecimal invalid : List.of(new java.math.BigDecimal("-1"),
+                new java.math.BigDecimal("1000001"), new java.math.BigDecimal("0.0000001"))) {
+            var failure = assertThrows(BizException.class, () -> controller.setRegistration(
+                    new com.spring.gateway.settings.dto.AdminRegistrationRequest(false, null, invalid)));
+            assertEquals(400, failure.getStatus());
+        }
+        assertTrue(committed.isEmpty());
+        assertEquals(0, transactions.commits);
+        assertEquals(3, transactions.rollbacks);
+        verify(mapper, never()).upsert(any(SystemSetting.class));
+    }
+
+    @Test
     void registrationRequestJsonPreservesOmittedAndNullDomainsAndClearsEmptyDomains() {
         ObjectMapper json = new ObjectMapper();
         committed.put(SystemSetting.KEY_MAIL_REGISTER_DOMAINS, "[\"qq.com\"]");
+        committed.put(SystemSetting.KEY_REGISTRATION_INITIAL_POINTS, "88");
         var omitted = json.readValue("{\"open\":true}", com.spring.gateway.settings.dto.AdminRegistrationRequest.class);
         assertNull(omitted.emailDomains());
+        assertNull(omitted.initialPoints());
         assertEquals(new com.spring.gateway.settings.dto.AdminRegistrationRequest(true), omitted);
         controller.setRegistration(omitted);
         controller.setRegistration(json.readValue("{\"open\":false,\"emailDomains\":null}",
                 com.spring.gateway.settings.dto.AdminRegistrationRequest.class));
         assertEquals("[\"qq.com\"]", committed.get(SystemSetting.KEY_MAIL_REGISTER_DOMAINS));
+        assertEquals("88", committed.get(SystemSetting.KEY_REGISTRATION_INITIAL_POINTS));
         verify(mapper, times(2)).upsert(any(SystemSetting.class));
         controller.setRegistration(json.readValue("{\"open\":true,\"emailDomains\":[]}",
                 com.spring.gateway.settings.dto.AdminRegistrationRequest.class));
         assertEquals("[]", committed.get(SystemSetting.KEY_MAIL_REGISTER_DOMAINS));
+        assertEquals("88", committed.get(SystemSetting.KEY_REGISTRATION_INITIAL_POINTS));
         assertEquals(List.of(), controller.snapshot().get("mailRegisterDomains"));
         assertEquals(3, transactions.commits);
     }
@@ -222,6 +254,7 @@ class SystemSettingAdminServiceUnitTests {
         assertEquals(List.of(), controller.snapshot().get("mailRegisterDomains"));
         SystemSettingServiceImpl service = mock(SystemSettingServiceImpl.class);
         when(service.getMailCredentials()).thenReturn(new SystemSettingService.MailCredentials("", ""));
+        when(service.getRegistrationInitialPoints()).thenReturn(java.math.BigDecimal.ZERO);
         when(service.getOssConfig()).thenReturn(new SystemSettingService.OssConfig("", "", "", ""));
         SystemSettingAdminService direct = new SystemSettingAdminServiceImpl(service, service, mailCodes,
                 new com.spring.gateway.identity.service.impl.UserProfileServiceImpl(users), scheduler);

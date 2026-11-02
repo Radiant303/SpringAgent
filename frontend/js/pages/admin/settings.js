@@ -171,8 +171,8 @@ async function sendMailDisableCode(btn) {
   }
 }
 
-async function saveRegistrationSetting(open, emailDomains) {
-  await api("/api/admin/settings/registration", { method: "POST", body: { open, emailDomains } });
+async function saveRegistrationSetting(open, emailDomains, initialPoints) {
+  await api("/api/admin/settings/registration", { method: "POST", body: { open, emailDomains, initialPoints } });
 }
 
 async function saveMailSettings(body, code) {
@@ -192,13 +192,17 @@ export async function loadRegistration() {
   renderMailDomains();
   try {
     const result = await withSkeleton("registration", "registration-save", () =>
-      Promise.all([api("/api/admin/settings"), api("/api/account/me")]));
-    const [data, account] = result;
+      Promise.all([api("/api/admin/settings"), api("/api/account/me"), loadResourceLimits()]));
+    const [data, account, limits] = result;
     if (!data || !account) throw new Error("注册设置加载失败，请重新进入页面");
     const domains = data.mailRegisterDomains === undefined ? [] : data.mailRegisterDomains;
     if (!Array.isArray(domains)) throw new Error("注册邮箱域名白名单加载失败，请重新进入页面");
     const normalizedDomains = normalizeMailDomains(domains);
     if ($("registration-open")) $("registration-open").checked = data.registrationOpen !== false;
+    if ($("registration-initial-points")) {
+      $("registration-initial-points").value = data.registrationInitialPoints ?? "0";
+      $("registration-initial-points").title = pointsHint(limits);
+    }
     if ($("mail-enabled")) $("mail-enabled").checked = data.mailRegisterEnabled === true;
     if ($("mail-username")) $("mail-username").value = data.mailUsername ?? "";
     // 授权码只写不读：不回显原值，留空表示保持不变
@@ -239,6 +243,9 @@ export async function saveRegistration() {
   renderMailDomains();
   try {
     await saveWith("registration-save", async () => {
+      const limits = await loadResourceLimits();
+      const initialPoints = pointsValue($("registration-initial-points").value, limits);
+      if (initialPoints === null) throw new Error("新用户初始积分须为 " + pointsHint(limits));
       const mailResend = parseInteger($("mail-resend-interval").value, { min: 10, max: 3600 });
       const mailTtl = parseInteger($("mail-code-ttl").value, { min: 60, max: 3600 });
       if (mailResend === null || mailTtl === null) {
@@ -253,7 +260,7 @@ export async function saveRegistration() {
         codeTtlSeconds: mailTtl,
       };
       if (!(savedMailEnabled && !mail.enabled && ownerEmail)) {
-        await saveRegistrationSetting(registrationOpen, emailDomains);
+        await saveRegistrationSetting(registrationOpen, emailDomains, initialPoints);
         await saveMailSettings(mail);
         return;
       }
@@ -271,9 +278,9 @@ export async function saveRegistration() {
         submit: async (v) => {
           await saveMailSettings(mail, v.code.trim());
           try {
-            await saveRegistrationSetting(registrationOpen, emailDomains);
+            await saveRegistrationSetting(registrationOpen, emailDomains, initialPoints);
           } catch {
-            throw new Error("邮箱设置已保存，但注册设置（含域名白名单）保存失败，请重试");
+            throw new Error("邮箱设置已保存，但注册设置保存失败，请重试");
           }
         },
       });

@@ -22,6 +22,8 @@ public interface SystemSettingService {
 
     boolean isRegistrationOpen();
 
+    BigDecimal getRegistrationInitialPoints();
+
     long getLong(String key, long defaultValue);
 
     long getWorkMaxBytes();

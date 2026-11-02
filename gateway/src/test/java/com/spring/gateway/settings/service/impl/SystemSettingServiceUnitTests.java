@@ -63,17 +63,17 @@ class SystemSettingServiceUnitTests {
 
     @Test
     void whitelistIsExactAndImmutable() {
-        assertEquals(19, SystemSettingCachePolicy.PUBLIC_KEYS.size());
-        assertEquals(Set.of("registration_open", "mail.register_enabled", "mail.register_domains", "work_max_bytes",
-                "billing.est_cache_read_tokens", "billing.est_input_tokens", "billing.est_output_tokens",
-                "mail.resend_interval_seconds", "mail.code_ttl_seconds", "community_link", "storage.type",
-                "storage.reconcile_cron", "platform.domain", "platform.https", "search.local.enabled",
+        assertEquals(20, SystemSettingCachePolicy.PUBLIC_KEYS.size());
+        assertEquals(Set.of("registration_open", "registration_initial_points", "mail.register_enabled",
+                "mail.register_domains", "work_max_bytes", "billing.est_cache_read_tokens", "billing.est_input_tokens",
+                "billing.est_output_tokens", "mail.resend_interval_seconds", "mail.code_ttl_seconds", "community_link",
+                "storage.type", "storage.reconcile_cron", "platform.domain", "platform.https", "search.local.enabled",
                 "search.local.provider", "search.native.points", "search.providers.tavily.points",
                 "search.providers.exa.points"), SystemSettingCachePolicy.PUBLIC_KEYS);
         assertEquals(Set.of("mail.username", "mail.auth_code", "storage.oss.endpoint", "storage.oss.bucket",
                 "storage.oss.access_key_id", "storage.oss.access_key_secret", "search.providers.tavily.api_key",
                 "search.providers.exa.api_key"), SystemSettingCachePolicy.SENSITIVE_KEYS);
-        assertEquals(27, SystemSettingCachePolicy.CACHEABLE_KEYS.size());
+        assertEquals(28, SystemSettingCachePolicy.CACHEABLE_KEYS.size());
         assertFalse(SystemSettingCachePolicy.CACHEABLE_KEYS.contains("default_model"));
         assertFalse(SystemSettingCachePolicy.CACHEABLE_KEYS.contains("subagents.searcher"));
         assertThrows(UnsupportedOperationException.class,
@@ -286,11 +286,27 @@ class SystemSettingServiceUnitTests {
     }
 
     @Test
-    void registrationSwitchesUseSnapshot() {
+    void registrationSettingsUseSnapshot() {
         when(values.get(SystemSettingCache.CACHE_KEY)).thenReturn(snapshot(Map.of(
-                "registration_open", "false", "mail.register_enabled", "true")));
+                "registration_open", "false", "mail.register_enabled", "true",
+                SystemSetting.KEY_REGISTRATION_INITIAL_POINTS, "25.125")));
         assertFalse(service.isRegistrationOpen());
         assertTrue(service.isMailRegisterEnabled());
+        assertEquals("25.125", service.getRegistrationInitialPoints().toPlainString());
+        verifyNoInteractions(mapper);
+    }
+
+    @Test
+    void registrationInitialPointsDefaultToZeroAndRejectInvalidConfiguration() {
+        when(values.get(SystemSettingCache.CACHE_KEY)).thenReturn(snapshot(Map.of()));
+        assertEquals("0", service.getRegistrationInitialPoints().toPlainString());
+        for (String invalid : List.of("abc", "-1", "1000001", "0.0000001")) {
+            when(values.get(SystemSettingCache.CACHE_KEY)).thenReturn(snapshot(Map.of(
+                    SystemSetting.KEY_REGISTRATION_INITIAL_POINTS, invalid)));
+            var failure = assertThrows(com.spring.gateway.common.BizException.class,
+                    () -> service.getRegistrationInitialPoints(), invalid);
+            assertEquals(500, failure.getStatus());
+        }
         verifyNoInteractions(mapper);
     }
 

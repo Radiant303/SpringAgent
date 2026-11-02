@@ -74,6 +74,17 @@ public class SystemSettingServiceImpl implements SystemSettingService, SystemSet
         return getBool(SystemSetting.KEY_REGISTRATION_OPEN, true);
     }
 
+    public BigDecimal getRegistrationInitialPoints() {
+        String value = getString(SystemSetting.KEY_REGISTRATION_INITIAL_POINTS, "0");
+        try {
+            BigDecimal points = new BigDecimal(value);
+            ResourceLimits.points(points, false, "注册初始积分");
+            return points;
+        } catch (NumberFormatException | BizException e) {
+            throw new BizException(500, "注册初始积分配置无效，请联系站长");
+        }
+    }
+
     /**
      * 读长整型设置；键不存在或值无法解析时返回默认值
      *

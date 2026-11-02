@@ -48,6 +48,7 @@ class AuthRegistrationDomainsUnitTests {
         TableInfoHelper.initTableInfo(new MapperBuilderAssistant(new MybatisConfiguration(), "domain-tests"), User.class);
         when(settings.isMailRegisterEnabled()).thenReturn(true);
         when(settings.isRegistrationOpen()).thenReturn(true);
+        when(settings.getRegistrationInitialPoints()).thenReturn(java.math.BigDecimal.ZERO);
         when(settings.getMailRegisterDomains()).thenReturn(List.of("qq.com", "edu.cn"));
         when(users.selectCount(null)).thenReturn(1L);
         when(ids.nextId()).thenReturn(42L);
@@ -67,6 +68,27 @@ class AuthRegistrationDomainsUnitTests {
         order.verify(users).insert(saved.capture());
         assertEquals(normalized, saved.getValue().getEmail());
         assertEquals(User.ROLE_USER, saved.getValue().getRole());
+    }
+
+    @Test
+    void regularRegistrationUsesConfiguredInitialPoints() {
+        when(settings.getRegistrationInitialPoints()).thenReturn(new java.math.BigDecimal("25.125"));
+        auth.register(new RegisterRequest("member", "password123", "person@qq.com", "123456"));
+        ArgumentCaptor<User> saved = ArgumentCaptor.forClass(User.class);
+        verify(users).insert(saved.capture());
+        assertEquals(new java.math.BigDecimal("25.125"), saved.getValue().getPointsBalance());
+        assertEquals(User.ROLE_USER, saved.getValue().getRole());
+    }
+
+    @Test
+    void bootstrapOwnerKeepsFixedInitialPoints() {
+        when(users.selectCount(null)).thenReturn(0L);
+        auth.register(new RegisterRequest("owner", "password123", "owner@qq.com", "123456"));
+        ArgumentCaptor<User> saved = ArgumentCaptor.forClass(User.class);
+        verify(users).insert(saved.capture());
+        assertEquals(new java.math.BigDecimal("1000"), saved.getValue().getPointsBalance());
+        assertEquals(User.ROLE_OWNER, saved.getValue().getRole());
+        verify(settings, never()).getRegistrationInitialPoints();
     }
 
     @ParameterizedTest

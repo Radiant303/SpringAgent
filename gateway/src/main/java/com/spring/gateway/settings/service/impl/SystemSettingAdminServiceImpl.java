@@ -66,6 +66,7 @@ public class SystemSettingAdminServiceImpl implements SystemSettingAdminService 
                 "mailAuthCodeConfigured", !mail.authCode().isBlank(),
                 "mailResendIntervalSeconds", systemSettingService.getMailResendIntervalSeconds(),
                 "mailCodeTtlSeconds", systemSettingService.getMailCodeTtlSeconds()));
+        data.put("registrationInitialPoints", systemSettingService.getRegistrationInitialPoints().toPlainString());
         data.put("mailRegisterDomains", systemSettingService.getMailRegisterDomains());
         data.put("communityLink", systemSettingService.getCommunityLink());
         data.put("platformDomain", systemSettingService.getPlatformDomain());
@@ -111,7 +112,14 @@ public class SystemSettingAdminServiceImpl implements SystemSettingAdminService 
     public void setRegistration(AdminRegistrationRequest req) {
         String domains = req.emailDomains() == null ? null
                 : systemSettingService.serializeMailRegisterDomains(req.emailDomains());
+        var initialPoints = req.initialPoints();
+        if (initialPoints != null) {
+            ResourceLimits.points(initialPoints, false, "注册初始积分");
+        }
         systemSettingWriter.set(SystemSetting.KEY_REGISTRATION_OPEN, String.valueOf(req.open()));
+        if (initialPoints != null) {
+            systemSettingWriter.set(SystemSetting.KEY_REGISTRATION_INITIAL_POINTS, initialPoints.toPlainString());
+        }
         if (domains != null) {
             systemSettingWriter.set(SystemSetting.KEY_MAIL_REGISTER_DOMAINS, domains);
         }

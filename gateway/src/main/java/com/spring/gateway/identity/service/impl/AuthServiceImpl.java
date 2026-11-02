@@ -95,8 +95,8 @@ public class AuthServiceImpl implements AuthService {
         user.setPasswordHash(passwordEncoder.encode(req.password()));
         user.setRole(bootstrap ? User.ROLE_OWNER : User.ROLE_USER);
         user.setStatus(User.STATUS_ACTIVE);
-        // 初始积分：站长 1000，其余 0（后续增减只经流水，无直接 set 入口）
-        user.setPointsBalance(bootstrap ? new BigDecimal("1000") : BigDecimal.ZERO);
+        // 首个站长的初始积分固定为 1000
+        user.setPointsBalance(bootstrap ? new BigDecimal("1000") : systemSettingService.getRegistrationInitialPoints());
         try {
             userMapper.insert(user);
         } catch (DuplicateKeyException e) {

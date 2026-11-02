@@ -20,6 +20,9 @@ public class SystemSetting {
     /** 设置键：是否开放注册（"true"/"false"）。 */
     public static final String KEY_REGISTRATION_OPEN = "registration_open";
 
+    /** 设置键：普通注册用户的初始积分。 */
+    public static final String KEY_REGISTRATION_INITIAL_POINTS = "registration_initial_points";
+
     /** 设置键：全局默认单 work 容量上限（字节，十进制数字串）。 */
     public static final String KEY_WORK_MAX_BYTES = "work_max_bytes";
 

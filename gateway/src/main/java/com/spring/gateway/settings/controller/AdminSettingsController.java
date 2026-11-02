@@ -59,7 +59,7 @@ public class AdminSettingsController {
     }
 
     /**
-     * 设置注册开关与邮箱域名白名单。
+     * 设置注册开关、普通用户初始积分与邮箱域名白名单。
      *
      * @param req 注册设置
      * @return 空数据返回体
