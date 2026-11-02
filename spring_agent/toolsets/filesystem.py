@@ -10,6 +10,7 @@ from pydantic_ai.toolsets import ApprovalRequiredToolset
 
 from spring_agent.core.agent.deps import CodingAgentDeps
 from spring_agent.core.filesystem import WorkspaceFiles, run_file_operation
+from spring_agent.core.log import logger
 from spring_agent.core.workspace import FileAccessContext, FileScope, WorkspaceResource
 from spring_agent.toolsets.syntax_validation import (
     SyntaxValidationResult,
@@ -64,7 +65,13 @@ def filesystem(root_dir: str, read_only: bool = False, *, access: FileAccessCont
     async def validate(ctx: RunContext[CodingAgentDeps], scope: FileScope, path: str,
                        validator: Callable[[str], SyntaxValidationResult]) -> SyntaxValidationResult:
         target = selected(ctx, scope).target(path)
-        return await run_file_operation(lambda _: validator(target.read_text(encoding="utf-8")))
+        try:
+            return await run_file_operation(lambda _: validator(target.read_text(encoding="utf-8")))
+        except (ValueError, OSError):
+            raise
+        except Exception as error:
+            logger.exception("源码语法校验失败")
+            raise ModelRetry("语法校验暂时失败，请重试；若持续失败，请检查文件内容。") from error
 
     @_recoverable
     async def read_file(ctx: RunContext[CodingAgentDeps], path: str, *, offset: int = 0,

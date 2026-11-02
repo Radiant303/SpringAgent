@@ -1,5 +1,6 @@
 """HTML、JavaScript 与 CSS 源码语法解析。"""
 
+from bisect import bisect_right
 from collections.abc import Iterable
 from typing import TypedDict
 
@@ -72,9 +73,11 @@ def validate_html_source(content: str) -> SyntaxValidationResult:
     return _result(errors)
 
 
-def _javascript_location(content: bytes, line_starts: list[int], row: int, byte: int) -> tuple[int, int]:
+def _javascript_location(content: bytes, line_starts: list[int], byte: int) -> tuple[int, int]:
+    byte = min(max(byte, 0), len(content))
+    row = bisect_right(line_starts, byte) - 1
     line_start = line_starts[row]
-    column = len(content[line_start:byte].decode("utf-8")) + 1
+    column = len(content[line_start:byte].decode("utf-8", errors="replace")) + 1
     return row + 1, column
 
 
@@ -87,7 +90,7 @@ def validate_javascript_source(content: str) -> SyntaxValidationResult:
     pending = [tree.root_node]
     while pending:
         node = pending.pop()
-        line, column = _javascript_location(encoded, line_starts, node.start_point.row, node.start_byte)
+        line, column = _javascript_location(encoded, line_starts, node.start_byte)
         if node.is_error:
             snippet = encoded[node.start_byte:node.end_byte].decode("utf-8", errors="replace")
             snippet = " ".join(snippet.split())
