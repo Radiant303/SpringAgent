@@ -494,6 +494,25 @@ button.row-link:hover { text-decoration: none; }
 .mc-provider:hover {
   background: rgba(0, 0, 0, 0.02);
 }
+.mc-row-main.mc-provider-main {
+  flex-direction: row;
+  align-items: center;
+  gap: 12px;
+}
+.mc-provider-icon {
+  display: block;
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  object-fit: contain;
+}
+.mc-provider-text {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  gap: 3px;
+}
 .mc-row-main {
   display: flex;
   flex: 1;

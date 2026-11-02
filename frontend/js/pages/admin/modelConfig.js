@@ -23,6 +23,13 @@ const CAP_LABELS = {
   native_search: "搜索",
 };
 const PROVIDER_TYPES = ["openai", "alibaba", "deepseek", "responses", "anthropic"];
+const PROVIDER_ICON_FILES = {
+  openai: "openai",
+  alibaba: "alibaba",
+  deepseek: "deepseek",
+  responses: "openai",
+  anthropic: "claude",
+};
 
 /* ---------- 通用小件 ---------- */
 
@@ -74,22 +81,20 @@ function providerListSkeleton(list, n = 3) {
   wrap.setAttribute("aria-hidden", "true");
   for (let i = 0; i < n; i++) {
     const row = h("div", "mc-sk-row");
-    const main = h("span", "mc-row-main");
-    const titleRow = h("span", "mc-row-title");
+    const main = h("span", "mc-row-main mc-provider-main");
+    const iconSk = h("span", "sk");
+    iconSk.style.setProperty("--w", "32px");
+    iconSk.style.setProperty("--h", "32px");
+    iconSk.style.setProperty("--r", "50%");
+    const text = h("span", "mc-provider-text");
     const titleSk = h("span", "sk");
     titleSk.style.setProperty("--w", "100px");
     titleSk.style.setProperty("--h", "14px");
-    const badgeSk = h("span", "sk");
-    badgeSk.style.setProperty("--w", "48px");
-    badgeSk.style.setProperty("--h", "18px");
-    badgeSk.style.setProperty("--r", "6px");
-    badgeSk.style.marginLeft = "6px";
-    titleRow.append(titleSk, badgeSk);
-
     const subSk = h("span", "sk");
     subSk.style.setProperty("--w", "200px");
     subSk.style.setProperty("--h", "12px");
-    main.append(titleRow, subSk);
+    text.append(titleSk, subSk);
+    main.append(iconSk, text);
 
     const metaSk = h("span", "sk");
     metaSk.style.setProperty("--w", "50px");
@@ -280,12 +285,17 @@ function renderProviders() {
     const row = h("div", "mc-row mc-provider");
     row.dataset.name = p.name;
 
-    const main = h("span", "mc-row-main");
-    const title = h("span", "mc-row-title");
-    title.append(p.name, h("span", "badge", p.type));
+    const main = h("span", "mc-row-main mc-provider-main");
+    const providerIcon = h("img", "mc-provider-icon");
+    providerIcon.src = `/static/assets/providers/${PROVIDER_ICON_FILES[p.type]}.svg`;
+    providerIcon.alt = p.type;
+    providerIcon.title = p.type;
+    const text = h("span", "mc-provider-text");
+    const title = h("span", "mc-row-title", p.name);
     const sub = h("span", "mc-row-sub", p.effective_base_url);
     sub.title = p.effective_base_url;
-    main.append(title, sub);
+    text.append(title, sub);
+    main.append(providerIcon, text);
 
     const meta = h("span", "mc-row-meta", `${count} 个模型`);
     const acts = h("span", "mc-row-acts");
