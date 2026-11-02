@@ -14,7 +14,7 @@ function allowed(target) {
 function ripple(host, x, y) {
   const rect = host.getBoundingClientRect();
   const size = Math.max(rect.width, rect.height) * 2;
-  host.classList.toggle("ripple-relative", window.getComputedStyle(host).position === "static");
+  if (window.getComputedStyle(host).position === "static") host.classList.add("ripple-relative");
   host.querySelectorAll(".ripple-viewport").forEach((viewport) => viewport.remove());
   const viewport = document.createElement("span");
   viewport.className = "ripple-viewport";
