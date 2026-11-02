@@ -84,7 +84,7 @@ export function openModelDialog({ mode, provider, providerType, model, thinkingE
 
     row3.append(
       field("上下文窗口（tokens）", ctxInput, null, true),
-      field("输出上限（tokens）", outInput, "0 = 不限制", true)
+      field("输出上限（tokens）", outInput, "0 = 使用默认输出策略", true)
     );
     box.appendChild(row3);
 
