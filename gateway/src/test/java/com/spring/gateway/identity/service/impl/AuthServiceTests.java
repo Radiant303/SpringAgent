@@ -132,6 +132,7 @@ class AuthServiceTests {
     @Test
     void registrationInitialPointsUpdateBalanceAndWriteLedger() {
         enableMailRegister();
+        register(randomUsername(), randomEmail());
         systemSettingWriter.set(SystemSetting.KEY_REGISTRATION_INITIAL_POINTS, "25.125");
         String username = randomUsername();
         UserResponse registered = register(username, randomEmail());
@@ -151,6 +152,7 @@ class AuthServiceTests {
     @Test
     void zeroRegistrationInitialPointsSkipLedger() {
         enableMailRegister();
+        register(randomUsername(), randomEmail());
         systemSettingWriter.set(SystemSetting.KEY_REGISTRATION_INITIAL_POINTS, "0");
         long userId = Long.parseLong(register(randomUsername(), randomEmail()).userId());
 
