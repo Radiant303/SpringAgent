@@ -1,7 +1,7 @@
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, replace
 
-from pydantic_ai import ModelMessage, RunContext
+from pydantic_ai import ModelMessage, ModelRequestContext, RunContext
 from pydantic_ai_harness import SummarizingCompaction
 from pydantic_ai_harness.compaction._shared import (
     estimate_token_count,
@@ -20,6 +20,14 @@ OnCompactionStart = Callable[[int], Awaitable[None]]
 class NotifyingCompaction(SummarizingCompaction):
     on_compaction: OnCompaction | None = None
     on_compaction_start: OnCompactionStart | None = None
+
+    async def before_model_request(
+        self, ctx: RunContext, request_context: ModelRequestContext,
+    ) -> ModelRequestContext:
+        result = await super().before_model_request(ctx, request_context)
+        if result.messages != ctx.messages:
+            ctx.messages[:] = result.messages
+        return result
 
     async def compact(self, messages: list[ModelMessage], ctx: RunContext) -> list[ModelMessage]:
         from spring_agent.core.hooks.billing import RequestBillingModel
