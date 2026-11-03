@@ -49,23 +49,56 @@ export function userNode(text) {
 
 /* 附件 chip 浮动预览 */
 let floatPreview = null;
+let floatPreviewChip = null;
 let floatPreviewTimer = null;
 let floatPreviewListenersAttached = false;
 
-function onFloatPreviewScroll() {
-  hideFloatPreview(true);
+function positionFloatPreview() {
+  if (!floatPreview || !floatPreviewChip?.isConnected) {
+    hideFloatPreview(true);
+    return;
+  }
+  const chipRect = floatPreviewChip.getBoundingClientRect();
+  const margin = 12;
+  const gap = 8;
+  const spaceAbove = chipRect.top - margin;
+  const spaceBelow = window.innerHeight - chipRect.bottom - margin;
+  const placeAbove = spaceAbove >= 240 || spaceAbove >= spaceBelow;
+  const maxH = Math.min(220, Math.max(100, Math.floor((placeAbove ? spaceAbove : spaceBelow) - 24)));
+  floatPreview.querySelector("img").style.maxHeight = maxH + "px";
+
+  if (placeAbove) {
+    floatPreview.style.bottom = (window.innerHeight - chipRect.top + gap) + "px";
+    floatPreview.style.top = "auto";
+  } else {
+    floatPreview.style.top = (chipRect.bottom + gap) + "px";
+    floatPreview.style.bottom = "auto";
+  }
+
+  if (chipRect.left + chipRect.width / 2 > window.innerWidth / 2) {
+    floatPreview.style.right = Math.max(margin, window.innerWidth - chipRect.right) + "px";
+    floatPreview.style.left = "auto";
+  } else {
+    floatPreview.style.left = Math.max(margin, chipRect.left) + "px";
+    floatPreview.style.right = "auto";
+  }
+}
+
+function onFloatPreviewLayoutChange() {
+  positionFloatPreview();
 }
 
 export function hideFloatPreview(immediate = false) {
   clearTimeout(floatPreviewTimer);
   if (immediate) {
     if (floatPreviewListenersAttached) {
-      document.removeEventListener("scroll", onFloatPreviewScroll, true);
-      window.removeEventListener("resize", onFloatPreviewScroll);
+      document.removeEventListener("scroll", onFloatPreviewLayoutChange, true);
+      window.removeEventListener("resize", onFloatPreviewLayoutChange);
       floatPreviewListenersAttached = false;
     }
     floatPreview?.remove();
     floatPreview = null;
+    floatPreviewChip = null;
     return;
   }
   floatPreviewTimer = setTimeout(() => {
@@ -82,40 +115,17 @@ function showFloatPreview(chip, att) {
   img.alt = att.name;
   box.appendChild(img);
   document.body.appendChild(box);
-
-  const chipRect = chip.getBoundingClientRect();
-  const margin = 12;
-  const gap = 8;
-  const spaceAbove = chipRect.top - margin;
-  const spaceBelow = window.innerHeight - chipRect.bottom - margin;
-  const placeAbove = spaceAbove >= 240 || spaceAbove >= spaceBelow;
-  const maxH = Math.min(220, Math.max(100, Math.floor((placeAbove ? spaceAbove : spaceBelow) - 24)));
-  img.style.maxHeight = maxH + "px";
-
-  if (placeAbove) {
-    box.style.bottom = (window.innerHeight - chipRect.top + gap) + "px";
-    box.style.top = "auto";
-  } else {
-    box.style.top = (chipRect.bottom + gap) + "px";
-    box.style.bottom = "auto";
-  }
-
-  if (chipRect.left + chipRect.width / 2 > window.innerWidth / 2) {
-    box.style.right = Math.max(margin, window.innerWidth - chipRect.right) + "px";
-    box.style.left = "auto";
-  } else {
-    box.style.left = Math.max(margin, chipRect.left) + "px";
-    box.style.right = "auto";
-  }
+  floatPreview = box;
+  floatPreviewChip = chip;
+  positionFloatPreview();
 
   box.addEventListener("mouseenter", () => clearTimeout(floatPreviewTimer));
   box.addEventListener("mouseleave", () => hideFloatPreview());
   if (!floatPreviewListenersAttached) {
-    document.addEventListener("scroll", onFloatPreviewScroll, true);
-    window.addEventListener("resize", onFloatPreviewScroll);
+    document.addEventListener("scroll", onFloatPreviewLayoutChange, true);
+    window.addEventListener("resize", onFloatPreviewLayoutChange);
     floatPreviewListenersAttached = true;
   }
-  floatPreview = box;
 }
 
 /**
