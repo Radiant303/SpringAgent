@@ -36,6 +36,9 @@ public class PointsLedger {
     /** 类型：兑换码入账（ref_id = 码 ID）。 */
     public static final String TYPE_REDEEM = "REDEEM";
 
+    /** 类型：注册初始积分。 */
+    public static final String TYPE_REGISTER = "REGISTER";
+
     public static final String TYPE_SEARCH = "SEARCH";
 
     /** 主键，雪花 ID。 */
@@ -53,7 +56,7 @@ public class PointsLedger {
 
     private String type;
 
-    /** 计费请求单号、搜索事件 ID、调账单号或兑换码 ID。 */
+    /** 业务单据 ID；注册入账为用户 ID。 */
     private String refId;
 
     /** 结算时实际计费的模型配置 ID。 */
@@ -62,7 +65,7 @@ public class PointsLedger {
     /** ADJUST 的操作人用户 ID。 */
     private Long operatorId;
 
-    /** 调账事由或搜索厂商及次数。 */
+    /** 入账事由、调账事由或搜索厂商及次数。 */
     private String reason;
 
     /** 记录时间（UTC）。 */

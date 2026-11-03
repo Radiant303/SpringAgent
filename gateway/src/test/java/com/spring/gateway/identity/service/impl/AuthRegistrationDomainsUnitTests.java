@@ -2,6 +2,7 @@ package com.spring.gateway.identity.service.impl;
 
 import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
+import com.spring.gateway.billing.service.PointsAccountService;
 import com.spring.gateway.common.BizException;
 
 import com.spring.gateway.common.SnowflakeIdGenerator;
@@ -41,7 +42,8 @@ class AuthRegistrationDomainsUnitTests {
     private final BCryptPasswordEncoder passwords = mock(BCryptPasswordEncoder.class);
     private final SystemSettingService settings = mock(SystemSettingService.class);
     private final MailCodeService codes = mock(MailCodeService.class);
-    private final AuthService auth = new AuthServiceImpl(users, ids, tokens, passwords, settings, codes);
+    private final PointsAccountService points = mock(PointsAccountService.class);
+    private final AuthService auth = new AuthServiceImpl(users, ids, tokens, passwords, settings, codes, points);
 
     @BeforeEach
     void setup() {
@@ -76,8 +78,9 @@ class AuthRegistrationDomainsUnitTests {
         auth.register(new RegisterRequest("member", "password123", "person@qq.com", "123456"));
         ArgumentCaptor<User> saved = ArgumentCaptor.forClass(User.class);
         verify(users).insert(saved.capture());
-        assertEquals(new java.math.BigDecimal("25.125"), saved.getValue().getPointsBalance());
+        assertEquals(java.math.BigDecimal.ZERO, saved.getValue().getPointsBalance());
         assertEquals(User.ROLE_USER, saved.getValue().getRole());
+        verify(points).grantRegistration(42L, new java.math.BigDecimal("25.125"));
     }
 
     @Test
@@ -86,9 +89,10 @@ class AuthRegistrationDomainsUnitTests {
         auth.register(new RegisterRequest("owner", "password123", "owner@qq.com", "123456"));
         ArgumentCaptor<User> saved = ArgumentCaptor.forClass(User.class);
         verify(users).insert(saved.capture());
-        assertEquals(new java.math.BigDecimal("1000"), saved.getValue().getPointsBalance());
+        assertEquals(java.math.BigDecimal.ZERO, saved.getValue().getPointsBalance());
         assertEquals(User.ROLE_OWNER, saved.getValue().getRole());
         verify(settings, never()).getRegistrationInitialPoints();
+        verify(points).grantRegistration(42L, new java.math.BigDecimal("1000"));
     }
 
     @ParameterizedTest
@@ -123,7 +127,7 @@ class AuthRegistrationDomainsUnitTests {
         SystemSettingService defaults = mock(SystemSettingService.class);
         when(defaults.isMailRegisterEnabled()).thenReturn(true);
         when(defaults.isRegistrationOpen()).thenReturn(true);
-        AuthService defaultAuth = new AuthServiceImpl(users, ids, tokens, passwords, defaults, codes);
+        AuthService defaultAuth = new AuthServiceImpl(users, ids, tokens, passwords, defaults, codes, points);
         assertEquals(List.of(), defaults.getMailRegisterDomains());
         defaultAuth.register(new RegisterRequest("second", "password123", "second@outside.example", "123456"));
     }

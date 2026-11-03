@@ -13,5 +13,7 @@ public interface PointsAccountService {
 
     BigDecimal balanceOf(long userId);
 
+    void grantRegistration(long userId, BigDecimal points);
+
     BigDecimal grantRedeem(long userId, BigDecimal points, String refId);
 }

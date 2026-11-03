@@ -2,6 +2,7 @@ package com.spring.gateway.identity.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
+import com.spring.gateway.billing.service.PointsAccountService;
 import com.spring.gateway.common.BizException;
 import com.spring.gateway.common.SnowflakeIdGenerator;
 import com.spring.gateway.identity.dto.ChangePasswordRequest;
@@ -40,6 +41,7 @@ public class AuthServiceImpl implements AuthService {
     private final BCryptPasswordEncoder passwordEncoder;
     private final SystemSettingService systemSettingService;
     private final MailCodeService mailCodeService;
+    private final PointsAccountService pointsAccountService;
 
     /**
      * 注册新用户；系统无用户时首个注册者成为站长（不受注册开关限制）。
@@ -96,13 +98,15 @@ public class AuthServiceImpl implements AuthService {
         user.setRole(bootstrap ? User.ROLE_OWNER : User.ROLE_USER);
         user.setStatus(User.STATUS_ACTIVE);
         // 首个站长的初始积分固定为 1000
-        user.setPointsBalance(bootstrap ? new BigDecimal("1000") : systemSettingService.getRegistrationInitialPoints());
+        BigDecimal initialPoints = bootstrap ? new BigDecimal("1000") : systemSettingService.getRegistrationInitialPoints();
+        user.setPointsBalance(BigDecimal.ZERO);
         try {
             userMapper.insert(user);
         } catch (DuplicateKeyException e) {
             // 先查后插存在并发窗口，由 username/email 唯一索引兜底；并发冲突时同样按已存在处理
             throw new BizException(409, "用户名或邮箱已存在");
         }
+        pointsAccountService.grantRegistration(user.getId(), initialPoints);
         return new UserResponse(String.valueOf(user.getId()), user.getUsername());
     }
 

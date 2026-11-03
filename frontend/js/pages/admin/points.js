@@ -14,6 +14,7 @@ export const LEDGER_TYPE_LABELS = {
   DIRECT: "直扣",
   ADJUST: "调账",
   REDEEM: "兑换",
+  REGISTER: "注册赠送",
   SEARCH: "搜索",
 };
 

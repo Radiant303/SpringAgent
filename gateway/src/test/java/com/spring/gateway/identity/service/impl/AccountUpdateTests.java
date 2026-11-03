@@ -58,7 +58,8 @@ class AccountUpdateTests {
         when(encoder.matches("old-password", "old-hash")).thenReturn(true);
         sessions = mock(AuthSessionService.class);
         auth = new AuthServiceImpl(users, mock(SnowflakeIdGenerator.class), sessions, encoder,
-                mock(SystemSettingService.class), mock(MailCodeService.class));
+                mock(SystemSettingService.class), mock(MailCodeService.class),
+                mock(com.spring.gateway.billing.service.PointsAccountService.class));
         admin = new AdminUserServiceImpl(users, encoder, sessions);
     }
 

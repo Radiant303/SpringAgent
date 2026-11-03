@@ -52,6 +52,18 @@ public class PointsAccountServiceImpl implements PointsAccountService {
 
     @Override
     @Transactional
+    public void grantRegistration(long userId, BigDecimal points) {
+        ResourceLimits.points(points, false, "注册初始积分");
+        if (points.signum() == 0) {
+            return;
+        }
+        BigDecimal after = applyDelta(userId, points, false);
+        insertLedger(userId, points, after, PointsLedger.TYPE_REGISTER,
+                String.valueOf(userId), null, null, "注册初始积分");
+    }
+
+    @Override
+    @Transactional
     public BigDecimal grantRedeem(long userId, BigDecimal points, String refId) {
         ResourceLimits.points(points, false, "兑换积分");
         if (points.signum() == 0) {

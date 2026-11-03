@@ -1,5 +1,8 @@
 package com.spring.gateway.identity.service.impl;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.spring.gateway.billing.entity.PointsLedger;
+import com.spring.gateway.billing.mapper.PointsLedgerMapper;
 import com.spring.gateway.common.BizException;
 import com.spring.gateway.identity.service.AuthService;
 import com.spring.gateway.identity.service.AuthSessionService;
@@ -54,6 +57,8 @@ class AuthServiceTests {
     private AuthSessionService jwtUtils;
     @Autowired
     private StringRedisTemplate redis;
+    @Autowired
+    private PointsLedgerMapper pointsLedgerMapper;
 
     @MockitoBean
     private MailSender mailSender;
@@ -122,6 +127,35 @@ class AuthServiceTests {
         assertEquals(Long.parseLong(registered.userId()), jwtUtils.authenticate(login.token()).userId());
         assertEquals(username, login.username());
         assertEquals(0, java.math.BigDecimal.ZERO.compareTo(login.pointsBalance()));
+    }
+
+    @Test
+    void registrationInitialPointsUpdateBalanceAndWriteLedger() {
+        enableMailRegister();
+        systemSettingWriter.set(SystemSetting.KEY_REGISTRATION_INITIAL_POINTS, "25.125");
+        String username = randomUsername();
+        UserResponse registered = register(username, randomEmail());
+        long userId = Long.parseLong(registered.userId());
+
+        TokenResponse login = authService.login(new LoginRequest(username, "pass123456"));
+        assertEquals(0, new java.math.BigDecimal("25.125").compareTo(login.pointsBalance()));
+        PointsLedger row = pointsLedgerMapper.selectOne(new LambdaQueryWrapper<PointsLedger>()
+                .eq(PointsLedger::getUserId, userId).eq(PointsLedger::getType, PointsLedger.TYPE_REGISTER));
+        assertNotNull(row);
+        assertEquals(0, new java.math.BigDecimal("25.125").compareTo(row.getChangeAmount()));
+        assertEquals(0, new java.math.BigDecimal("25.125").compareTo(row.getBalanceAfter()));
+        assertEquals(registered.userId(), row.getRefId());
+        assertEquals("注册初始积分", row.getReason());
+    }
+
+    @Test
+    void zeroRegistrationInitialPointsSkipLedger() {
+        enableMailRegister();
+        systemSettingWriter.set(SystemSetting.KEY_REGISTRATION_INITIAL_POINTS, "0");
+        long userId = Long.parseLong(register(randomUsername(), randomEmail()).userId());
+
+        assertEquals(0, pointsLedgerMapper.selectCount(new LambdaQueryWrapper<PointsLedger>()
+                .eq(PointsLedger::getUserId, userId)));
     }
 
     @Test
