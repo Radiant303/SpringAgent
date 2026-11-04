@@ -352,7 +352,7 @@ async function openProviderDialog(p) {
 async function deleteProvider(name) {
   const ok = await UI.confirm({
     title: "删除 Provider",
-    message: `确定删除 Provider「${name}」吗？`,
+    message: `Provider「${name}」将被删除。`,
     okText: "删除",
     danger: true,
     submit: () => api(`/api/admin/model-config/providers/${encodeURIComponent(name)}/delete`, { method: "POST" }),
@@ -570,7 +570,7 @@ async function testModel(m, btn) {
 async function deleteModel(m) {
   const ok = await UI.confirm({
     title: "删除模型",
-    message: `确定删除模型「${m.model}」吗？\n存量会话若仍引用它将无法继续对话。`,
+    message: `删除模型「${m.model}」后，存量会话若仍引用它将无法继续对话。`,
     okText: "删除",
     danger: true,
     submit: () => api("/api/admin/model-config/models/delete", { method: "POST", body: { modelId: m.id } }),

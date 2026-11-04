@@ -126,7 +126,7 @@ export async function onModelAction(btn) {
     } else if (btn.dataset.act === "delete") {
       const ok = await UI.confirm({
         title: "删除资费卡",
-        message: `确定删除「${modelId}」吗？\n删除后该模型按兜底卡计费。`,
+        message: `删除「${modelId}」后，该模型按兜底卡计费。`,
         okText: "删除",
         danger: true,
         submit: () => api("/api/admin/rate-cards/delete", { method: "POST", body: { modelId } }),

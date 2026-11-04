@@ -309,7 +309,7 @@ export async function deleteSession(session) {
   const sid = session.sessionId;
   const ok = await UI.confirm({
     title: "删除会话",
-    message: `确定删除「${session.title || "空会话"}」吗？\n删除后会话消息和附件将被清理，此操作不可恢复。`,
+    message: `删除「${session.title || "空会话"}」后，会话消息和附件将被清理，此操作不可恢复。`,
     okText: "删除",
     danger: true,
     submit: () => api(`/api/sessions/${encodeURIComponent(sid)}`, { method: "DELETE" }),

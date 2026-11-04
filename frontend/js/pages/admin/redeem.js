@@ -127,7 +127,7 @@ export async function onRedeemAction(btn) {
     } else if (btn.dataset.act === "revoke") {
       const ok = await UI.confirm({
         title: "作废兑换码",
-        message: "确定作废该兑换码吗？作废后无法兑换。",
+        message: "该兑换码作废后无法兑换。",
         okText: "作废",
         danger: true,
         submit: () => api(`/api/admin/redeem-codes/${btn.dataset.id}/revoke`, { method: "POST" }),

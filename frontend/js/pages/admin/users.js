@@ -137,7 +137,7 @@ export async function onUserAction(btn) {
       if (next === "disabled") {
         const ok = await UI.confirm({
           title: "禁用账号",
-          message: `确定禁用「${name}」吗？\n禁用后该账号立即无法登录与使用。`,
+          message: `禁用「${name}」后，该账号立即无法登录与使用。`,
           okText: "禁用",
           danger: true,
           submit: () => post("status", { status: next }),

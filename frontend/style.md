@@ -293,11 +293,13 @@ body.login-page { display: flex; flex-direction: column; min-height: 100vh; back
 
 **所有需要输入或确认的地方都用 `UI.*`，禁止浏览器原生弹窗。**
 
+弹窗使用半透明毛玻璃卡片和模糊遮罩；确认文案直接说明操作对象与后果，不使用“确定……吗？”问句。
+
 ```js
 // 确认（危险操作）
 const ok = await UI.confirm({
   title: "删除项目",
-  message: `确定删除「${name}」吗？\n删除后工作区与会话数据将被清理，不可恢复。`,
+  message: `删除「${name}」后，工作区与会话数据将被清理，不可恢复。`,
   okText: "删除",
   danger: true,
   submit: () => api(`/api/works/${id}`, { method: "DELETE" }),  // 在框内提交，失败时错误显示在框内

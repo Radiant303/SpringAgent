@@ -134,7 +134,7 @@ export async function createWork() {
 export async function deleteWork(work) {
   const ok = await UI.confirm({
     title: "删除项目",
-    message: `确定删除「${work.name}」吗？\n删除后工作区与会话数据将被清理，不可恢复。`,
+    message: `删除「${work.name}」后，工作区与会话数据将被清理，不可恢复。`,
     okText: "删除",
     danger: true,
     submit: async () => {
