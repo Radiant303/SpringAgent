@@ -5,7 +5,7 @@
  * @since 2026-10-13
  */
 
-import { el, icon, revealLatestText } from "./dom.js";
+import { el, icon } from "./dom.js";
 import { formatLangName, highlightHtml } from "./highlight.js";
 
 function getParser() {
@@ -204,9 +204,4 @@ export function setMarkdown(node, text, enhance = true) {
   if (!node) return;
   node.innerHTML = renderMarkdown(text);
   if (enhance) enhanceCodeBlocks(node);
-}
-
-export function setStreamingMarkdown(node, text) {
-  setMarkdown(node, text, false);
-  if (node) revealLatestText(node);
 }
