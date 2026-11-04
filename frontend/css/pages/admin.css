@@ -20,7 +20,7 @@ body {
   position: relative;
   width: 0;
   height: 100%;
-  background: var(--admin-green, #2fb36d);
+  background: #8dd7b0;
   transition: width 0.5s ease;
 }
 .admin-loading-peg {
@@ -29,8 +29,8 @@ body {
   left: calc(var(--progress, 0%) - 5.5%);
   width: 5%;
   height: 100%;
-  background: rgba(47, 179, 109, 0.55);
-  box-shadow: 0 0 10px rgba(47, 179, 109, 0.38), 0 0 5px rgba(47, 179, 109, 0.28);
+  background: rgba(141, 215, 176, 0.55);
+  box-shadow: 0 0 10px rgba(141, 215, 176, 0.38), 0 0 5px rgba(141, 215, 176, 0.28);
   transform: rotate(2deg) translate(0, -2px);
   transition: left 0.5s ease;
 }
