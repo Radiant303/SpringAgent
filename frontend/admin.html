@@ -24,7 +24,11 @@
   <link rel="stylesheet" href="/static/css/pages/admin.css">
 </head>
 <body>
-  <div id="admin-loading-bar" class="admin-loading-bar" role="progressbar" aria-label="页面加载进度" aria-hidden="true"></div>
+  <div id="admin-loading-bar" class="admin-loading-bar" role="progressbar" aria-label="页面加载进度"
+       aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-hidden="true">
+    <div id="admin-loading-fill" class="admin-loading-fill"></div>
+    <span class="admin-loading-peg" aria-hidden="true"></span>
+  </div>
   <div id="admin-app">
     <aside id="admin-nav">
       <a id="back-link" href="/static/index.html">

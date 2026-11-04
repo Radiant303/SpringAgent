@@ -20,24 +20,38 @@ function clearTimers() {
   finishTimer = null;
 }
 
+function paintLoadingBar(bar, value) {
+  const fill = $("admin-loading-fill");
+  if (fill) fill.style.width = `${value}%`;
+  bar.style.setProperty("--progress", `${value}%`);
+  bar.setAttribute("aria-valuenow", String(Math.round(value)));
+}
+
+export function nextLoadingProgress(value, random = Math.random()) {
+  const min = Math.min(10, (100 - value) / 5);
+  const max = Math.min(20, (100 - value) / 3);
+  const next = value + min + (max - min) * random;
+  return next < MAX_PROGRESS ? next : value;
+}
+
 export function startLoadingBar() {
   const current = ++generation;
   clearTimers();
   const bar = $("admin-loading-bar");
   if (!bar) return current;
   const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  progress = reducedMotion ? 80 : 10 + Math.random() * 10;
+  progress = reducedMotion ? 80 : 10 + Math.floor(Math.random() * 11);
   bar.classList.remove("is-active", "is-complete");
-  bar.style.width = "0%";
+  paintLoadingBar(bar, 0);
   bar.setAttribute("aria-hidden", "false");
   void bar.offsetWidth;
   bar.classList.add("is-active");
-  bar.style.width = `${progress}%`;
+  paintLoadingBar(bar, progress);
   if (!reducedMotion) {
     progressTimer = setInterval(() => {
       if (current !== generation) return;
-      progress = Math.min(MAX_PROGRESS, progress + Math.random() * 10);
-      bar.style.width = `${progress}%`;
+      progress = nextLoadingProgress(progress);
+      paintLoadingBar(bar, progress);
     }, STEP_INTERVAL);
   }
   return current;
@@ -50,7 +64,7 @@ export function finishLoadingBar(current) {
   if (!bar) return;
   bar.classList.remove("is-active");
   bar.classList.add("is-complete");
-  bar.style.width = "100%";
+  paintLoadingBar(bar, 100);
   if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
     bar.classList.remove("is-complete");
     bar.setAttribute("aria-hidden", "true");
