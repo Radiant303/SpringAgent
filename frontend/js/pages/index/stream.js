@@ -5,7 +5,7 @@
 import { $, el, hidePending, appendKeepingBottom, icon } from "../../utils/dom.js";
 import { apiFetch } from "../../api/client.js";
 import { rpc } from "../../api/rpc.js";
-import { enhanceCodeBlocks, setMarkdown } from "../../utils/markdown.js";
+import { enhanceCodeBlocks, setStreamingMarkdown } from "../../utils/markdown.js";
 import { SproutManager } from "../../components/sprout.js";
 import {
   state,
@@ -335,7 +335,7 @@ export function onSessionEvent(sid, event, seq) {
       if (!a.text && !pumps.has(a)) setActive(null);
       pumpFor(a, (text) => {
         a.text += text;
-        setMarkdown(a.answer, a.text, false);
+        setStreamingMarkdown(a.answer, a.text);
         maybeScroll();
       }).push(event.text);
       break;
