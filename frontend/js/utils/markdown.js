@@ -8,8 +8,53 @@
 import { el, icon } from "./dom.js";
 import { formatLangName, highlightHtml } from "./highlight.js";
 
+function renderMathToken(token) {
+  return window.katex.renderToString(token.text, {
+    displayMode: token.displayMode,
+    throwOnError: false,
+    strict: "warn",
+  });
+}
+
+const mathBlockExtension = {
+  name: "mathBlock",
+  level: "block",
+  tokenizer(src) {
+    const match = /^\$\$([\s\S]+?)\$\$/.exec(src) || /^\\\[([\s\S]+?)\\\]/.exec(src);
+    if (!match) return undefined;
+    return { type: "mathBlock", raw: match[0], text: match[1], displayMode: true };
+  },
+  renderer(token) {
+    return renderMathToken(token) + "\n";
+  },
+};
+
+const mathInlineExtension = {
+  name: "mathInline",
+  level: "inline",
+  start(src) {
+    const match = /(?<!\\)\$|\\\(|\\\[/.exec(src);
+    return match ? match.index : -1;
+  },
+  tokenizer(src) {
+    let match = /^\$\$([\s\S]+?)\$\$/.exec(src) || /^\\\[([\s\S]+?)\\\]/.exec(src);
+    if (match) return { type: "mathInline", raw: match[0], text: match[1], displayMode: true };
+    match = /^\\\(([\s\S]+?)\\\)/.exec(src)
+      || /^\$(?=\S)((?:\\[\s\S]|[^$\\\n])+?)(?<!\s)\$(?!\d)/.exec(src);
+    if (!match) return undefined;
+    return { type: "mathInline", raw: match[0], text: match[1], displayMode: false };
+  },
+  renderer: renderMathToken,
+};
+
+let mathExtensionRegistered = false;
+
 function getParser() {
   if (typeof window !== "undefined" && window.marked) {
+    if (!mathExtensionRegistered && window.katex) {
+      window.marked.use({ extensions: [mathBlockExtension, mathInlineExtension] });
+      mathExtensionRegistered = true;
+    }
     window.marked.setOptions({ breaks: true, gfm: true });
     return window.marked;
   }

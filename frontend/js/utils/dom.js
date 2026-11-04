@@ -81,7 +81,7 @@ export function revealStreamText(root) {
   const now = performance.now();
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
     acceptNode(node) {
-      if (!node.nodeValue || node.parentElement?.closest("pre")) return NodeFilter.FILTER_REJECT;
+      if (!node.nodeValue || node.parentElement?.closest("pre, .katex")) return NodeFilter.FILTER_REJECT;
       return NodeFilter.FILTER_ACCEPT;
     },
   });
