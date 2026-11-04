@@ -50,6 +50,52 @@ export function appendKeepingBottom(element, text, threshold = 40) {
   }
 }
 
+const INK_REVEAL_CHARS = 10;
+const INK_REVEAL_STEP = 30;
+const graphemeSegmenter = typeof Intl !== "undefined" && Intl.Segmenter
+  ? new Intl.Segmenter(undefined, { granularity: "grapheme" })
+  : null;
+
+function graphemes(text) {
+  return graphemeSegmenter
+    ? Array.from(graphemeSegmenter.segment(text), (part) => part.segment)
+    : Array.from(text);
+}
+
+export function revealLatestText(root) {
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+    acceptNode(node) {
+      if (!node.nodeValue || node.parentElement?.closest("pre")) return NodeFilter.FILTER_REJECT;
+      return NodeFilter.FILTER_ACCEPT;
+    },
+  });
+  const nodes = [];
+  let total = 0;
+  let current;
+  while ((current = walker.nextNode())) {
+    const chars = graphemes(current.nodeValue);
+    nodes.push({ node: current, chars, start: total });
+    total += chars.length;
+  }
+  const revealFrom = Math.max(0, total - INK_REVEAL_CHARS);
+  for (const { node, chars, start } of nodes) {
+    if (start + chars.length <= revealFrom) continue;
+    const frag = document.createDocumentFragment();
+    let plainStart = 0;
+    for (let i = 0; i < chars.length; i++) {
+      const index = start + i;
+      if (index < revealFrom) continue;
+      if (i > plainStart) frag.appendChild(document.createTextNode(chars.slice(plainStart, i).join("")));
+      const span = el("span", "ink-reveal-char", chars[i]);
+      span.style.animationDelay = `${(index - total + 1) * INK_REVEAL_STEP}ms`;
+      frag.appendChild(span);
+      plainStart = i + 1;
+    }
+    if (plainStart < chars.length) frag.appendChild(document.createTextNode(chars.slice(plainStart).join("")));
+    node.replaceWith(frag);
+  }
+}
+
 export function showPending(container) {
   hidePending();
   const parent = container || $("messages");

@@ -639,7 +639,7 @@
 }
 
 .ink-reveal-char {
-  animation: ink-reveal-char 240ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: ink-reveal-char 120ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 @keyframes ink-reveal-char {
   from { opacity: 0.2; filter: blur(6px); }
