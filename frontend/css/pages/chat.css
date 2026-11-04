@@ -638,6 +638,17 @@
   line-height: 1.75;
 }
 
+.stream-fade-char {
+  animation: stream-fade-char 250ms linear both;
+}
+@keyframes stream-fade-char {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .stream-fade-char { animation: none; }
+}
+
 .msg.system {
   align-self: center;
   color: var(--text-dim, rgba(0, 0, 0, 0.6));

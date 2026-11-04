@@ -2,7 +2,7 @@
  * 实时事件流调度与处理
  */
 
-import { $, el, hidePending, appendKeepingBottom, icon } from "../../utils/dom.js";
+import { $, el, hidePending, appendKeepingBottom, icon, revealStreamText } from "../../utils/dom.js";
 import { apiFetch } from "../../api/client.js";
 import { rpc } from "../../api/rpc.js";
 import { enhanceCodeBlocks, setMarkdown } from "../../utils/markdown.js";
@@ -336,6 +336,7 @@ export function onSessionEvent(sid, event, seq) {
       pumpFor(a, (text) => {
         a.text += text;
         setMarkdown(a.answer, a.text, false);
+        revealStreamText(a.answer);
         maybeScroll();
       }).push(event.text);
       break;
@@ -351,6 +352,7 @@ export function onSessionEvent(sid, event, seq) {
       const body = state.thinking.querySelector(".thinking-text");
       pumpFor(body, (text) => {
         appendKeepingBottom(body, text);
+        revealStreamText(body);
         maybeScroll();
       }).push(event.text);
       break;

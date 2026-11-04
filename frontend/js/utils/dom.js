@@ -41,12 +41,93 @@ export function markScrolling(element) {
 
 export function appendKeepingBottom(element, text, threshold = 40) {
   const atBottom = element.scrollHeight - element.scrollTop - element.clientHeight < threshold;
-  const node = element.firstChild;
+  const node = element.lastChild;
   if (node && node.nodeType === 3) node.appendData(text);
   else element.appendChild(document.createTextNode(text));
   if (atBottom) {
     element.scrollTop = element.scrollHeight;
     markScrolling(element);
+  }
+}
+
+const STREAM_FADE_DURATION = 250;
+const streamFadeStates = new WeakMap();
+const streamGraphemeSegmenter = typeof Intl !== "undefined" && Intl.Segmenter
+  ? new Intl.Segmenter(undefined, { granularity: "grapheme" })
+  : null;
+
+function streamGraphemes(text) {
+  return streamGraphemeSegmenter
+    ? Array.from(streamGraphemeSegmenter.segment(text), (part) => part.segment)
+    : Array.from(text);
+}
+
+function unwrapStreamFade(root) {
+  const parents = new Set();
+  for (const span of root.querySelectorAll(".stream-fade-char")) {
+    const parent = span.parentNode;
+    if (!parent) continue;
+    span.replaceWith(document.createTextNode(span.textContent || ""));
+    parents.add(parent);
+  }
+  for (const parent of parents) parent.normalize();
+}
+
+export function revealStreamText(root) {
+  const previous = streamFadeStates.get(root);
+  if (previous?.timer) clearTimeout(previous.timer);
+  unwrapStreamFade(root);
+
+  const now = performance.now();
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+    acceptNode(node) {
+      if (!node.nodeValue || node.parentElement?.closest("pre")) return NodeFilter.FILTER_REJECT;
+      return NodeFilter.FILTER_ACCEPT;
+    },
+  });
+  const nodes = [];
+  const chars = [];
+  let current;
+  while ((current = walker.nextNode())) {
+    const parts = streamGraphemes(current.nodeValue);
+    nodes.push({ node: current, chars: parts, start: chars.length });
+    for (const char of parts) chars.push(char);
+  }
+
+  let preserved = 0;
+  if (previous) {
+    const limit = Math.min(chars.length, previous.chars.length);
+    while (preserved < limit && chars[preserved] === previous.chars[preserved]) preserved++;
+  }
+  const timestamps = previous ? previous.timestamps.slice(0, preserved) : [];
+  while (timestamps.length < chars.length) timestamps.push(now);
+  const state = { chars, timestamps, timer: null };
+  streamFadeStates.set(root, state);
+
+  let active = false;
+  for (const { node, chars: parts, start } of nodes) {
+    let frag = null;
+    let plainStart = 0;
+    for (let i = 0; i < parts.length; i++) {
+      const age = now - timestamps[start + i];
+      if (age >= STREAM_FADE_DURATION) continue;
+      if (!frag) frag = document.createDocumentFragment();
+      if (i > plainStart) frag.appendChild(document.createTextNode(parts.slice(plainStart, i).join("")));
+      const span = el("span", "stream-fade-char", parts[i]);
+      span.style.animationDelay = `${-Math.max(0, age)}ms`;
+      frag.appendChild(span);
+      plainStart = i + 1;
+      active = true;
+    }
+    if (!frag) continue;
+    if (plainStart < parts.length) frag.appendChild(document.createTextNode(parts.slice(plainStart).join("")));
+    node.replaceWith(frag);
+  }
+  if (active) {
+    state.timer = setTimeout(() => {
+      unwrapStreamFade(root);
+      state.timer = null;
+    }, STREAM_FADE_DURATION);
   }
 }
 
