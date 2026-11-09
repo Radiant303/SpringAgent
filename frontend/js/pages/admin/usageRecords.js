@@ -88,17 +88,19 @@ export async function loadUsageRecords(p = adminPage) {
   params.set("page", p);
   params.set("size", adminSize);
   const data = await UI.loadTable("usage-records-tbody",
-    () => api("/api/admin/usage/records?" + params.toString()));
+    () => api("/api/admin/usage/records?" + params.toString()), (result) => {
+      if (result && !result.list.length && p > 1) return;
+      adminPage = p;
+      UI.renderPager("usage-records-pager", { page: p, size: adminSize, total: result?.total || 0 }, {
+        onPage: (np) => loadUsageRecords(np).catch((e) => UI.toast(e.message, { type: "error" })),
+        onSize: (ns) => {
+          adminSize = ns;
+          loadUsageRecords(1).catch((e) => UI.toast(e.message, { type: "error" }));
+        },
+      });
+      renderRecords("usage-records-tbody", result?.list || [], true);
+    });
   if (data && !data.list.length && p > 1) return loadUsageRecords(p - 1);
-  adminPage = p;
-  UI.renderPager("usage-records-pager", { page: p, size: adminSize, total: data?.total || 0 }, {
-    onPage: (np) => loadUsageRecords(np).catch((e) => UI.toast(e.message, { type: "error" })),
-    onSize: (ns) => {
-      adminSize = ns;
-      loadUsageRecords(1).catch((e) => UI.toast(e.message, { type: "error" }));
-    },
-  });
-  renderRecords("usage-records-tbody", data?.list || [], true);
 }
 
 let myPage = 1;
@@ -113,15 +115,17 @@ export async function loadMyUsage(p = myPage) {
   params.set("page", p);
   params.set("size", mySize);
   const data = await UI.loadTable("my-usage-tbody",
-    () => api("/api/billing/usage?" + params.toString()));
+    () => api("/api/billing/usage?" + params.toString()), (result) => {
+      if (result && !result.list.length && p > 1) return;
+      myPage = p;
+      UI.renderPager("my-usage-pager", { page: p, size: mySize, total: result?.total || 0 }, {
+        onPage: (np) => loadMyUsage(np).catch((e) => UI.toast(e.message, { type: "error" })),
+        onSize: (ns) => {
+          mySize = ns;
+          loadMyUsage(1).catch((e) => UI.toast(e.message, { type: "error" }));
+        },
+      });
+      renderRecords("my-usage-tbody", result?.list || [], false);
+    });
   if (data && !data.list.length && p > 1) return loadMyUsage(p - 1);
-  myPage = p;
-  UI.renderPager("my-usage-pager", { page: p, size: mySize, total: data?.total || 0 }, {
-    onPage: (np) => loadMyUsage(np).catch((e) => UI.toast(e.message, { type: "error" })),
-    onSize: (ns) => {
-      mySize = ns;
-      loadMyUsage(1).catch((e) => UI.toast(e.message, { type: "error" }));
-    },
-  });
-  renderRecords("my-usage-tbody", data?.list || [], false);
 }

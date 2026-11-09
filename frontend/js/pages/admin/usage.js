@@ -37,27 +37,29 @@ export async function loadUsage(p = page) {
   }
   params.set("page", p);
   params.set("size", size);
-  const data = await UI.loadTable("usage-tbody", () => api("/api/admin/usage?" + params.toString()));
-  if (data && !data.list.length && p > 1) return loadUsage(p - 1);
-  page = p;
-  UI.renderPager("usage-pager", { page, size, total: data?.total || 0 }, {
-    onPage: (np) => loadUsage(np).catch((e) => UI.toast(e.message, { type: "error" })),
-    onSize: (ns) => { size = ns; loadUsage(1).catch((e) => UI.toast(e.message, { type: "error" })); },
+  const data = await UI.loadTable("usage-tbody", () => api("/api/admin/usage?" + params.toString()), (result) => {
+    if (result && !result.list.length && p > 1) return;
+    page = p;
+    UI.renderPager("usage-pager", { page, size, total: result?.total || 0 }, {
+      onPage: (np) => loadUsage(np).catch((e) => UI.toast(e.message, { type: "error" })),
+      onSize: (ns) => { size = ns; loadUsage(1).catch((e) => UI.toast(e.message, { type: "error" })); },
+    });
+    UI.renderRows("usage-tbody", result?.list || [], (tr, r) => {
+      tr.className = "";
+      tr.innerHTML = `
+        <td></td>
+        <td></td>
+        <td></td>
+        <td class="num">${fmtNum(r.turns)}</td>
+        <td class="num">${fmtNum(r.requests)}</td>
+        <td class="num">${fmtNum(r.inputTokens)}</td>
+        <td class="num">${fmtNum(r.cacheReadTokens)}</td>
+        <td class="num">${fmtNum(r.cacheWriteTokens)}</td>
+        <td class="num">${fmtNum(r.outputTokens)}</td>`;
+      tr.cells[0].textContent = r.username || r.userId;
+      tr.cells[1].textContent = r.modelName || r.modelId || "-";
+      tr.cells[2].textContent = r.modelId || "-";
+    }, "暂无用量记录");
   });
-  UI.renderRows("usage-tbody", data?.list || [], (tr, r) => {
-    tr.className = "";
-    tr.innerHTML = `
-      <td></td>
-      <td></td>
-      <td></td>
-      <td class="num">${fmtNum(r.turns)}</td>
-      <td class="num">${fmtNum(r.requests)}</td>
-      <td class="num">${fmtNum(r.inputTokens)}</td>
-      <td class="num">${fmtNum(r.cacheReadTokens)}</td>
-      <td class="num">${fmtNum(r.cacheWriteTokens)}</td>
-      <td class="num">${fmtNum(r.outputTokens)}</td>`;
-    tr.cells[0].textContent = r.username || r.userId;
-    tr.cells[1].textContent = r.modelName || r.modelId || "-";
-    tr.cells[2].textContent = r.modelId || "-";
-  }, "暂无用量记录");
+  if (data && !data.list.length && p > 1) return loadUsage(p - 1);
 }

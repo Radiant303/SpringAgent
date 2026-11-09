@@ -8,14 +8,6 @@
   background: #fff;
   overflow-x: auto;
   overflow-y: hidden;
-  transition: opacity 150ms;
-}
-
-.table-wrap.fetching,
-.table-card.fetching,
-.table-card.is-loading {
-  opacity: 0.6;
-  pointer-events: none;
 }
 
 .admin-table {
@@ -24,6 +16,12 @@
   font-size: 14px;
   line-height: 20px;
   table-layout: auto;
+  transition: opacity 150ms;
+}
+
+.admin-table.fetching {
+  opacity: 0.6;
+  pointer-events: none;
 }
 
 .admin-table th,

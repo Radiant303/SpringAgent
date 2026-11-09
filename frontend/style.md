@@ -400,11 +400,12 @@ UI.saveSkeleton("my-list");       // 在真实数据到达前调用一次
 UI.showSkeleton("my-list");       // 重新加载前：换回骨架
 UI.clearSkeleton("my-list");      // 加载失败：移除骨架
 
-// 表格：三态加载与索引 key 协调渲染
-const rows = await UI.loadTable("user-tbody", () => api("/api/admin/users")) || [];
-UI.renderRows("user-tbody", rows, (tr, u) => {
-  tr.innerHTML = `<td>${u.username}</td>...`;
-}, "暂无用户");
+// 表格：数据与分页在 commit 中一起替换，随后恢复亮度
+UI.loadTable("user-tbody", () => api("/api/admin/users"), (data) => {
+  UI.renderRows("user-tbody", data?.list || [], (tr, u) => {
+    tr.innerHTML = `<td>${u.username}</td>...`;
+  }, "暂无用户");
+});
 
 // 页面加载失败：收起该页残留的所有骨架
 loader().catch((e) => { UI.settleSkeletons(section); showError(e.message); });
@@ -417,7 +418,7 @@ loader().catch((e) => { UI.settleSkeletons(section); showError(e.message); });
 | `UI.clearSkeleton(box)` | 移除 box 里的骨架块 |
 | `UI.tableSkeleton(tbody, rows = 10)` | 按表头列数铺骨架行（封顶 20 行，高 52px，错落循环宽，1.5s pulse） |
 | `UI.emptyRow(tbody, text)` | 表体只留一行居中提示，自动计算 `colspan` |
-| `UI.loadTable(tbody, fetcher)` | 表格加载：没有旧数据时铺骨架，有数据时只把表格容器设为半透明禁点（opacity 0.6 + pointer-events: none + 150ms），失败时落成"加载失败"；返回 fetcher 的结果 |
+| `UI.loadTable(tbody, fetcher, commit)` | 表格加载：没有旧数据时铺骨架，有数据时把表格设为半透明禁点，成功时先执行 commit 再恢复；连续请求只提交最后一次，失败时保留旧数据 |
 | `UI.renderRows(tbody, items, fn, emptyText)` | 按索引 key 协调渲染行：原地复用/增删，新挂载行播放 tableRowEnter 交错动画 |
 | `UI.settleSkeletons(root)` | 表格骨架变成"加载失败"一行，骨架块换成提示，行内骨架条换成"-" |
 
@@ -425,8 +426,8 @@ loader().catch((e) => { UI.settleSkeletons(section); showError(e.message); });
 
 - **三态加载规范**：
   1. **首次加载 (isLoading)**：没有任何旧数据可显示时显示骨架屏（假行数 `min(pageSize, 20)`，行高 52px，每格骨架条宽度按 `['70%','90%','55%','80%','65%','45%']` 循环取值，浅灰圆角块 + opacity 1↔0.5 的 1.5s 无限呼吸动画，不做扫光）。
-  2. **后台刷新 (isFetchingOnly)**：请求进行中且有旧数据时，**绝不闪骨架屏**，旧数据原地保留，只将表格容器设为 `opacity: 0.6; pointer-events: none; transition: opacity 150ms`。
-  3. **数据就绪**：渲染数据行，新挂载的行播放 `tableRowEnter` 交错入场动画（步进 25ms、第 11 行起封顶 250ms，`animation-fill-mode: both`，外层包 `prefers-reduced-motion: no-preference`）。
+  2. **后台刷新 (isFetchingOnly)**：请求进行中且有旧数据时，**绝不闪骨架屏**，旧数据原地保留，仅将表格（含表头）设为 `opacity: 0.6; pointer-events: none; transition: opacity 150ms`，筛选栏与分页栏不受影响。
+  3. **数据就绪**：在 `commit` 中同步替换数据与分页状态，再解除加载态；新挂载的行播放 `tableRowEnter` 交错入场动画（步进 25ms、第 11 行起封顶 250ms，`animation-fill-mode: both`，外层包 `prefers-reduced-motion: no-preference`）。
 - **行协调语义**：
   - 骨架屏/空态 → 数据：整批 tr 全是新建，整表交错入场；
   - 重新请求且行数不变：复用原 tr 节点原地更新内容，动画不重放；

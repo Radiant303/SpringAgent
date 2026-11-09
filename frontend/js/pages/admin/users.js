@@ -33,16 +33,18 @@ export async function loadUserOptions() {
 }
 
 export async function loadUsers(p = page) {
-  const data = await UI.loadTable("user-tbody", () => api(`/api/admin/users?page=${p}&size=${size}`));
-  if (data && !data.list.length && p > 1) return loadUsers(p - 1);
-  page = p;
-  pageUsers = data?.list || [];
-  UI.renderPager("user-pager", { page, size, total: data?.total || 0 }, {
-    onPage: (np) => loadUsers(np).catch((e) => UI.toast(e.message, { type: "error" })),
-    onSize: (ns) => { size = ns; loadUsers(1).catch((e) => UI.toast(e.message, { type: "error" })); },
+  const data = await UI.loadTable("user-tbody", () => api(`/api/admin/users?page=${p}&size=${size}`), (result) => {
+    if (result && !result.list.length && p > 1) return;
+    page = p;
+    pageUsers = result?.list || [];
+    UI.renderPager("user-pager", { page, size, total: result?.total || 0 }, {
+      onPage: (np) => loadUsers(np).catch((e) => UI.toast(e.message, { type: "error" })),
+      onSize: (ns) => { size = ns; loadUsers(1).catch((e) => UI.toast(e.message, { type: "error" })); },
+    });
+    renderUsers();
+    loadUserOptions();
   });
-  renderUsers();
-  loadUserOptions();
+  if (data && !data.list.length && p > 1) return loadUsers(p - 1);
   return pageUsers;
 }
 

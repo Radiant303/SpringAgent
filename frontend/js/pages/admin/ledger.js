@@ -32,28 +32,30 @@ export async function loadLedger(p = page) {
   if ($("ledger-user")?.value) params.set("userId", $("ledger-user").value);
   params.set("page", p);
   params.set("size", size);
-  const data = await UI.loadTable("ledger-tbody", () => api("/api/admin/points/ledger?" + params.toString()));
-  if (data && !data.list.length && p > 1) return loadLedger(p - 1);
-  page = p;
-  UI.renderPager("ledger-pager", { page, size, total: data?.total || 0 }, {
-    onPage: (np) => loadLedger(np).catch((e) => UI.toast(e.message, { type: "error" })),
-    onSize: (ns) => { size = ns; loadLedger(1).catch((e) => UI.toast(e.message, { type: "error" })); },
+  const data = await UI.loadTable("ledger-tbody", () => api("/api/admin/points/ledger?" + params.toString()), (result) => {
+    if (result && !result.list.length && p > 1) return;
+    page = p;
+    UI.renderPager("ledger-pager", { page, size, total: result?.total || 0 }, {
+      onPage: (np) => loadLedger(np).catch((e) => UI.toast(e.message, { type: "error" })),
+      onSize: (ns) => { size = ns; loadLedger(1).catch((e) => UI.toast(e.message, { type: "error" })); },
+    });
+    const nameOf = Object.fromEntries(users.map((u) => [u.user_id, u.username]));
+    UI.renderRows("ledger-tbody", result?.list || [], (tr, r) => {
+      const change = Number(r.change_amount);
+      tr.className = "";
+      tr.innerHTML = `
+        <td>${fmtTime(r.created_at)}</td>
+        <td></td>
+        <td>${LEDGER_TYPE_LABELS[r.type] || r.type}</td>
+        <td class="num ${change >= 0 ? "points-in" : "points-out"}">${change >= 0 ? "+" : ""}${fmtPoints(r.change_amount)}</td>
+        <td class="num">${fmtPoints(r.balance_after)}</td>
+        <td></td>
+        <td class="ref-cell" title="${r.ref_id || ""}">${r.ref_id || "-"}</td>
+        <td>${r.reason || "-"}</td>`;
+      tr.cells[1].textContent = nameOf[r.user_id] || r.user_id;
+      tr.cells[5].textContent = r.model_id || "-";
+      tr.cells[5].title = r.model_id || "";
+    }, "暂无流水");
   });
-  const nameOf = Object.fromEntries(users.map((u) => [u.user_id, u.username]));
-  UI.renderRows("ledger-tbody", data?.list || [], (tr, r) => {
-    const change = Number(r.change_amount);
-    tr.className = "";
-    tr.innerHTML = `
-      <td>${fmtTime(r.created_at)}</td>
-      <td></td>
-      <td>${LEDGER_TYPE_LABELS[r.type] || r.type}</td>
-      <td class="num ${change >= 0 ? "points-in" : "points-out"}">${change >= 0 ? "+" : ""}${fmtPoints(r.change_amount)}</td>
-      <td class="num">${fmtPoints(r.balance_after)}</td>
-      <td></td>
-      <td class="ref-cell" title="${r.ref_id || ""}">${r.ref_id || "-"}</td>
-      <td>${r.reason || "-"}</td>`;
-    tr.cells[1].textContent = nameOf[r.user_id] || r.user_id;
-    tr.cells[5].textContent = r.model_id || "-";
-    tr.cells[5].title = r.model_id || "";
-  }, "暂无流水");
+  if (data && !data.list.length && p > 1) return loadLedger(p - 1);
 }

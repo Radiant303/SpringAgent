@@ -70,26 +70,37 @@ export function emptyRow(tbody, text = "暂无数据") {
   el.replaceChildren(tr);
 }
 
-export async function loadTable(tbody, fetcher) {
+const tableLoads = new WeakMap();
+
+export async function loadTable(tbody, fetcher, commit) {
   const el = resolve(tbody);
   if (!el) return fetcher ? fetcher() : null;
-  const card = el.closest(".table-wrap") || el.closest(".table-card");
+  const table = el.closest("table");
+  const state = tableLoads.get(el) || { sequence: 0 };
+  const sequence = ++state.sequence;
+  tableLoads.set(el, state);
   const hasRealRows = !!el.querySelector("tr:not(.sk-tr):not(.empty-row)");
-  if (hasRealRows && card) {
-    card.classList.add("fetching");
-    card.classList.add("is-loading");
+  table?.setAttribute("aria-busy", "true");
+  if (hasRealRows && table) {
+    table.classList.add("fetching");
+    table.setAttribute("inert", "");
   } else {
     tableSkeleton(el);
   }
   try {
-    return await fetcher();
+    const data = await fetcher();
+    if (sequence !== state.sequence) return undefined;
+    if (commit) commit(data);
+    return data;
   } catch (e) {
+    if (sequence !== state.sequence) return undefined;
     if (el.querySelector(".sk-tr")) emptyRow(el, "加载失败");
     throw e;
   } finally {
-    if (card) {
-      card.classList.remove("fetching");
-      card.classList.remove("is-loading");
+    if (table && sequence === state.sequence) {
+      table.classList.remove("fetching");
+      table.removeAttribute("inert");
+      table.removeAttribute("aria-busy");
     }
   }
 }

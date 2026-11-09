@@ -15,7 +15,7 @@ let editingModelId = null;
 let modelDefinitions = [];
 
 export async function loadModels() {
-  models = await UI.loadTable("model-tbody", async () => {
+  await UI.loadTable("model-tbody", async () => {
     const [cards, config, limits] = await Promise.all([
       api("/api/admin/rate-cards"),
       getRole() === "owner" ? api("/api/admin/model-config") : Promise.resolve(null),
@@ -27,9 +27,11 @@ export async function loadModels() {
     }
     modelDefinitions = config?.models || [];
     return cards;
-  }) || [];
-  renderModels();
-  fillModelForm(models.find((m) => m.model_id === editingModelId) || null);
+  }, (cards) => {
+    models = cards || [];
+    renderModels();
+    fillModelForm(models.find((m) => m.model_id === editingModelId) || null);
+  });
 }
 
 function fillModelOptions(value) {

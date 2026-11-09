@@ -124,7 +124,7 @@ async function drainLoads() {
     pendingLoad = null;
     const params = new URLSearchParams({ ...request.filters, page: request.page, size: request.size });
     try {
-      const data = await UI.loadTable("failure-tbody", async () => {
+      await UI.loadTable("failure-tbody", async () => {
         try {
           const result = await api(ENDPOINT + "?" + params);
           if (!result || !Array.isArray(result.list)) throw new Error("失败事件响应格式不正确");
@@ -133,16 +133,17 @@ async function drainLoads() {
           if (request.seq !== listSeq) return null;
           throw error;
         }
+      }, (data) => {
+        if (!data || request.seq !== listSeq || !isOwnerPage()) return;
+        if (!data.list.length && request.page > 1) {
+          const lastPage = Math.max(1, Math.ceil(Number(data.total || 0) / request.size));
+          pendingLoad = { ...request, page: Math.min(request.page - 1, lastPage) };
+          return;
+        }
+        page = Number(data.page) || request.page;
+        size = Number(data.size) || request.size;
+        renderList(data);
       });
-      if (request.seq !== listSeq || !isOwnerPage()) continue;
-      if (!data.list.length && request.page > 1) {
-        const lastPage = Math.max(1, Math.ceil(Number(data.total || 0) / request.size));
-        pendingLoad = { ...request, page: Math.min(request.page - 1, lastPage) };
-        continue;
-      }
-      page = Number(data.page) || request.page;
-      size = Number(data.size) || request.size;
-      renderList(data);
     } catch (error) {
       if (request.seq === listSeq && isOwnerPage()) reportError(error);
     }

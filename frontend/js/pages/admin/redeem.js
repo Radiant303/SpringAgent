@@ -35,38 +35,40 @@ export async function loadRedeemCodes(p = page) {
   }
   params.set("page", p);
   params.set("size", size);
-  const data = await UI.loadTable("redeem-tbody", () => api("/api/admin/redeem-codes?" + params.toString()));
-  if (data && !data.list.length && p > 1) return loadRedeemCodes(p - 1);
-  page = p;
-  UI.renderPager("redeem-pager", { page, size, total: data?.total || 0 }, {
-    onPage: (np) => loadRedeemCodes(np).catch((e) => UI.toast(e.message, { type: "error" })),
-    onSize: (ns) => { size = ns; loadRedeemCodes(1).catch((e) => UI.toast(e.message, { type: "error" })); },
+  const data = await UI.loadTable("redeem-tbody", () => api("/api/admin/redeem-codes?" + params.toString()), (result) => {
+    if (result && !result.list.length && p > 1) return;
+    page = p;
+    UI.renderPager("redeem-pager", { page, size, total: result?.total || 0 }, {
+      onPage: (np) => loadRedeemCodes(np).catch((e) => UI.toast(e.message, { type: "error" })),
+      onSize: (ns) => { size = ns; loadRedeemCodes(1).catch((e) => UI.toast(e.message, { type: "error" })); },
+    });
+    const rows = result?.list || [];
+    const nameOf = Object.fromEntries(users.map((u) => [u.user_id, u.username]));
+    const myRole = getRole();
+    UI.renderRows("redeem-tbody", rows, (tr, row) => {
+      const isUsable = row.status === "ACTIVE" && !row.expired;
+      const actions = [`<button class="admin-btn" data-act="copy" data-code="${row.code}">复制</button>`];
+      if (myRole === "owner" && isUsable) {
+        actions.push(`<button class="admin-btn danger" data-act="revoke" data-id="${row.id}">作废</button>`);
+      }
+      const redeemedBy = row.redeemed_by ? (nameOf[row.redeemed_by] || row.redeemed_by) : null;
+      tr.className = isUsable ? "" : "disabled";
+      tr.innerHTML = `
+        <td><code class="redeem-code">${row.code}</code></td>
+        <td class="num">${faceCell(row.points, fmtPoints)}</td>
+        <td class="num">${faceCell(row.storage_delta_bytes, fmtBytes)}</td>
+        <td class="num">${faceCell(row.work_quota_delta_bytes, fmtBytes)}</td>
+        <td>${redeemStatusHtml(row)}</td>
+        <td class="time-cell">${row.expires_at ? fmtDT(row.expires_at) : '<span class="face-zero">永久</span>'}</td>
+        <td></td>
+        <td class="time-cell">${fmtDT(row.created_at)}</td>
+        <td><div class="row-actions">${actions.join("")}</div></td>`;
+      tr.cells[6].innerHTML = redeemedBy
+        ? `${redeemedBy}<div class="cell-sub">${fmtDT(row.redeemed_at)}</div>`
+        : `<span class="face-zero">–</span>`;
+    }, "暂无兑换码");
   });
-  const rows = data?.list || [];
-  const nameOf = Object.fromEntries(users.map((u) => [u.user_id, u.username]));
-  const myRole = getRole();
-  UI.renderRows("redeem-tbody", rows, (tr, row) => {
-    const isUsable = row.status === "ACTIVE" && !row.expired;
-    const actions = [`<button class="admin-btn" data-act="copy" data-code="${row.code}">复制</button>`];
-    if (myRole === "owner" && isUsable) {
-      actions.push(`<button class="admin-btn danger" data-act="revoke" data-id="${row.id}">作废</button>`);
-    }
-    const redeemedBy = row.redeemed_by ? (nameOf[row.redeemed_by] || row.redeemed_by) : null;
-    tr.className = isUsable ? "" : "disabled";
-    tr.innerHTML = `
-      <td><code class="redeem-code">${row.code}</code></td>
-      <td class="num">${faceCell(row.points, fmtPoints)}</td>
-      <td class="num">${faceCell(row.storage_delta_bytes, fmtBytes)}</td>
-      <td class="num">${faceCell(row.work_quota_delta_bytes, fmtBytes)}</td>
-      <td>${redeemStatusHtml(row)}</td>
-      <td class="time-cell">${row.expires_at ? fmtDT(row.expires_at) : '<span class="face-zero">永久</span>'}</td>
-      <td></td>
-      <td class="time-cell">${fmtDT(row.created_at)}</td>
-      <td><div class="row-actions">${actions.join("")}</div></td>`;
-    tr.cells[6].innerHTML = redeemedBy
-      ? `${redeemedBy}<div class="cell-sub">${fmtDT(row.redeemed_at)}</div>`
-      : `<span class="face-zero">–</span>`;
-  }, "暂无兑换码");
+  if (data && !data.list.length && p > 1) return loadRedeemCodes(p - 1);
 }
 
 /* 生成兑换码：右上角主按钮弹出的对话框；校验/提交都在框内，失败可改了重试 */
