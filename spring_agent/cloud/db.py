@@ -130,7 +130,10 @@ class SessionRow(Base):
 
 class MessageRow(Base):
     __tablename__ = "messages"
-    __table_args__ = (Index("ix_messages_session_segment", "session_id", "segment_no", "id"),)
+    __table_args__ = (
+        Index("ix_messages_session_segment", "session_id", "segment_no", "id"),
+        Index("ix_messages_session_id", "session_id", "id"),
+    )
 
     id: Mapped[int] = mapped_column(_BigInt, primary_key=True, autoincrement=True)
     session_id: Mapped[str] = mapped_column(CHAR(36), ForeignKey("sessions.id"), nullable=False)

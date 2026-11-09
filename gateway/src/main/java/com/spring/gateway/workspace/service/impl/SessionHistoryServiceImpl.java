@@ -470,33 +470,20 @@ public class SessionHistoryServiceImpl implements SessionHistoryService {
     }
 
     private long latestId(String sessionId) {
-        Message latest = messageMapper.selectOne(new LambdaQueryWrapper<Message>()
-                .eq(Message::getSessionId, sessionId)
-                .orderByDesc(Message::getId)
-                .last("LIMIT 1"));
-        return latest == null ? -1L : latest.getId();
+        Long latest = messageMapper.selectLatestId(sessionId);
+        return latest == null ? -1L : latest;
     }
 
     private RowFetcher rowFetcher(String sessionId) {
         return new RowFetcher() {
             @Override
             public List<Row> fetchBackward(long before, long anchor, int limit) {
-                return toRows(messageMapper.selectList(new LambdaQueryWrapper<Message>()
-                        .eq(Message::getSessionId, sessionId)
-                        .le(Message::getId, anchor)
-                        .lt(Message::getId, before)
-                        .orderByDesc(Message::getId)
-                        .last("LIMIT " + limit)));
+                return toRows(messageMapper.selectHistoryBackward(sessionId, before, anchor, limit));
             }
 
             @Override
             public List<Row> fetchForward(long fromId, long anchor, int limit) {
-                return toRows(messageMapper.selectList(new LambdaQueryWrapper<Message>()
-                        .eq(Message::getSessionId, sessionId)
-                        .le(Message::getId, anchor)
-                        .ge(Message::getId, fromId)
-                        .orderByAsc(Message::getId)
-                        .last("LIMIT " + limit)));
+                return toRows(messageMapper.selectHistoryForward(sessionId, fromId, anchor, limit));
             }
         };
     }
