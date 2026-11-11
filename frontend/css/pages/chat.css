@@ -524,7 +524,7 @@
   overflow-y: auto;
   /* 滚动条槽位常驻：折叠/展开改变内容高度时正文列宽不变，避免重新换行 */
   scrollbar-gutter: stable;
-  padding: 20px max(24px, calc((100% - var(--content-max, 780px)) / 2)) calc(64px + var(--plan-h, 0px));
+  padding: 20px max(24px, calc((100% - var(--content-max, 780px)) / 2)) var(--scroll-b);
   display: flex;
   flex-direction: column;
   gap: 18px;
@@ -547,6 +547,10 @@
   justify-content: flex-end;
 }
 #main.is-empty #input-area {
+  position: relative;
+  left: auto;
+  right: auto;
+  bottom: auto;
   flex: 2.2 1 0;
   padding-top: 0;
 }
@@ -601,8 +605,8 @@
   height: 35px;
   border-radius: 50%;
   background: conic-gradient(from 0deg, transparent 0deg 55deg, #6e6e6e 360deg);
-  -webkit-mask-image: radial-gradient(farthest-side, transparent calc(100% - 4px - 0.5px), #000 calc(100% - 4px + 0.5px));
-  mask-image: radial-gradient(farthest-side, transparent calc(100% - 4px - 0.5px), #000 calc(100% - 4px + 0.5px));
+  -webkit-mask-image: radial-gradient(farthest-side, transparent calc(100% - 3px - 0.5px), #000 calc(100% - 3px + 0.5px));
+  mask-image: radial-gradient(farthest-side, transparent calc(100% - 3px - 0.5px), #000 calc(100% - 3px + 0.5px));
   position: relative;
   /* 位于消息区可视中线偏下 */
   top: 64px;
@@ -613,8 +617,8 @@
   position: absolute;
   top: 0;
   left: 50%;
-  width: 4px;
-  height: 4px;
+  width: 3px;
+  height: 3px;
   background: #6e6e6e;
   border-radius: 50%;
   transform: translateX(-50%);
@@ -1193,18 +1197,24 @@ pre.tool-result.error { background: var(--diff-del-bg, rgba(192, 57, 43, 0.07));
 .fv-note { padding: 0 16px 10px; font-size: var(--fs-sm, 16px); color: var(--text-faint, rgba(0, 0, 0, 0.45)); }
 
 
-#app.is-view-loading #input-area { display: none; }
-#app:not(.is-view-loading) #input-area { animation: session-chrome-in 0.28s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
-@keyframes session-chrome-in {
-  from { opacity: 0; transform: translateY(8px); }
-  to { opacity: 1; transform: translateY(0); }
+#input-area { transition: opacity 0.2s ease; }
+#app.is-view-loading #input-area {
+  visibility: hidden;
+  opacity: 0;
+  pointer-events: none;
 }
 @media (prefers-reduced-motion: reduce) {
-  #app:not(.is-view-loading) #input-area { animation: none; }
+  #input-area { transition: none; }
 }
 
 /* ---- 计划区 ---- */
-#input-area { position: relative; }
+#input-area {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 10;
+}
 #input-area::before {
   content: "";
   position: absolute;
