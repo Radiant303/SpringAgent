@@ -24,19 +24,27 @@ public interface SystemSettingService {
 
     BigDecimal getRegistrationInitialPoints();
 
+    BigDecimal getRegistrationInitialPoints(Map<String, String> values);
+
     long getLong(String key, long defaultValue);
 
     long getWorkMaxBytes();
 
     String getString(String key, String defaultValue);
 
+    Map<String, String> getSnapshot();
+
     BigDecimal getSearchPoints(String provider);
 
     Map<String, Object> getSearchSettings();
 
+    Map<String, Object> getSearchSettings(Map<String, String> values);
+
     boolean isMailRegisterEnabled();
 
     List<String> getMailRegisterDomains();
+
+    List<String> getMailRegisterDomains(String raw);
 
     String serializeMailRegisterDomains(List<String> domains);
 
@@ -61,6 +69,28 @@ public interface SystemSettingService {
     String getPlatformDomain();
 
     boolean isPlatformHttps();
+
+    static boolean boolValue(Map<String, String> values, String key, boolean defaultValue) {
+        String value = values.get(key);
+        return value == null ? defaultValue : Boolean.parseBoolean(value);
+    }
+
+    static long longValue(Map<String, String> values, String key, long defaultValue) {
+        String value = values.get(key);
+        if (value == null) {
+            return defaultValue;
+        }
+        try {
+            return Long.parseLong(value.trim());
+        } catch (NumberFormatException e) {
+            return defaultValue;
+        }
+    }
+
+    static String stringValue(Map<String, String> values, String key, String defaultValue) {
+        String value = values.get(key);
+        return value == null ? defaultValue : value.trim();
+    }
 
     static boolean reconcileCronTooFrequent(String cron) {
         CronExpression expression = CronExpression.parse(cron);

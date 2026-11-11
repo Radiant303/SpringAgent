@@ -75,7 +75,12 @@ public class SystemSettingServiceImpl implements SystemSettingService, SystemSet
     }
 
     public BigDecimal getRegistrationInitialPoints() {
-        String value = getString(SystemSetting.KEY_REGISTRATION_INITIAL_POINTS, "0");
+        return getRegistrationInitialPoints(snapshot());
+    }
+
+    public BigDecimal getRegistrationInitialPoints(Map<String, String> values) {
+        String raw = values.get(SystemSetting.KEY_REGISTRATION_INITIAL_POINTS);
+        String value = raw == null ? "0" : raw.trim();
         try {
             BigDecimal points = new BigDecimal(value);
             ResourceLimits.points(points, false, "注册初始积分");
@@ -130,7 +135,10 @@ public class SystemSettingServiceImpl implements SystemSettingService, SystemSet
     }
 
     public Map<String, Object> getSearchSettings() {
-        Map<String, String> values = snapshot();
+        return getSearchSettings(snapshot());
+    }
+
+    public Map<String, Object> getSearchSettings(Map<String, String> values) {
         Map<String, Object> providers = new LinkedHashMap<>();
         SearchProviders.ALL.forEach((id, label) -> providers.put(id, Map.of(
                 "label", label,
@@ -169,7 +177,10 @@ public class SystemSettingServiceImpl implements SystemSettingService, SystemSet
     }
 
     public List<String> getMailRegisterDomains() {
-        String raw = readValue(SystemSetting.KEY_MAIL_REGISTER_DOMAINS);
+        return getMailRegisterDomains(readValue(SystemSetting.KEY_MAIL_REGISTER_DOMAINS));
+    }
+
+    public List<String> getMailRegisterDomains(String raw) {
         if (raw == null) {
             return List.of();
         }
@@ -378,6 +389,11 @@ public class SystemSettingServiceImpl implements SystemSettingService, SystemSet
             return loadFromDb(Set.of(key)).get(key);
         }
         return snapshot().get(key);
+    }
+
+    @Override
+    public Map<String, String> getSnapshot() {
+        return snapshot();
     }
 
     private Map<String, String> snapshot() {

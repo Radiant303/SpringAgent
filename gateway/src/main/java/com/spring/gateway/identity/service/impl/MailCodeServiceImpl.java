@@ -3,6 +3,7 @@ package com.spring.gateway.identity.service.impl;
 import com.spring.gateway.common.BizException;
 import com.spring.gateway.identity.service.MailCodeService;
 import com.spring.gateway.identity.service.MailSender;
+import com.spring.gateway.settings.entity.SystemSetting;
 import com.spring.gateway.settings.service.SystemSettingService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -11,7 +12,12 @@ import org.springframework.stereotype.Service;
 
 import java.security.SecureRandom;
 import java.time.Duration;
+import java.util.Map;
 import java.util.regex.Pattern;
+
+import static com.spring.gateway.settings.service.SystemSettingService.boolValue;
+import static com.spring.gateway.settings.service.SystemSettingService.longValue;
+import static com.spring.gateway.settings.service.SystemSettingService.stringValue;
 
 /**
  * 邮箱验证码：生成、发送与校验。
@@ -106,18 +112,21 @@ public class MailCodeServiceImpl implements MailCodeService {
      *                      发送过于频繁（429）；邮件发送失败（500，此时锁与验证码一并清除，可立即重试）
      */
     public long sendCode(String email, Scene scene) {
-        if (!settings.isMailRegisterEnabled()) {
+        return sendCode(email, scene, settings.getSnapshot());
+    }
+
+    public long sendCode(String email, Scene scene, Map<String, String> values) {
+        if (!boolValue(values, SystemSetting.KEY_MAIL_REGISTER_ENABLED, false)) {
             throw new BizException(403, "当前未开启邮箱验证码功能");
         }
-        SystemSettingService.MailCredentials credentials = settings.getMailCredentials();
-        String from = credentials.username();
-        String authCode = credentials.authCode();
+        String from = stringValue(values, SystemSetting.KEY_MAIL_USERNAME, "");
+        String authCode = stringValue(values, SystemSetting.KEY_MAIL_AUTH_CODE, "");
         if (from.isBlank() || authCode.isBlank()) {
             throw new BizException(500, "邮箱验证码服务未配置，请联系站长");
         }
         String normalized = normalize(email);
-        long resendIntervalSeconds = settings.getMailResendIntervalSeconds();
-        long codeTtlSeconds = settings.getMailCodeTtlSeconds();
+        long resendIntervalSeconds = longValue(values, SystemSetting.KEY_MAIL_RESEND_INTERVAL_SECONDS, 60L);
+        long codeTtlSeconds = longValue(values, SystemSetting.KEY_MAIL_CODE_TTL_SECONDS, 300L);
         // SET NX PX：原子抢占重发锁；抢不到说明间隔内已发过
         Boolean acquired = redis.opsForValue().setIfAbsent(
                 LOCK_KEY_PREFIX + normalized, "1", Duration.ofSeconds(resendIntervalSeconds));

@@ -32,7 +32,10 @@ import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+
+import static com.spring.gateway.settings.service.SystemSettingService.longValue;
 
 /**
  * 模型请求计费实现。
@@ -101,10 +104,11 @@ public class ModelBillingServiceImpl implements ModelBillingService {
         hold.setCacheReadPoints(rate == null ? BigDecimal.ZERO : rate.getCacheReadPoints());
         hold.setCacheWritePoints(rate == null ? BigDecimal.ZERO : rate.getCacheWritePoints());
         hold.setOutputPoints(rate == null ? BigDecimal.ZERO : rate.getOutputPoints());
+        Map<String, String> settings = systemSettingService.getSnapshot();
         BigDecimal amount = costOf(hold,
-                systemSettingService.getLong(SystemSetting.KEY_BILLING_EST_INPUT_TOKENS, 10000L),
-                systemSettingService.getLong(SystemSetting.KEY_BILLING_EST_CACHE_READ_TOKENS, 90000L),
-                0L, systemSettingService.getLong(SystemSetting.KEY_BILLING_EST_OUTPUT_TOKENS, 20000L));
+                longValue(settings, SystemSetting.KEY_BILLING_EST_INPUT_TOKENS, 10000L),
+                longValue(settings, SystemSetting.KEY_BILLING_EST_CACHE_READ_TOKENS, 90000L),
+                0L, longValue(settings, SystemSetting.KEY_BILLING_EST_OUTPUT_TOKENS, 20000L));
         if (hold.getInputPoints().signum() > 0 || hold.getOutputPoints().signum() > 0
                 || hold.getCacheReadPoints().signum() > 0 || hold.getCacheWritePoints().signum() > 0) {
             amount = amount.max(MIN_RESERVATION);

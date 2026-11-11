@@ -16,6 +16,7 @@ import com.spring.gateway.identity.mapper.UserMapper;
 import com.spring.gateway.identity.service.AuthService;
 import com.spring.gateway.identity.service.AuthSessionService;
 import com.spring.gateway.identity.service.MailCodeService;
+import com.spring.gateway.settings.entity.SystemSetting;
 import com.spring.gateway.settings.service.SystemSettingService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DuplicateKeyException;
@@ -24,6 +25,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.util.Map;
+
+import static com.spring.gateway.settings.service.SystemSettingService.boolValue;
 
 /**
  * 认证业务。
@@ -54,7 +58,8 @@ public class AuthServiceImpl implements AuthService {
      */
     @Transactional
     public UserResponse register(RegisterRequest req) {
-        boolean mailRequired = systemSettingService.isMailRegisterEnabled();
+        Map<String, String> values = systemSettingService.getSnapshot();
+        boolean mailRequired = boolValue(values, SystemSetting.KEY_MAIL_REGISTER_ENABLED, false);
         String email = MailCodeService.normalize(req.email());
         String code = req.code() == null ? "" : req.code().trim();
         if (mailRequired) {
@@ -64,7 +69,7 @@ public class AuthServiceImpl implements AuthService {
             if (!MailCodeService.isValidEmail(email)) {
                 throw new BizException(400, "邮箱格式不正确");
             }
-            validateRegistrationEmailDomain(email);
+            validateRegistrationEmailDomain(email, values);
             if (!code.matches("\\d{6}")) {
                 throw new BizException(400, "验证码为 6 位数字");
             }
@@ -83,7 +88,7 @@ public class AuthServiceImpl implements AuthService {
         }
         // 首用户引导：count==0 → owner；并发双注册理论可产生两个 owner，风险可忽略
         boolean bootstrap = userMapper.selectCount(null) == 0;
-        if (!bootstrap && !systemSettingService.isRegistrationOpen()) {
+        if (!bootstrap && !boolValue(values, SystemSetting.KEY_REGISTRATION_OPEN, true)) {
             throw new BizException(403, "当前未开放注册");
         }
         if (mailRequired) {
@@ -98,7 +103,8 @@ public class AuthServiceImpl implements AuthService {
         user.setRole(bootstrap ? User.ROLE_OWNER : User.ROLE_USER);
         user.setStatus(User.STATUS_ACTIVE);
         // 首个站长的初始积分固定为 1000
-        BigDecimal initialPoints = bootstrap ? new BigDecimal("1000") : systemSettingService.getRegistrationInitialPoints();
+        BigDecimal initialPoints = bootstrap ? new BigDecimal("1000")
+                : systemSettingService.getRegistrationInitialPoints(values);
         user.setPointsBalance(BigDecimal.ZERO);
         try {
             userMapper.insert(user);
@@ -178,11 +184,13 @@ public class AuthServiceImpl implements AuthService {
      */
     public long sendSceneCode(String email, MailCodeService.Scene scene) {
         String normalized = MailCodeService.normalize(email);
-        if (scene == MailCodeService.Scene.REGISTER && systemSettingService.isMailRegisterEnabled()) {
+        Map<String, String> values = systemSettingService.getSnapshot();
+        if (scene == MailCodeService.Scene.REGISTER
+                && boolValue(values, SystemSetting.KEY_MAIL_REGISTER_ENABLED, false)) {
             if (!MailCodeService.isValidEmail(normalized)) {
                 throw new BizException(400, "邮箱格式不正确");
             }
-            validateRegistrationEmailDomain(normalized);
+            validateRegistrationEmailDomain(normalized, values);
         }
         boolean registered = userMapper.exists(
                 new LambdaQueryWrapper<User>().eq(User::getEmail, normalized));
@@ -192,11 +200,12 @@ public class AuthServiceImpl implements AuthService {
         if (scene == MailCodeService.Scene.RESET && !registered) {
             throw new BizException(400, "该邮箱未注册");
         }
-        return mailCodeService.sendCode(normalized, scene);
+        return mailCodeService.sendCode(normalized, scene, values);
     }
 
-    private void validateRegistrationEmailDomain(String email) {
-        var domains = systemSettingService.getMailRegisterDomains();
+    private void validateRegistrationEmailDomain(String email, Map<String, String> values) {
+        var domains = systemSettingService.getMailRegisterDomains(
+                values.get(SystemSetting.KEY_MAIL_REGISTER_DOMAINS));
         String domain = email.substring(email.lastIndexOf('@') + 1).toLowerCase(java.util.Locale.ROOT);
         if (!domains.isEmpty() && !domains.contains(domain)) {
             throw new BizException(400, "该邮箱域名不在注册白名单中");

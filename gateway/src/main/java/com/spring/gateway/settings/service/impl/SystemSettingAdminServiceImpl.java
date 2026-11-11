@@ -30,6 +30,10 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
+import static com.spring.gateway.settings.service.SystemSettingService.boolValue;
+import static com.spring.gateway.settings.service.SystemSettingService.longValue;
+import static com.spring.gateway.settings.service.SystemSettingService.stringValue;
+
 /**
  * 系统设置管理实现。
  *
@@ -50,34 +54,39 @@ public class SystemSettingAdminServiceImpl implements SystemSettingAdminService 
 
     @Override
     public Map<String, Object> snapshot() {
-        SystemSettingService.MailCredentials mail = systemSettingService.getMailCredentials();
-        SystemSettingService.OssConfig oss = systemSettingService.getOssConfig();
+        Map<String, String> values = systemSettingService.getSnapshot();
         Map<String, Object> data = new HashMap<>(Map.of(
-                "registrationOpen", systemSettingService.isRegistrationOpen(),
-                "workMaxBytes", systemSettingService.getWorkMaxBytes(),
-                "billingEstCacheReadTokens", systemSettingService.getLong(
-                        SystemSetting.KEY_BILLING_EST_CACHE_READ_TOKENS, 90000L),
-                "billingEstInputTokens", systemSettingService.getLong(
-                        SystemSetting.KEY_BILLING_EST_INPUT_TOKENS, 10000L),
-                "billingEstOutputTokens", systemSettingService.getLong(
-                        SystemSetting.KEY_BILLING_EST_OUTPUT_TOKENS, 20000L),
-                "mailRegisterEnabled", systemSettingService.isMailRegisterEnabled(),
-                "mailUsername", mail.username(),
-                "mailAuthCodeConfigured", !mail.authCode().isBlank(),
-                "mailResendIntervalSeconds", systemSettingService.getMailResendIntervalSeconds(),
-                "mailCodeTtlSeconds", systemSettingService.getMailCodeTtlSeconds()));
-        data.put("registrationInitialPoints", systemSettingService.getRegistrationInitialPoints().toPlainString());
-        data.put("mailRegisterDomains", systemSettingService.getMailRegisterDomains());
-        data.put("communityLink", systemSettingService.getCommunityLink());
-        data.put("platformDomain", systemSettingService.getPlatformDomain());
-        data.put("platformHttps", systemSettingService.isPlatformHttps());
-        data.put("storageType", systemSettingService.getStorageType());
-        data.put("storageReconcileCron", systemSettingService.getStorageReconcileCron());
-        data.put("ossEndpoint", oss.endpoint());
-        data.put("ossBucket", oss.bucket());
-        data.put("ossAccessKeyId", oss.accessKeyId());
-        data.put("ossAccessKeySecretConfigured", !oss.accessKeySecret().isBlank());
-        data.put("search", systemSettingService.getSearchSettings());
+                "registrationOpen", boolValue(values, SystemSetting.KEY_REGISTRATION_OPEN, true),
+                "workMaxBytes", longValue(values, SystemSetting.KEY_WORK_MAX_BYTES, 20971520L),
+                "billingEstCacheReadTokens", longValue(
+                        values, SystemSetting.KEY_BILLING_EST_CACHE_READ_TOKENS, 90000L),
+                "billingEstInputTokens", longValue(
+                        values, SystemSetting.KEY_BILLING_EST_INPUT_TOKENS, 10000L),
+                "billingEstOutputTokens", longValue(
+                        values, SystemSetting.KEY_BILLING_EST_OUTPUT_TOKENS, 20000L),
+                "mailRegisterEnabled", boolValue(values, SystemSetting.KEY_MAIL_REGISTER_ENABLED, false),
+                "mailUsername", stringValue(values, SystemSetting.KEY_MAIL_USERNAME, ""),
+                "mailAuthCodeConfigured", !stringValue(
+                        values, SystemSetting.KEY_MAIL_AUTH_CODE, "").isBlank(),
+                "mailResendIntervalSeconds", longValue(
+                        values, SystemSetting.KEY_MAIL_RESEND_INTERVAL_SECONDS, 60L),
+                "mailCodeTtlSeconds", longValue(values, SystemSetting.KEY_MAIL_CODE_TTL_SECONDS, 300L)));
+        data.put("registrationInitialPoints",
+                systemSettingService.getRegistrationInitialPoints(values).toPlainString());
+        data.put("mailRegisterDomains", systemSettingService.getMailRegisterDomains(
+                values.get(SystemSetting.KEY_MAIL_REGISTER_DOMAINS)));
+        data.put("communityLink", stringValue(values, SystemSetting.KEY_COMMUNITY_LINK, ""));
+        data.put("platformDomain", stringValue(values, SystemSetting.KEY_PLATFORM_DOMAIN, ""));
+        data.put("platformHttps", boolValue(values, SystemSetting.KEY_PLATFORM_HTTPS, false));
+        data.put("storageType", stringValue(values, SystemSetting.KEY_STORAGE_TYPE, "local"));
+        data.put("storageReconcileCron", stringValue(
+                values, SystemSetting.KEY_STORAGE_RECONCILE_CRON, SystemSettingService.DEFAULT_RECONCILE_CRON));
+        data.put("ossEndpoint", stringValue(values, SystemSetting.KEY_OSS_ENDPOINT, ""));
+        data.put("ossBucket", stringValue(values, SystemSetting.KEY_OSS_BUCKET, ""));
+        data.put("ossAccessKeyId", stringValue(values, SystemSetting.KEY_OSS_ACCESS_KEY_ID, ""));
+        data.put("ossAccessKeySecretConfigured", !stringValue(
+                values, SystemSetting.KEY_OSS_ACCESS_KEY_SECRET, "").isBlank());
+        data.put("search", systemSettingService.getSearchSettings(values));
         return data;
     }
 
@@ -147,13 +156,16 @@ public class SystemSettingAdminServiceImpl implements SystemSettingAdminService 
             throw new BizException(400, "发件邮箱格式不正确");
         }
         String authCode = req.authCode() == null ? "" : req.authCode().trim();
-        SystemSettingService.MailCredentials current = systemSettingService.getMailCredentials();
-        String effectiveUsername = username.isEmpty() ? current.username() : username;
-        boolean authReady = !authCode.isEmpty() || !current.authCode().isBlank();
+        Map<String, String> values = systemSettingService.getSnapshot();
+        String currentUsername = stringValue(values, SystemSetting.KEY_MAIL_USERNAME, "");
+        String currentAuthCode = stringValue(values, SystemSetting.KEY_MAIL_AUTH_CODE, "");
+        String effectiveUsername = username.isEmpty() ? currentUsername : username;
+        boolean authReady = !authCode.isEmpty() || !currentAuthCode.isBlank();
         if (Boolean.TRUE.equals(req.enabled()) && (effectiveUsername.isBlank() || !authReady)) {
             throw new BizException(400, "开启前请先配置发件 QQ 邮箱与 SMTP 授权码");
         }
-        if (Boolean.FALSE.equals(req.enabled()) && systemSettingService.isMailRegisterEnabled()) {
+        if (Boolean.FALSE.equals(req.enabled())
+                && boolValue(values, SystemSetting.KEY_MAIL_REGISTER_ENABLED, false)) {
             String email = userProfileService.boundEmail(userId);
             if (!email.isBlank()) {
                 if (req.code() == null) {

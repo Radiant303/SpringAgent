@@ -54,6 +54,7 @@ class SystemSettingAdminServiceUnitTests {
     private final MailCodeService mailCodes = mock(MailCodeService.class);
     private final UserMapper users = mock(UserMapper.class);
     private final StringRedisTemplate redis = mock(StringRedisTemplate.class);
+    private ValueOperations<String, String> values;
     private final SystemSettingCache cache = mock(SystemSettingCache.class);
     private final Map<String, String> committed = new HashMap<>();
     private final List<Set<String>> reads = new ArrayList<>();
@@ -65,7 +66,7 @@ class SystemSettingAdminServiceUnitTests {
     @BeforeEach
     @SuppressWarnings("unchecked")
     void setup() {
-        ValueOperations<String, String> values = mock(ValueOperations.class);
+        values = mock(ValueOperations.class);
         when(redis.opsForValue()).thenReturn(values);
         java.util.concurrent.atomic.AtomicReference<String> cached = new java.util.concurrent.atomic.AtomicReference<>();
         when(values.get(SystemSettingCache.CACHE_KEY)).thenAnswer(invocation -> cached.get());
@@ -136,8 +137,10 @@ class SystemSettingAdminServiceUnitTests {
         String json = new ObjectMapper().writeValueAsString(data);
         assertFalse(json.contains("fakeMailSecret"));
         assertFalse(json.contains("fakeOssSecret"));
+        assertEquals(1, reads.size());
         assertEquals(1, reads.stream().filter(keys -> keys.contains(SystemSetting.KEY_MAIL_AUTH_CODE)).count());
         assertEquals(1, reads.stream().filter(keys -> keys.contains(SystemSetting.KEY_OSS_ACCESS_KEY_SECRET)).count());
+        verify(values, times(1)).get(SystemSettingCache.CACHE_KEY);
     }
 
     @Test
@@ -253,9 +256,10 @@ class SystemSettingAdminServiceUnitTests {
     void settingsExposeEmptyRegistrationDomainsByDefault() {
         assertEquals(List.of(), controller.snapshot().get("mailRegisterDomains"));
         SystemSettingServiceImpl service = mock(SystemSettingServiceImpl.class);
-        when(service.getMailCredentials()).thenReturn(new SystemSettingService.MailCredentials("", ""));
-        when(service.getRegistrationInitialPoints()).thenReturn(java.math.BigDecimal.ZERO);
-        when(service.getOssConfig()).thenReturn(new SystemSettingService.OssConfig("", "", "", ""));
+        when(service.getSnapshot()).thenReturn(Map.of());
+        when(service.getRegistrationInitialPoints(Map.of())).thenReturn(java.math.BigDecimal.ZERO);
+        when(service.getMailRegisterDomains(null)).thenReturn(List.of());
+        when(service.getSearchSettings(Map.of())).thenReturn(Map.of());
         SystemSettingAdminService direct = new SystemSettingAdminServiceImpl(service, service, mailCodes,
                 new com.spring.gateway.identity.service.impl.UserProfileServiceImpl(users), scheduler);
         assertEquals(List.of(), direct.snapshot().get("mailRegisterDomains"));

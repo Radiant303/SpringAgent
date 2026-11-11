@@ -10,6 +10,7 @@ import com.spring.gateway.identity.dto.TokenResponse;
 import com.spring.gateway.identity.dto.UserResponse;
 import com.spring.gateway.identity.service.AuthService;
 import com.spring.gateway.identity.service.MailCodeService;
+import com.spring.gateway.settings.entity.SystemSetting;
 import com.spring.gateway.settings.service.SystemSettingService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -21,6 +22,9 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.Map;
+
+import static com.spring.gateway.settings.service.SystemSettingService.boolValue;
+import static com.spring.gateway.settings.service.SystemSettingService.stringValue;
 
 /**
  * 认证接口：注册与登录。
@@ -73,9 +77,10 @@ public class AuthController {
      */
     @GetMapping("/public-config")
     public Result<Map<String, Object>> publicConfig() {
+        Map<String, String> values = systemSettingService.getSnapshot();
         return Result.ok(Map.of(
-                "mailVerify", systemSettingService.isMailRegisterEnabled(),
-                "communityLink", systemSettingService.getCommunityLink(),
+                "mailVerify", boolValue(values, SystemSetting.KEY_MAIL_REGISTER_ENABLED, false),
+                "communityLink", stringValue(values, SystemSetting.KEY_COMMUNITY_LINK, ""),
                 "version", version));
     }
 

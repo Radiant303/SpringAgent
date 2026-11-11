@@ -11,6 +11,7 @@ import com.spring.gateway.storage.mapper.FileRecordMapper;
 import com.spring.gateway.workspace.mapper.SessionMapper;
 import com.spring.gateway.identity.mapper.UserMapper;
 import com.spring.gateway.workspace.mapper.WorkMapper;
+import com.spring.gateway.settings.entity.SystemSetting;
 import com.spring.gateway.settings.service.SystemSettingService;
 import com.spring.gateway.storage.infrastructure.StorageException;
 import com.spring.gateway.storage.infrastructure.StorageKeys;
@@ -33,6 +34,10 @@ import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Map;
+
+import static com.spring.gateway.settings.service.SystemSettingService.longValue;
+import static com.spring.gateway.settings.service.SystemSettingService.stringValue;
 
 /**
  * 上传文件的存储及配额管理。
@@ -94,11 +99,12 @@ public class FileStorageServiceImpl implements FileStorageService {
             throw new BizException(404, "项目不存在");
         }
         UserStorageService.Snapshot baseline = userStorageService.snapshot(user);
-        precheckQuota(user, baseline, work.getId(), size);
+        Map<String, String> settings = systemSettingService.getSnapshot();
+        precheckQuota(user, baseline, work.getId(), size, settings);
         String ext = sanitizeExt(originalFilename);
         long fileId = idGenerator.nextId();
         String key = StorageKeys.imageKey(work.getId(), sessionId, String.valueOf(fileId), ext);
-        String storageType = systemSettingService.getStorageType();
+        String storageType = stringValue(settings, SystemSetting.KEY_STORAGE_TYPE, "local");
         ObjectStorageService storage = storageSelector.get(storageType);
         userStorageService.beginChange(userId);
         String storedKey;
@@ -131,7 +137,7 @@ public class FileStorageServiceImpl implements FileStorageService {
             if (storedSize <= 0 || storedSize > MAX_FILE_BYTES) {
                 throw new BizException(400, "上传文件实际大小无效");
             }
-            precheckQuota(user, baseline, work.getId(), storedSize);
+            precheckQuota(user, baseline, work.getId(), storedSize, settings);
         }
 
         FileRecord row = new FileRecord();
@@ -256,14 +262,15 @@ public class FileStorageServiceImpl implements FileStorageService {
         return storageSelector.get(systemSettingService.getStorageType());
     }
 
-    private void precheckQuota(User user, UserStorageService.Snapshot snapshot, String workId, long size) {
+    private void precheckQuota(User user, UserStorageService.Snapshot snapshot, String workId, long size,
+                               Map<String, String> settings) {
         long quota = user.getQuotaBytes() == null ? 0L : user.getQuotaBytes();
         long workUsed = snapshot.workBytes(workId);
         if (snapshot.usedBytes() > quota - size) {
             throw new BizException(409, "存储空间不足：上传后将超出配额，请先清理文件");
         }
         long workMax = user.getWorkQuotaBytes() != null
-                ? user.getWorkQuotaBytes() : systemSettingService.getWorkMaxBytes();
+                ? user.getWorkQuotaBytes() : longValue(settings, SystemSetting.KEY_WORK_MAX_BYTES, 20971520L);
         if (workMax > 0 && workUsed > workMax - size) {
             throw new BizException(409, "单工作区配额不足：上传后将超出上限，请先清理文件");
         }

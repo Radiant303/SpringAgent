@@ -1,5 +1,7 @@
 package com.spring.gateway.identity.service;
 
+import java.util.Map;
+
 /**
  * 邮箱验证码业务。
  *
@@ -8,6 +10,8 @@ package com.spring.gateway.identity.service;
  */
 public interface MailCodeService {
     long sendCode(String email, Scene scene);
+
+    long sendCode(String email, Scene scene, Map<String, String> values);
 
     void verifyCode(String email, String code, Scene scene);
 
