@@ -167,6 +167,15 @@ configs:
       server {
           listen 80;
           server_name _;
+          gzip on;
+          gzip_min_length 1024;
+          gzip_comp_level 5;
+          gzip_vary on;
+          gzip_types
+              application/json
+              application/javascript
+              text/plain
+              text/css;
           resolver 127.0.0.11 valid=5s ipv6=off;
           set $$gateway_upstream "http://springagent:16900";
           client_max_body_size 5120m;
