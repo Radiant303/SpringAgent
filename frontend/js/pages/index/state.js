@@ -53,6 +53,7 @@ export const state = {
   works: [],
   connected: false,
   sessionReady: false,
+  viewLoading: true,
   viewGeneration: 0,
   assistant: null,      // 当前流式正文气泡 {el, answer, text}
   work: null,           // 当前「工作过程」分组（连续的思考 + 工具调用）
@@ -65,6 +66,11 @@ export const state = {
   currentTurn: null,    // 当前助手回合容器 {el, content, petBox, canvas, pet}
   lastSeq: {},          // sessionId -> 事件流去重游标（已收到的最大条目 ID）
 };
+
+export function setViewLoading(loading) {
+  state.viewLoading = loading;
+  $("app")?.classList.toggle("is-view-loading", loading);
+}
 
 /* ================= 滚动与钉底状态 ================= */
 

@@ -7,7 +7,7 @@ import { getToken, getRole, goLogin, logout, refreshAccessToken, WS_BASE, USER_K
 import { api } from "../../api/client.js";
 import { rpc } from "../../api/rpc.js";
 import { UI } from "../../components/ui.js";
-import { state, runs, resetFlow, setStickToBottom, smoothScrollToBottom, updateStick } from "./state.js";
+import { state, runs, resetFlow, setStickToBottom, smoothScrollToBottom, updateStick, setViewLoading } from "./state.js";
 import { addSystem } from "./chatView.js";
 import { loadWorks, createWork } from "./works.js";
 import { openSession, newSession, resumeSession, refreshSessionList, onSessionInvalidated } from "./sessions.js";
@@ -508,6 +508,7 @@ export async function init() {
     await connectAndSetup();
   } catch (e) {
     if (!getToken()) return;
+    setViewLoading(false);
     UI.clearSkeleton("messages");
     addSystem("❌ 初始化失败：" + (e && e.message || e) + "，将自动重连", true);
     scheduleReconnect();

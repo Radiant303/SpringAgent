@@ -8,7 +8,7 @@ import { rpc } from "../../api/rpc.js";
 import { api } from "../../api/client.js";
 import { UI } from "../../components/ui.js";
 import { notifyStorageChanged } from "../../utils/storage.js";
-import { state, runs, runOf, isBusy, applyServerBusy } from "./state.js";
+import { state, runs, runOf, isBusy, applyServerBusy, setViewLoading } from "./state.js";
 import { drainPendingFor, clearPendingFor } from "./modals.js";
 import { discardSessionAttachments } from "./upload.js";
 import { addSystem, userNode } from "./chatView.js";
@@ -85,6 +85,7 @@ function selectSessionView(sid) {
   cancelSessionLoad();
   state.sessionId = sid;
   state.sessionReady = false;
+  setViewLoading(true);
   syncSessionSelection();
   drainPendingFor(null);
   discardPending();
@@ -253,7 +254,10 @@ function queueSessionLoad(view, attachedResult) {
     } finally {
       if (unsubscribed && !subscribed && isConnectionCurrent(view)) await subscribeStream(view.sid, true);
       if (loadingView === view) loadingView = null;
-      if (isLoadCurrent(view)) updateInputState();
+      if (isLoadCurrent(view)) {
+        setViewLoading(false);
+        updateInputState();
+      }
     }
   })();
   view.task = task;
@@ -414,6 +418,7 @@ export function newSession() {
   detachSession(state.sessionId);
   state.sessionId = null;
   state.sessionReady = false;
+  setViewLoading(false);
   syncSessionSelection();
   drainPendingFor(null);
   discardPending();
@@ -436,6 +441,7 @@ export async function openWorkSession(preferredSid = null) {
     sessions = (await fetchSessionList(view.workId)).filter((session) => !state.deletedSessions.has(session.sessionId));
   } catch (e) {
     if (!isScopeCurrent(view)) return;
+    setViewLoading(false);
     UI.clearSkeleton("session-list");
     UI.clearSkeleton("messages");
     addSystem("❌ 获取会话列表失败：" + e.message, true);
@@ -462,6 +468,7 @@ export async function openWorkSession(preferredSid = null) {
   localStorage.removeItem("sa.sessionId");
   clearMessages();
   renderSessionList(sessions);
+  setViewLoading(false);
   updateInputState();
   $("input")?.focus();
 }
