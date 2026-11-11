@@ -77,6 +77,7 @@ export async function api(path, options = {}) {
     method: options.method || "GET",
     headers: options.headers,
     body: options.body ? (typeof options.body === "string" ? options.body : JSON.stringify(options.body)) : undefined,
+    signal: options.signal,
   };
   const r = await apiFetch(path, fetchOptions);
   const payload = await r.json().catch(() => null);
@@ -97,6 +98,7 @@ export async function apiText(path, options = {}) {
     method: options.method || "GET",
     headers: options.headers,
     body: options.body ? (typeof options.body === "string" ? options.body : JSON.stringify(options.body)) : undefined,
+    signal: options.signal,
   };
   const r = await apiFetch(path, fetchOptions);
   if (!r.ok) {

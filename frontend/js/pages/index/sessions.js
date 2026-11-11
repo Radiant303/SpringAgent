@@ -18,8 +18,8 @@ import { applyModelSelection, updateInputState } from "./input.js";
 
 let listGeneration = 0;
 let listFlight = null;
-let loadQueue = Promise.resolve();
-let queueSocket = null;
+let controlQueue = Promise.resolve();
+let controlSocket = null;
 let loadingView = null;
 const sessionTitles = new Map();
 
@@ -44,6 +44,30 @@ function isViewCurrent(view) {
   return isScopeCurrent(view) && state.sessionId === view.sid;
 }
 
+function isLoadCurrent(view) {
+  return view.controller?.signal.aborted !== true && isViewCurrent(view);
+}
+
+function cancelSessionLoad() {
+  if (!loadingView) return;
+  loadingView.controller?.abort();
+  loadingView = null;
+}
+
+function enqueueSessionControl(view, request, requireCurrent = false) {
+  if (controlSocket !== view.socket) {
+    controlSocket = view.socket;
+    controlQueue = Promise.resolve();
+  }
+  const task = controlQueue.then(() => {
+    if (!isConnectionCurrent(view)) return null;
+    if (requireCurrent && !isLoadCurrent(view)) return null;
+    return request();
+  });
+  controlQueue = task.catch(() => {});
+  return task;
+}
+
 /** 卸载会话在当前连接上的挂载，释放项目删除的"使用中"占用 */
 function detachSession(sid) {
   if (sid && state.connected) rpc.request("session/detach", { sessionId: sid }).catch(() => {});
@@ -58,6 +82,7 @@ function syncSessionSelection() {
 }
 
 function selectSessionView(sid) {
+  cancelSessionLoad();
   state.sessionId = sid;
   state.sessionReady = false;
   syncSessionSelection();
@@ -76,15 +101,15 @@ function appendPendingInput(result) {
 export async function attachSession(sid, view = viewContext(sid)) {
   const params = { workspace: view.workspace, sessionId: sid, model: state.model, effort: state.effort };
   const apply = (result) => {
-    if (!isViewCurrent(view)) return null;
+    if (!isLoadCurrent(view)) return null;
     applyModelSelection(result);
     return result;
   };
-  if (!isViewCurrent(view)) return null;
+  if (!isLoadCurrent(view)) return null;
   try {
-    return apply(await rpc.request("session/attach", params));
+    return apply(await enqueueSessionControl(view, () => rpc.request("session/attach", params), true));
   } catch (err) {
-    if (!isViewCurrent(view)) return null;
+    if (!isLoadCurrent(view)) return null;
     if (err.code !== -32003) throw err;
     let result = null;
     const accepted = await UI.confirm({
@@ -92,8 +117,9 @@ export async function attachSession(sid, view = viewContext(sid)) {
       message: "此会话正在其他页面或设备中使用。接管后，原页面将失去此会话的控制权，正在运行的任务和其他会话不受影响。",
       okText: "接管会话",
       submit: async () => {
-        if (!isViewCurrent(view)) throw new Error("连接或会话已更换，请重新选择会话");
-        result = await rpc.request("session/attach", { ...params, takeover: true });
+        if (!isLoadCurrent(view)) throw new Error("连接或会话已更换，请重新选择会话");
+        result = await enqueueSessionControl(view,
+          () => rpc.request("session/attach", { ...params, takeover: true }), true);
       },
     });
     return accepted ? apply(result) : null;
@@ -103,7 +129,9 @@ export async function attachSession(sid, view = viewContext(sid)) {
 export function subscribeStream(sid, refreshStatus = false) {
   if (state.deletedSessions.has(sid)) return Promise.resolve();
   const view = viewContext(sid);
-  return rpc.request("stream/subscribe", { sessionId: sid, lastSeq: state.lastSeq[sid] || null })
+  return enqueueSessionControl(view, () => rpc.request("stream/subscribe", {
+    sessionId: sid, lastSeq: state.lastSeq[sid] || null,
+  }))
     .then(async (subscription) => {
       if (!isConnectionCurrent(view)) return;
       if (subscription?.resetRequired) {
@@ -118,7 +146,7 @@ export function subscribeStream(sid, refreshStatus = false) {
       }
       if (!refreshStatus) return;
       const seq = state.lastSeq[sid];
-      const result = await rpc.request("session/status", { sessionId: sid });
+      const result = await enqueueSessionControl(view, () => rpc.request("session/status", { sessionId: sid }));
       if (!isConnectionCurrent(view) || state.lastSeq[sid] !== seq) return;
       const wasBusy = isBusy(sid);
       applyServerBusy(sid, !!result.busy);
@@ -141,6 +169,7 @@ export function subscribeStream(sid, refreshStatus = false) {
 export async function resumeSession() {
   const sid = state.sessionId;
   if (!sid || state.deletedSessions.has(sid)) return false;
+  cancelSessionLoad();
   const view = viewContext(sid);
   if (!isViewCurrent(view)) return false;
   let result;
@@ -174,18 +203,15 @@ export async function resumeSession() {
 }
 
 function queueSessionLoad(view, attachedResult) {
-  if (queueSocket !== view.socket) {
-    queueSocket = view.socket;
-    loadQueue = Promise.resolve();
-  }
+  view.controller = new AbortController();
   loadingView = view;
-  const task = loadQueue.then(async () => {
-    if (!isViewCurrent(view)) return;
+  const task = (async () => {
+    if (!isLoadCurrent(view)) return;
     let unsubscribed = false;
     let subscribed = false;
     try {
       const result = attachedResult || await attachSession(view.sid, view);
-      if (!isViewCurrent(view)) return;
+      if (!isLoadCurrent(view)) return;
       if (!result) {
         UI.clearSkeleton("messages");
         addSystem("此会话仍由其他连接控制。点击会话可再次选择接管，或选择其他会话。");
@@ -194,41 +220,43 @@ function queueSessionLoad(view, attachedResult) {
       applyServerBusy(view.sid, !!result.busy);
       localStorage.setItem("sa.sessionId", view.sid);
       unsubscribed = true;
-      try { await rpc.request("stream/unsubscribe", { sessionId: view.sid }); } catch {}
-      if (!isViewCurrent(view)) return;
+      try {
+        await enqueueSessionControl(view,
+          () => rpc.request("stream/unsubscribe", { sessionId: view.sid }), true);
+      } catch {}
+      if (!isLoadCurrent(view)) return;
       state.lastSeq[view.sid] = null;
       const planLoading = loadPlan(view.generation);
       try {
-        await loadHistory(undefined, view.generation);
+        await loadHistory(undefined, view.generation, view.controller.signal);
       } catch (e) {
-        if (!isViewCurrent(view)) return;
+        if (!isLoadCurrent(view)) return;
         UI.clearSkeleton("messages");
         addSystem("加载历史失败：" + e.message, true);
       }
-      if (!isViewCurrent(view)) return;
+      if (!isLoadCurrent(view)) return;
       appendPendingInput(result);
       await planLoading;
-      if (!isViewCurrent(view)) return;
+      if (!isLoadCurrent(view)) return;
       state.sessionReady = true;
       runOf(view.sid).unread = false;
       drainPendingFor(view.sid);
       updateInputState();
       subscribed = true;
       await subscribeStream(view.sid, true);
-      if (isViewCurrent(view)) refreshSessionList();
+      if (isLoadCurrent(view)) refreshSessionList();
     } catch (e) {
-      if (!isViewCurrent(view)) return;
+      if (!isLoadCurrent(view)) return;
       state.sessionReady = false;
       UI.clearSkeleton("messages");
       addSystem("打开会话失败：" + e.message, true);
     } finally {
       if (unsubscribed && !subscribed && isConnectionCurrent(view)) await subscribeStream(view.sid, true);
       if (loadingView === view) loadingView = null;
-      if (isViewCurrent(view)) updateInputState();
+      if (isLoadCurrent(view)) updateInputState();
     }
-  });
+  })();
   view.task = task;
-  loadQueue = task.catch(() => {});
   return task;
 }
 
@@ -382,6 +410,7 @@ export function switchSession(sid) {
 
 export function newSession() {
   state.viewGeneration++;
+  cancelSessionLoad();
   detachSession(state.sessionId);
   state.sessionId = null;
   state.sessionReady = false;

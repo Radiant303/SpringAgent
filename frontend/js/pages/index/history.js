@@ -169,7 +169,7 @@ export function renderHistory(segments, prepend = false) {
   updateLatestPet();
 }
 
-export async function loadHistory(cursor, generation) {
+export async function loadHistory(cursor, generation, signal) {
   const sid = state.sessionId;
   const workId = state.workId;
   const socket = rpc.ws;
@@ -179,7 +179,7 @@ export async function loadHistory(cursor, generation) {
   if (cursor) params.set("cursor", cursor);
   let page;
   try {
-    page = await api(`/api/sessions/${encodeURIComponent(sid)}/history?${params}`);
+    page = await api(`/api/sessions/${encodeURIComponent(sid)}/history?${params}`, { signal });
   } finally {
     if (!cursor && isCurrent()) UI.clearSkeleton("messages");
   }
