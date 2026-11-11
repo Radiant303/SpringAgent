@@ -247,11 +247,12 @@ class AgentSession:
     def set_model(self, model_name: str, effort: str | None = None) -> None:
         if self._busy:
             raise RuntimeError("运行中不能切换模型或思考挡位")
-        if model_name not in setting.list_models():
+        values = setting.snapshot()
+        if model_name not in setting.list_models(values):
             raise ValueError(f"模型 '{model_name}' 不存在或未启用")
         from spring_agent.core.config.thinking import resolve_effort
 
-        resolve_effort(setting.get_model_config(model_name), effort)
+        resolve_effort(setting.get_model_config(model_name, values), effort)
         self._model_name = model_name
         self._effort = effort
         self._agent = None
@@ -261,12 +262,13 @@ class AgentSession:
     def model_selection(self) -> dict[str, str | None]:
         from spring_agent.core.config.thinking import resolve_effort
 
-        model_id = self._model_name or setting.default_model()
-        if model_id not in setting.list_models():
-            model_id = setting.default_model()
+        values = setting.snapshot()
+        model_id = self._model_name or setting.default_model(values)
+        if model_id not in setting.list_models(values):
+            model_id = setting.default_model(values)
             self._model_name = model_id
             self._effort = None
-        model_config = setting.get_model_config(model_id)
+        model_config = setting.get_model_config(model_id, values)
         if self._effort is not None and (self._effort not in model_config.support_efforts or "thinking" not in model_config.capabilities):
             self._effort = None
         return {"model": model_id, "effort": resolve_effort(model_config, self._effort)}

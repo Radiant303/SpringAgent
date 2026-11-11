@@ -16,19 +16,24 @@ from spring_agent.core.config.settings import Provider as ProviderConfig
 
 
 class ModelCatalog(Protocol):
-    def default_model(self) -> str:
+    def snapshot(self) -> dict[str, Any]:
         ...
 
-    def get_model_config(self, model_id: str) -> ModelConfig | None:
+    def default_model(self, values: dict[str, Any] | None = None) -> str:
         ...
 
-    def get_provider_config(self, provider_name: str) -> ProviderConfig | None:
+    def get_model_config(self, model_id: str,
+                         values: dict[str, Any] | None = None) -> ModelConfig | None:
         ...
 
-    def list_model_configs(self) -> list[tuple[str, ModelConfig]]:
+    def get_provider_config(self, provider_name: str,
+                            values: dict[str, Any] | None = None) -> ProviderConfig | None:
         ...
 
-    def subagent_model(self, name: str) -> str:
+    def list_model_configs(self, values: dict[str, Any] | None = None) -> list[tuple[str, ModelConfig]]:
+        ...
+
+    def subagent_model(self, name: str, values: dict[str, Any] | None = None) -> str:
         """子代理专用模型 ID；空串 = 继承主模型。"""
         ...
 
@@ -145,32 +150,40 @@ class Setting:
             raise RuntimeError("模型目录未初始化，请先调用 set_catalog()")
         return self._catalog
 
-    def default_model(self) -> str:
-        return self._require_catalog().default_model()
+    def snapshot(self) -> dict[str, Any]:
+        return self._require_catalog().snapshot()
 
-    def subagent_model(self, name: str) -> str:
+    def default_model(self, values: dict[str, Any] | None = None) -> str:
+        return self._require_catalog().default_model(values)
+
+    def subagent_model(self, name: str, values: dict[str, Any] | None = None) -> str:
         """子代理专用模型 ID；空串 = 继承主模型。"""
-        return self._require_catalog().subagent_model(name)
+        return self._require_catalog().subagent_model(name, values)
 
-    def get_model(self, model_name: str | None = None) -> Model:
+    def get_model(self, model_name: str | None = None,
+                  values: dict[str, Any] | None = None) -> Model:
         catalog = self._require_catalog()
-        model_config = self.get_model_config(model_name)
-        provider_config = catalog.get_provider_config(model_config.provider)
+        values = self.snapshot() if values is None else values
+        model_name = model_name or self.default_model(values)
+        model_config = self.get_model_config(model_name, values)
+        provider_config = catalog.get_provider_config(model_config.provider, values)
         if not provider_config:
             raise ValueError(f"Provider '{model_config.provider}' 不存在")
 
         return build_model(model_config, provider_config)
 
-    def list_models(self) -> list[str]:
-        return [mid for mid, _ in self.list_model_configs()]
+    def list_models(self, values: dict[str, Any] | None = None) -> list[str]:
+        return [mid for mid, _ in self.list_model_configs(values)]
 
-    def list_model_configs(self) -> list[tuple[str, ModelConfig]]:
-        return self._require_catalog().list_model_configs()
+    def list_model_configs(self, values: dict[str, Any] | None = None) -> list[tuple[str, ModelConfig]]:
+        return self._require_catalog().list_model_configs(values)
 
-    def get_model_config(self, model_name: str | None = None) -> ModelConfig:
+    def get_model_config(self, model_name: str | None = None,
+                         values: dict[str, Any] | None = None) -> ModelConfig:
         catalog = self._require_catalog()
-        model_name = model_name or catalog.default_model()
-        model_config = catalog.get_model_config(model_name)
+        values = self.snapshot() if values is None else values
+        model_name = model_name or self.default_model(values)
+        model_config = catalog.get_model_config(model_name, values)
         if not model_config:
             raise ValueError(f"模型 '{model_name}' 不存在")
         return model_config

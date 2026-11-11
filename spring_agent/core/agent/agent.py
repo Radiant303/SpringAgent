@@ -66,9 +66,10 @@ def create_agent(
     创建 SpringAgent Agent
     """
     root = Path(root_dir).expanduser().resolve()
-    model_id = model_name or setting.default_model()
-    model = get_model(model_id)
-    model_config = get_model_config(model_id)
+    values = setting.snapshot()
+    model_id = model_name or setting.default_model(values)
+    model = get_model(model_id, values)
+    model_config = get_model_config(model_id, values)
     effort = resolve_effort(model_config, effort)
     toolsets: list[Any] = [
         filesystem(str(root), access=file_access),

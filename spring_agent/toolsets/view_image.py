@@ -68,13 +68,14 @@ async def view_local_image(path: str) -> ToolReturn:
     Args:
         path: 本站图片的扁平地址或文件名
     """
-    domain = platform_settings().get(KEY_PLATFORM_DOMAIN).strip()
+    values = platform_settings().snapshot()
+    domain = values.get(KEY_PLATFORM_DOMAIN, "").strip()
     if not domain:
         return ToolReturn(return_value="站长未配置平台域名，无法读取上传图片，请联系站长")
     filename = path.rstrip("/").rsplit("/", 1)[-1]
     if not _LOCAL_FILENAME.fullmatch(filename):
         raise ModelRetry("上传图片地址格式不正确，请传入用户上传图片返回的扁平地址")
-    scheme = "https" if platform_settings().get(KEY_PLATFORM_HTTPS).strip().lower() == "true" else "http"
+    scheme = "https" if values.get(KEY_PLATFORM_HTTPS, "").strip().lower() == "true" else "http"
     url = f"{scheme}://{domain}/{filename}"
     media_type = await _probe_image_headers(url)
     return ToolReturn(return_value=f"已读取图片: {url}",

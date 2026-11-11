@@ -109,7 +109,8 @@ class CloudAppServer(AppServer):
         return super()._require(session_id)
 
     async def _models_list(self, _: None) -> ModelsListResult:
-        return ModelsListResult(models=_model_infos(), default_model=model_setting.default_model())
+        values = model_setting.snapshot()
+        return ModelsListResult(models=_model_infos(values), default_model=model_setting.default_model(values))
 
     def _release(self, session_id: str) -> None:
         if self._active_owners.get(session_id) is self:
@@ -194,20 +195,23 @@ class CloudAppServer(AppServer):
 
     async def _initialize(self, _: None) -> WebInitializeResult:
         work = await asyncio.to_thread(gateway_store.ensure_default_work, self._user_id)
+        values = model_setting.snapshot()
         return WebInitializeResult(
             server_name="springagent", protocol_version=PROTOCOL_VERSION,
-            workspace=work.workspace_path, models=_model_infos(), default_model=model_setting.default_model(),
+            workspace=work.workspace_path, models=_model_infos(values),
+            default_model=model_setting.default_model(values),
         )
 
     async def _session_new(self, p: WorkspaceParams) -> SessionResult:
         from spring_agent.core.config.thinking import resolve_effort
         from spring_agent.core.rpc.connection import INVALID_PARAMS
 
-        model = p.model or model_setting.default_model()
+        values = model_setting.snapshot()
+        model = p.model or model_setting.default_model(values)
         try:
-            if model not in model_setting.list_models():
+            if model not in model_setting.list_models(values):
                 raise ValueError(f"模型 '{model}' 不存在或未启用")
-            resolve_effort(model_setting.get_model_config(model), p.effort)
+            resolve_effort(model_setting.get_model_config(model, values), p.effort)
         except ValueError as e:
             raise JsonRpcError(INVALID_PARAMS, str(e)) from e
         session_id = str(uuid.uuid4())

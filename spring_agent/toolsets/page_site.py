@@ -21,10 +21,11 @@ def page_site_toolset(*, page_id: int) -> FunctionToolset:
         Returns:
             带结尾斜杠的页面访问地址
         """
-        domain = platform_settings().get(KEY_PLATFORM_DOMAIN).strip()
+        values = platform_settings().snapshot()
+        domain = values.get(KEY_PLATFORM_DOMAIN, "").strip()
         if not domain:
             return "站长未配置平台域名，无法生成页面访问地址，请联系站长"
-        scheme = "https" if platform_settings().get(KEY_PLATFORM_HTTPS).strip().lower() == "true" else "http"
+        scheme = "https" if values.get(KEY_PLATFORM_HTTPS, "").strip().lower() == "true" else "http"
         return f"{scheme}://{domain}/page/{page_id}/"
 
     return FunctionToolset(tools=[page_url])

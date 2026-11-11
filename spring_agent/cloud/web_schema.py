@@ -33,7 +33,7 @@ class WebInitializeResult(InitializeResult):
     default_model: str = Field(validation_alias="defaultModel", serialization_alias="defaultModel")
 
 
-def _model_infos() -> list[ModelInfo]:
+def _model_infos(values: dict | None = None) -> list[ModelInfo]:
     return [
         ModelInfo(
             id=model_id,
@@ -44,5 +44,5 @@ def _model_infos() -> list[ModelInfo]:
             support_efforts=model.support_efforts if "thinking" in model.capabilities else [],
             default_effort=model.default_effort if "thinking" in model.capabilities else None,
         )
-        for model_id, model in model_setting.list_model_configs()
+        for model_id, model in model_setting.list_model_configs(values)
     ]

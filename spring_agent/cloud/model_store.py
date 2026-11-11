@@ -129,33 +129,40 @@ class DbCatalog:
         self._cache = cache
         self._cipher = cipher
 
-    def default_model(self) -> str:
-        return self._snapshot()["default_model"]
+    def default_model(self, values: dict[str, Any] | None = None) -> str:
+        values = self.snapshot() if values is None else values
+        return values["default_model"]
 
-    def get_model_config(self, model_id: str) -> ModelConfig | None:
-        entry = self._snapshot()["models"].get(model_id)
+    def get_model_config(self, model_id: str,
+                         values: dict[str, Any] | None = None) -> ModelConfig | None:
+        values = self.snapshot() if values is None else values
+        entry = values["models"].get(model_id)
         return _model_config_from_dict(entry) if entry is not None else None
 
-    def get_provider_config(self, provider_name: str) -> ProviderConfig | None:
-        entry = self._snapshot()["providers"].get(provider_name)
+    def get_provider_config(self, provider_name: str,
+                            values: dict[str, Any] | None = None) -> ProviderConfig | None:
+        values = self.snapshot() if values is None else values
+        entry = values["providers"].get(provider_name)
         if entry is None:
             return None
         return ProviderConfig(
             type=entry["type"], api_key=entry["api_key"], base_url=entry["base_url"],
         )
 
-    def list_model_configs(self) -> list[tuple[str, ModelConfig]]:
-        models = self._snapshot()["models"]
+    def list_model_configs(self, values: dict[str, Any] | None = None) -> list[tuple[str, ModelConfig]]:
+        values = self.snapshot() if values is None else values
+        models = values["models"]
         return [
             (mid, _model_config_from_dict(entry))
             for mid, entry in sorted(models.items())
             if entry["enabled"]
         ]
 
-    def subagent_model(self, name: str) -> str:
-        return self._snapshot()["subagents"].get(name, "")
+    def subagent_model(self, name: str, values: dict[str, Any] | None = None) -> str:
+        values = self.snapshot() if values is None else values
+        return values["subagents"].get(name, "")
 
-    def _snapshot(self) -> dict[str, Any]:
+    def snapshot(self) -> dict[str, Any]:
         cached = self._load_from_cache()
         if cached is not None:
             return cached

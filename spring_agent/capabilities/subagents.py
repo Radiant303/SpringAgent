@@ -14,25 +14,27 @@ from spring_agent.core.log import logger
 from spring_agent.toolsets.filesystem import filesystem
 
 
-def _resolve_model(name: str) -> tuple[Model | None, str | None]:
-    model_id = setting.subagent_model(name)
+def _resolve_model(name: str, values: dict) -> tuple[Model | None, str | None]:
+    model_id = setting.subagent_model(name, values)
     if not model_id:
         return None, None
     try:
-        return get_model(model_id), model_id
+        return get_model(model_id, values), model_id
     except ValueError:
         logger.warning("子代理 {} 配置的模型 {} 不存在，改为继承主模型", name, model_id)
         return None, None
 
 
-def _thinking(model_id: str | None, parent_model_id: str, effort: str | None):
-    return thinking_capability(get_model_config(model_id or parent_model_id),
+def _thinking(model_id: str | None, parent_model_id: str, effort: str | None, values: dict):
+    return thinking_capability(get_model_config(model_id or parent_model_id, values),
                                None if model_id else effort)
 
 
-def searcher(parent_model_id: str, effort: str | None = None) -> SubAgent[CodingAgentDeps]:
-    model, model_id = _resolve_model('searcher')
-    model_config = get_model_config(model_id or parent_model_id)
+def searcher(parent_model_id: str, effort: str | None = None,
+             values: dict | None = None) -> SubAgent[CodingAgentDeps]:
+    values = setting.snapshot() if values is None else values
+    model, model_id = _resolve_model('searcher', values)
+    model_config = get_model_config(model_id or parent_model_id, values)
     return SubAgent[CodingAgentDeps](
         agent=Agent(
             model,
@@ -44,7 +46,7 @@ def searcher(parent_model_id: str, effort: str | None = None) -> SubAgent[Coding
                 '区分检索所得与推断，说明资料覆盖范围与证据强度。'
             ),
             deps_type=CodingAgentDeps,
-            capabilities=[_thinking(model_id, parent_model_id, effort),
+            capabilities=[_thinking(model_id, parent_model_id, effort, values),
                           request_hooks(model_id or parent_model_id, agent_name="searcher"),
                           researcher(native="native_search" in model_config.capabilities)],
             toolsets=[],
@@ -55,9 +57,11 @@ def searcher(parent_model_id: str, effort: str | None = None) -> SubAgent[Coding
 
 
 def reviewer(root_dir: str, parent_model_id: str, effort: str | None = None,
-             file_access: FileAccessContext | None = None) -> SubAgent[CodingAgentDeps]:
+             file_access: FileAccessContext | None = None,
+             values: dict | None = None) -> SubAgent[CodingAgentDeps]:
     """代码审查子代理。"""
-    model, model_id = _resolve_model('reviewer')
+    values = setting.snapshot() if values is None else values
+    model, model_id = _resolve_model('reviewer', values)
     return SubAgent[CodingAgentDeps](
         agent=Agent(
             model,
@@ -70,7 +74,7 @@ def reviewer(root_dir: str, parent_model_id: str, effort: str | None = None,
                 '通过只读工具核对证据，将审查结果交由主 Agent 在聊天中展示。'
             ),
             deps_type=CodingAgentDeps,
-            capabilities=[_thinking(model_id, parent_model_id, effort),
+            capabilities=[_thinking(model_id, parent_model_id, effort, values),
                           request_hooks(model_id or parent_model_id, agent_name="reviewer")],
             toolsets=[filesystem(root_dir, read_only=True, access=file_access)],
         ),
@@ -111,6 +115,8 @@ class _ProjectSubAgents(SubAgents[CodingAgentDeps]):
 
 def subagents(root_dir: str, parent_model_id: str, effort: str | None = None,
               file_access: FileAccessContext | None = None) -> SubAgents[CodingAgentDeps]:
+    values = setting.snapshot()
     return _ProjectSubAgents(
-        agents=[searcher(parent_model_id, effort), reviewer(root_dir, parent_model_id, effort, file_access)]
+        agents=[searcher(parent_model_id, effort, values),
+                reviewer(root_dir, parent_model_id, effort, file_access, values)]
     )
