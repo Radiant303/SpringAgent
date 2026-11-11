@@ -1198,7 +1198,14 @@ pre.tool-result.error { background: var(--diff-del-bg, rgba(192, 57, 43, 0.07));
 
 
 #input-area { transition: opacity 0.2s ease; }
+#app.is-view-loading #messages {
+  padding-bottom: 140px;
+}
 #app.is-view-loading #input-area {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
   visibility: hidden;
   opacity: 0;
   pointer-events: none;
