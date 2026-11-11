@@ -30,6 +30,7 @@ import org.springframework.web.client.HttpClientErrorException;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -70,7 +71,15 @@ public class SessionServiceImpl implements SessionService {
         if (workId != null) {
             query.eq(Session::getWorkId, workId);
         }
-        return sessionMapper.selectList(query).stream().map(SessionServiceImpl::toSummary).toList();
+        List<Session> rows = sessionMapper.selectList(query);
+        Set<String> busy = Set.of();
+        try {
+            busy = engineClient.busySessions(rows.stream().map(Session::getId).toList());
+        } catch (Exception e) {
+            log.warn("会话运行状态查询失败: userId={} error={}", userId, e.toString());
+        }
+        Set<String> busyIds = busy;
+        return rows.stream().map(row -> toSummary(row, busyIds.contains(row.getId()))).toList();
     }
 
     /**
@@ -165,7 +174,12 @@ public class SessionServiceImpl implements SessionService {
 
     /** 转换为会话摘要 */
     private static SessionSummary toSummary(Session row) {
+        return toSummary(row, null);
+    }
+
+    /** 转换为会话摘要 */
+    private static SessionSummary toSummary(Session row, Boolean busy) {
         return new SessionSummary(
-                row.getId(), row.getWorkId(), row.getTitle(), row.getCreatedAt(), row.getUpdatedAt());
+                row.getId(), row.getWorkId(), row.getTitle(), row.getCreatedAt(), row.getUpdatedAt(), busy);
     }
 }

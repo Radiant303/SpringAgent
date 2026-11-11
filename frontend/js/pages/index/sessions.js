@@ -196,6 +196,7 @@ function queueSessionLoad(view, attachedResult) {
       try { await rpc.request("stream/unsubscribe", { sessionId: view.sid }); } catch {}
       if (!isViewCurrent(view)) return;
       state.lastSeq[view.sid] = null;
+      const planLoading = loadPlan(view.generation);
       try {
         await loadHistory(undefined, view.generation);
       } catch (e) {
@@ -205,7 +206,7 @@ function queueSessionLoad(view, attachedResult) {
       }
       if (!isViewCurrent(view)) return;
       appendPendingInput(result);
-      await loadPlan(view.generation);
+      await planLoading;
       if (!isViewCurrent(view)) return;
       state.sessionReady = true;
       runOf(view.sid).unread = false;
@@ -230,6 +231,19 @@ function queueSessionLoad(view, attachedResult) {
   return task;
 }
 
+async function fetchSessionList(workId) {
+  const query = workId ? `?workId=${encodeURIComponent(workId)}` : "";
+  const rows = await api(`/api/sessions${query}`);
+  return (rows || []).map((row) => ({
+    sessionId: row.session_id,
+    workId: row.work_id,
+    title: row.title,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    busy: !!row.busy,
+  }));
+}
+
 export async function refreshSessionList() {
   const generation = ++listGeneration;
   const workId = state.workId;
@@ -237,8 +251,7 @@ export async function refreshSessionList() {
   const before = new Map(Object.entries(runs).map(([sid, run]) => [sid, { run, busy: run.busy, seq: state.lastSeq[sid] }]));
   let sessions;
   try {
-    const r = await rpc.request("session/list", { workspace: state.workspace, workId });
-    sessions = (r.sessions || []).filter((session) => !state.deletedSessions.has(session.sessionId));
+    sessions = (await fetchSessionList(workId)).filter((session) => !state.deletedSessions.has(session.sessionId));
   } catch {
     if (generation === listGeneration && state.workId === workId) UI.clearSkeleton("session-list");
     return;
@@ -379,8 +392,7 @@ export async function openWorkSession(preferredSid = null) {
   UI.showSkeleton("session-list");
   let sessions;
   try {
-    const r = await rpc.request("session/list", { workspace: view.workspace, workId: view.workId });
-    sessions = (r.sessions || []).filter((session) => !state.deletedSessions.has(session.sessionId));
+    sessions = (await fetchSessionList(view.workId)).filter((session) => !state.deletedSessions.has(session.sessionId));
   } catch (e) {
     if (!isScopeCurrent(view)) return;
     UI.clearSkeleton("session-list");

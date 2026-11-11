@@ -1,8 +1,8 @@
 package com.spring.gateway.ws;
 
-import com.spring.gateway.workspace.entity.Session;
+import com.spring.gateway.workspace.dto.SessionSummary;
 import com.spring.gateway.engine.client.EngineClient;
-import com.spring.gateway.workspace.service.InternalStoreService;
+import com.spring.gateway.workspace.service.SessionService;
 import com.spring.gateway.workspace.service.SessionHistoryService;
 import com.spring.gateway.messaging.service.TurnDispatchService;
 import jakarta.websocket.WebSocketContainer;
@@ -48,7 +48,7 @@ class SessionControlTests {
     private final EngineClient engineClient = mock(EngineClient.class);
     private final TurnDispatchService dispatch = mock(TurnDispatchService.class);
     private final TurnStreamReader streams = mock(TurnStreamReader.class);
-    private final InternalStoreService store = mock(InternalStoreService.class);
+    private final SessionService store = mock(SessionService.class);
     private final EngineRelayHandler relay = new EngineRelayHandler(
             "http://localhost:8001", mapper, dispatch, streams,
             store, mock(SessionHistoryService.class),
@@ -255,9 +255,8 @@ class SessionControlTests {
     @Test
     void sessionListIncludesBusyAndPreservesWorkFilterAndMetadata() throws Exception {
         var browser = browser();
-        when(store.listUserSessions(123L, "work-1"))
-                .thenReturn(List.of(session("session-1"), session("session-2")));
-        when(engineClient.busySessions(List.of("session-1", "session-2"))).thenReturn(Set.of("session-1"));
+        when(store.list(123L, "work-1"))
+                .thenReturn(List.of(session("session-1", true), session("session-2", false)));
         relay.handleTextMessage(browser, new TextMessage(
                 "{\"id\":1,\"method\":\"session/list\",\"params\":{\"workId\":\"work-1\"}}"));
         var sessions = mapper.readTree(responses.getFirst()).path("result").path("sessions");
@@ -269,25 +268,16 @@ class SessionControlTests {
         assertEquals("标题", sessions.get(0).path("title").asText());
         assertEquals("2026-10-17T12:00:00Z", sessions.get(0).path("createdAt").asText());
         assertEquals("2026-10-17T12:00:00Z", sessions.get(0).path("updatedAt").asText());
-        verify(engineClient).busySessions(List.of("session-1", "session-2"));
+        verify(store).list(123L, "work-1");
     }
 
     @Test
-    void sessionListDegradesToNotBusyWhenEngineFails() throws Exception {
+    void sessionListReturnsInternalErrorWhenServiceFails() throws Exception {
         var browser = browser();
-        when(store.listUserSessions(123L, null))
-                .thenReturn(List.of(session("session-1"), session("session-2")));
-        when(engineClient.busySessions(List.of("session-1", "session-2")))
-                .thenThrow(new IllegalStateException("引擎不可达"));
+        when(store.list(123L, null)).thenThrow(new IllegalStateException("数据库不可用"));
         relay.handleTextMessage(browser, new TextMessage("{\"id\":1,\"method\":\"session/list\"}"));
         var response = mapper.readTree(responses.getFirst());
-        assertFalse(response.has("error"));
-        var sessions = response.path("result").path("sessions");
-        assertEquals(2, sessions.size());
-        for (var item : sessions) {
-            assertTrue(item.path("busy").isBoolean());
-            assertFalse(item.path("busy").asBoolean(true));
-        }
+        assertEquals(-32603, response.path("error").path("code").asInt());
     }
 
     private TurnStreamReader reader(ExecutorService executor) {
@@ -297,13 +287,8 @@ class SessionControlTests {
         return reader;
     }
 
-    private Session session(String sessionId) {
-        var row = new Session();
-        row.setId(sessionId);
-        row.setWorkId("work-1");
-        row.setTitle("标题");
-        row.setCreatedAt(LocalDateTime.of(2026, 10, 17, 12, 0));
-        row.setUpdatedAt(row.getCreatedAt());
-        return row;
+    private SessionSummary session(String sessionId, boolean busy) {
+        var createdAt = LocalDateTime.of(2026, 10, 17, 12, 0);
+        return new SessionSummary(sessionId, "work-1", "标题", createdAt, createdAt, busy);
     }
 }

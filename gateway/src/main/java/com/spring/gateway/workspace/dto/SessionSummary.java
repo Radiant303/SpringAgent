@@ -1,6 +1,7 @@
 package com.spring.gateway.workspace.dto;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 import java.time.LocalDateTime;
@@ -15,6 +16,7 @@ import java.time.LocalDateTime;
  * @param title     会话标题
  * @param createdAt 创建时间
  * @param updatedAt 更新时间
+ * @param busy      是否运行中，仅列表返回
  */
 public record SessionSummary(
         @JsonProperty("session_id") String sessionId,
@@ -23,6 +25,7 @@ public record SessionSummary(
         @JsonProperty("created_at")
         @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss.SSSSSS'Z'", timezone = "UTC") LocalDateTime createdAt,
         @JsonProperty("updated_at")
-        @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss.SSSSSS'Z'", timezone = "UTC") LocalDateTime updatedAt
+        @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss.SSSSSS'Z'", timezone = "UTC") LocalDateTime updatedAt,
+        @JsonInclude(JsonInclude.Include.NON_NULL) Boolean busy
 ) {
 }

@@ -3,10 +3,10 @@ package com.spring.gateway.ws;
 import com.spring.gateway.common.BizException;
 import com.spring.gateway.common.TimeFormat;
 import com.spring.gateway.common.UnknownSessionException;
-import com.spring.gateway.workspace.entity.Session;
+import com.spring.gateway.workspace.dto.SessionSummary;
 import com.spring.gateway.engine.client.EngineClient;
-import com.spring.gateway.workspace.service.InternalStoreService;
 import com.spring.gateway.workspace.service.SessionHistoryService;
+import com.spring.gateway.workspace.service.SessionService;
 import com.spring.gateway.messaging.service.TurnDispatchService;
 import jakarta.websocket.WebSocketContainer;
 import lombok.extern.slf4j.Slf4j;
@@ -31,7 +31,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 
@@ -67,7 +66,7 @@ public class EngineRelayHandler extends TextWebSocketHandler {
     private final ObjectMapper objectMapper;
     private final TurnDispatchService turnDispatchService;
     private final TurnStreamReader turnStreamReader;
-    private final InternalStoreService internalStoreService;
+    private final SessionService sessionService;
     private final SessionHistoryService sessionHistoryService;
     private final WebSocketContainer webSocketContainer;
     private final EngineClient engineClient;
@@ -106,7 +105,7 @@ public class EngineRelayHandler extends TextWebSocketHandler {
                               ObjectMapper objectMapper,
                               TurnDispatchService turnDispatchService,
                               TurnStreamReader turnStreamReader,
-                              InternalStoreService internalStoreService,
+                              SessionService sessionService,
                               SessionHistoryService sessionHistoryService,
                               WebSocketContainer webSocketContainer,
                               EngineClient engineClient,
@@ -116,7 +115,7 @@ public class EngineRelayHandler extends TextWebSocketHandler {
         this.objectMapper = objectMapper;
         this.turnDispatchService = turnDispatchService;
         this.turnStreamReader = turnStreamReader;
-        this.internalStoreService = internalStoreService;
+        this.sessionService = sessionService;
         this.sessionHistoryService = sessionHistoryService;
         this.webSocketContainer = webSocketContainer;
         this.engineClient = engineClient;
@@ -415,21 +414,14 @@ public class EngineRelayHandler extends TextWebSocketHandler {
                 ? workIdNode.asText() : null;
         ObjectNode result = objectMapper.createObjectNode();
         ArrayNode sessions = result.putArray("sessions");
-        List<Session> rows = internalStoreService.listUserSessions(userId, workId);
-        Set<String> busy = Set.of();
-        try {
-            busy = engineClient.busySessions(rows.stream().map(Session::getId).toList());
-        } catch (Exception e) {
-            log.warn("会话运行状态查询失败: userId={} error={}", userId, e.toString());
-        }
-        for (Session row : rows) {
+        for (SessionSummary row : sessionService.list(userId, workId)) {
             ObjectNode item = sessions.addObject();
-            item.put("sessionId", row.getId());
-            item.put("workId", row.getWorkId());
-            item.put("title", row.getTitle());
-            item.put("createdAt", TimeFormat.isoUtc(row.getCreatedAt()));
-            item.put("updatedAt", TimeFormat.isoUtc(row.getUpdatedAt()));
-            item.put("busy", busy.contains(row.getId()));
+            item.put("sessionId", row.sessionId());
+            item.put("workId", row.workId());
+            item.put("title", row.title());
+            item.put("createdAt", TimeFormat.isoUtc(row.createdAt()));
+            item.put("updatedAt", TimeFormat.isoUtc(row.updatedAt()));
+            item.put("busy", row.busy());
         }
         return result;
     }

@@ -4,6 +4,7 @@
 
 import { $, el, scrollToBottom } from "../../utils/dom.js";
 import { stringifyContent } from "../../utils/format.js";
+import { api } from "../../api/client.js";
 import { rpc } from "../../api/rpc.js";
 import { UI } from "../../components/ui.js";
 import { SproutManager } from "../../components/sprout.js";
@@ -174,11 +175,11 @@ export async function loadHistory(cursor, generation) {
   const socket = rpc.ws;
   const isCurrent = () => state.sessionId === sid && state.workId === workId && rpc.ws === socket && state.connected
     && (generation === undefined || generation === state.viewGeneration);
-  const params = { sessionId: sid, limit: 30, direction: "backward" };
-  if (cursor) params.cursor = cursor;
+  const params = new URLSearchParams({ limit: "30", direction: "backward" });
+  if (cursor) params.set("cursor", cursor);
   let page;
   try {
-    page = await rpc.request("session/history", params);
+    page = await api(`/api/sessions/${encodeURIComponent(sid)}/history?${params}`);
   } finally {
     if (!cursor && isCurrent()) UI.clearSkeleton("messages");
   }

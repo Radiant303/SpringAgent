@@ -2,6 +2,7 @@ package com.spring.gateway.workspace.service.impl;
 
 import com.spring.gateway.common.BizException;
 import com.spring.gateway.common.SnowflakeIdGenerator;
+import com.spring.gateway.engine.client.EngineClient;
 import com.spring.gateway.workspace.dto.SessionSummary;
 import com.spring.gateway.workspace.entity.Session;
 import com.spring.gateway.identity.entity.User;
@@ -14,14 +15,19 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.when;
 
 /**
  * 会话直查业务集成测试。@Transactional 保证用例结束后回滚。
@@ -35,6 +41,8 @@ class SessionServiceTests {
 
     @Autowired
     private SessionService sessionService;
+    @MockitoBean
+    private EngineClient engineClient;
     @Autowired
     private SessionMapper sessionMapper;
     @Autowired
@@ -100,7 +108,7 @@ class SessionServiceTests {
     }
 
     @Test
-    @DisplayName("列表只含本人未删除会话，按更新时间倒序")
+    @DisplayName("列表过滤排序并合并运行状态，引擎异常时降级为未运行")
     void listFiltersAndOrders() {
         Long me = insertUser();
         Long other = insertUser();
@@ -112,11 +120,17 @@ class SessionServiceTests {
         insertSession(me, myWork, Session.STATUS_DELETED, base.plusSeconds(2));
         insertSession(other, otherWork, Session.STATUS_ACTIVE, base.plusSeconds(3));
 
+        when(engineClient.busySessions(List.of(newId, oldId))).thenReturn(Set.of(newId));
         List<SessionSummary> all = sessionService.list(me, null);
         assertEquals(List.of(newId, oldId), all.stream().map(SessionSummary::sessionId).toList());
+        assertTrue(all.get(0).busy());
+        assertFalse(all.get(1).busy());
 
+        when(engineClient.busySessions(List.of(newId, oldId))).thenThrow(new IllegalStateException("引擎不可达"));
         List<SessionSummary> filtered = sessionService.list(me, myWork);
         assertEquals(List.of(newId, oldId), filtered.stream().map(SessionSummary::sessionId).toList());
+        assertFalse(filtered.get(0).busy());
+        assertFalse(filtered.get(1).busy());
         assertEquals(List.of(), sessionService.list(me, otherWork));
     }
 

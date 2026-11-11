@@ -1,8 +1,11 @@
 package com.spring.gateway.workspace.controller;
 
 import com.spring.gateway.common.AuthInterceptor;
+import com.spring.gateway.common.BizException;
 import com.spring.gateway.common.Result;
+import com.spring.gateway.common.UnknownSessionException;
 import com.spring.gateway.workspace.dto.SessionSummary;
+import com.spring.gateway.workspace.service.SessionHistoryService;
 import com.spring.gateway.workspace.service.SessionService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -16,6 +19,8 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
+import tools.jackson.databind.node.ObjectNode;
+
 /**
  * 会话接口
  *
@@ -28,6 +33,7 @@ import java.util.List;
 public class SessionController {
 
     private final SessionService sessionService;
+    private final SessionHistoryService sessionHistoryService;
 
     /**
      * 会话列表；workId 非空时只返回该 work 下的会话
@@ -40,6 +46,31 @@ public class SessionController {
     public Result<List<SessionSummary>> list(@RequestAttribute(AuthInterceptor.ATTR_USER_ID) Long userId,
                                              @RequestParam(required = false) String workId) {
         return Result.ok(sessionService.list(userId, workId));
+    }
+
+    /**
+     * 分页查询会话历史
+     *
+     * @param userId    当前用户 ID
+     * @param sessionId 会话 ID
+     * @param cursor    分页游标，可选
+     * @param limit     每页可见消息数，可选
+     * @param direction 翻页方向
+     * @return 历史分页
+     */
+    @GetMapping("/{sessionId}/history")
+    public Result<ObjectNode> history(@RequestAttribute(AuthInterceptor.ATTR_USER_ID) Long userId,
+                                      @PathVariable String sessionId,
+                                      @RequestParam(required = false) String cursor,
+                                      @RequestParam(required = false) Integer limit,
+                                      @RequestParam(defaultValue = "forward") String direction) {
+        try {
+            return Result.ok(sessionHistoryService.queryHistory(sessionId, userId, cursor, limit, direction));
+        } catch (UnknownSessionException e) {
+            throw new BizException(404, e.getMessage());
+        } catch (IllegalArgumentException e) {
+            throw new BizException(400, e.getMessage());
+        }
     }
 
     /**

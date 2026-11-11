@@ -127,7 +127,6 @@ export async function connectAndSetup() {
   } else {
     await openSession();
   }
-  await loadWorks();
   reconnectDelay = 1000;
 }
 

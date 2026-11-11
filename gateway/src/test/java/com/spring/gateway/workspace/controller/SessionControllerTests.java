@@ -2,6 +2,7 @@ package com.spring.gateway.workspace.controller;
 
 import com.spring.gateway.identity.service.AuthSessionService;
 import com.spring.gateway.common.SnowflakeIdGenerator;
+import com.spring.gateway.engine.client.EngineClient;
 import com.spring.gateway.workspace.entity.Session;
 import com.spring.gateway.identity.entity.User;
 import com.spring.gateway.workspace.entity.Work;
@@ -14,12 +15,16 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.HttpHeaders;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -37,6 +42,8 @@ class SessionControllerTests {
 
     @Autowired
     private MockMvc mockMvc;
+    @MockitoBean
+    private EngineClient engineClient;
     @Autowired
     private AuthSessionService jwtUtils;
     @Autowired
@@ -105,13 +112,15 @@ class SessionControllerTests {
         String mySession = insertSession(me, myWork);
         String othersSession = insertSession(other, otherWork);
         String token = jwtUtils.createSession(me).token();
+        when(engineClient.busySessions(List.of(mySession))).thenReturn(Set.of(mySession));
 
         mockMvc.perform(get("/api/sessions")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data[0].session_id").value(mySession))
-                .andExpect(jsonPath("$.data[0].created_at").value("2026-01-01T08:00:00.000000Z"));
+                .andExpect(jsonPath("$.data[0].created_at").value("2026-01-01T08:00:00.000000Z"))
+                .andExpect(jsonPath("$.data[0].busy").value(true));
 
         mockMvc.perform(get("/api/sessions/{id}", othersSession)
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))

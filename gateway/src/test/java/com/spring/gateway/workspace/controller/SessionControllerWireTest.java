@@ -2,10 +2,12 @@ package com.spring.gateway.workspace.controller;
 
 import com.spring.gateway.common.AuthInterceptor;
 import com.spring.gateway.common.BizException;
-import com.spring.gateway.identity.service.AuthSessionService;
-import com.spring.gateway.workspace.dto.SessionSummary;
+import com.spring.gateway.common.UnknownSessionException;
 import com.spring.gateway.identity.entity.User;
+import com.spring.gateway.identity.service.AuthSessionService;
 import com.spring.gateway.identity.service.UserProfileService;
+import com.spring.gateway.workspace.dto.SessionSummary;
+import com.spring.gateway.workspace.service.SessionHistoryService;
 import com.spring.gateway.workspace.service.SessionService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -35,8 +37,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * 会话接口的 Web 层测试：不需要 MySQL/Redis。覆盖会话写操作改本地落库后的
- * 应答形状（SessionSummary + 统一返回体），以及 history 端点已移除。
+ * 会话接口的 Web 层测试。
  *
  * @author hanbing
  * @since 2026-10-03
@@ -50,6 +51,8 @@ class SessionControllerWireTest {
     private MockMvc mockMvc;
     @MockitoBean
     private SessionService sessionService;
+    @MockitoBean
+    private SessionHistoryService sessionHistoryService;
 
     @TestConfiguration
     static class WireTestConfig {
@@ -58,6 +61,8 @@ class SessionControllerWireTest {
             AuthSessionService service = Mockito.mock(AuthSessionService.class);
             Mockito.when(service.authenticate("test-token"))
                     .thenReturn(new AuthSessionService.Authentication(null, 42L));
+            Mockito.when(service.authenticate(null))
+                    .thenReturn(AuthSessionService.Authentication.invalid());
             return service;
         }
 
@@ -78,12 +83,28 @@ class SessionControllerWireTest {
     }
 
     @Test
+    @DisplayName("会话列表：返回 work 过滤后的摘要与运行状态")
+    void listReturnsBusy() throws Exception {
+        var createdAt = LocalDateTime.of(2026, 10, 3, 8, 0, 0);
+        when(sessionService.list(42L, "w1")).thenReturn(java.util.List.of(
+                new SessionSummary("s1", "w1", "标题", createdAt, createdAt, true)));
+
+        mockMvc.perform(get("/api/sessions")
+                        .param("workId", "w1")
+                        .header(HttpHeaders.AUTHORIZATION, token()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].session_id").value("s1"))
+                .andExpect(jsonPath("$.data[0].work_id").value("w1"))
+                .andExpect(jsonPath("$.data[0].busy").value(true));
+    }
+
+    @Test
     @DisplayName("新建会话：本地落库后返回统一返回体包裹的摘要，时间戳补 Z")
     void createReturnsSummary() throws Exception {
         when(sessionService.create(eq(42L), isNull())).thenReturn(new SessionSummary(
                 "s1", "w1", "标题",
                 LocalDateTime.of(2026, 10, 3, 8, 0, 0),
-                LocalDateTime.of(2026, 10, 3, 9, 30, 0, 500000000)));
+                LocalDateTime.of(2026, 10, 3, 9, 30, 0, 500000000), null));
 
         mockMvc.perform(post("/api/sessions").header(HttpHeaders.AUTHORIZATION, token()))
                 .andExpect(status().isOk())
@@ -91,7 +112,8 @@ class SessionControllerWireTest {
                 .andExpect(jsonPath("$.data.session_id").value("s1"))
                 .andExpect(jsonPath("$.data.work_id").value("w1"))
                 .andExpect(jsonPath("$.data.created_at").value("2026-10-03T08:00:00.000000Z"))
-                .andExpect(jsonPath("$.data.updated_at").value("2026-10-03T09:30:00.500000Z"));
+                .andExpect(jsonPath("$.data.updated_at").value("2026-10-03T09:30:00.500000Z"))
+                .andExpect(jsonPath("$.data.busy").doesNotExist());
     }
 
     @Test
@@ -108,9 +130,51 @@ class SessionControllerWireTest {
     }
 
     @Test
-    @DisplayName("history REST 端点已移除（分页只走 WS 的 session/history）")
-    void historyEndpointRemoved() throws Exception {
-        mockMvc.perform(get("/api/sessions/s1/history").header(HttpHeaders.AUTHORIZATION, token()))
-                .andExpect(status().isNotFound());
+    @DisplayName("历史分页：透传游标、页大小和方向，返回统一分页结构")
+    void historyReturnsPage() throws Exception {
+        var page = new ObjectMapper().createObjectNode();
+        page.putArray("segments");
+        page.put("previousCursor", "previous-1");
+        page.put("hasMore", true);
+        when(sessionHistoryService.queryHistory("s1", 42L, "cursor-1", 30, "backward")).thenReturn(page);
+
+        mockMvc.perform(get("/api/sessions/s1/history")
+                        .param("cursor", "cursor-1")
+                        .param("limit", "30")
+                        .param("direction", "backward")
+                        .header(HttpHeaders.AUTHORIZATION, token()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200))
+                .andExpect(jsonPath("$.data.segments").isArray())
+                .andExpect(jsonPath("$.data.previousCursor").value("previous-1"))
+                .andExpect(jsonPath("$.data.hasMore").value(true));
+    }
+
+    @Test
+    @DisplayName("历史分页：未知会话返回 404，非法游标返回 400")
+    void historyErrorsUseHttpStatus() throws Exception {
+        when(sessionHistoryService.queryHistory("missing", 42L, null, null, "forward"))
+                .thenThrow(new UnknownSessionException("missing"));
+        when(sessionHistoryService.queryHistory("s1", 42L, "bad", 30, "backward"))
+                .thenThrow(new IllegalArgumentException("invalid history cursor"));
+
+        mockMvc.perform(get("/api/sessions/missing/history").header(HttpHeaders.AUTHORIZATION, token()))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value(404));
+        mockMvc.perform(get("/api/sessions/s1/history")
+                        .param("cursor", "bad")
+                        .param("limit", "30")
+                        .param("direction", "backward")
+                        .header(HttpHeaders.AUTHORIZATION, token()))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(400));
+    }
+
+    @Test
+    @DisplayName("历史分页：未认证请求返回 401")
+    void historyRequiresAuthentication() throws Exception {
+        mockMvc.perform(get("/api/sessions/s1/history"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value(401));
     }
 }
