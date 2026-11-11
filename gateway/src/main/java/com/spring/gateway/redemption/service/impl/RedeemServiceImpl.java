@@ -22,12 +22,15 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.sql.SQLIntegrityConstraintViolationException;
 import java.security.SecureRandom;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 
 /**
  * 兑换码：站长生成，用户兑换。
@@ -46,8 +49,11 @@ public class RedeemServiceImpl implements RedeemService {
     /** 码长（规范形，不含连字符）。 */
     private static final int CODE_LENGTH = 16;
 
-    /** 单个码撞唯一索引的最大重试次数。 */
+    /** 批量写入撞唯一索引的最大尝试次数。 */
     private static final int MAX_GENERATE_ATTEMPTS = 5;
+
+    /** 每批写入行数。 */
+    private static final int INSERT_BATCH_SIZE = 500;
 
     private final RedeemCodeMapper redeemCodeMapper;
     private final UserMapper userMapper;
@@ -65,7 +71,6 @@ public class RedeemServiceImpl implements RedeemService {
      * @return 生成的码行
      * @throws BizException 三项面值全为 0（400）
      */
-    @Transactional
     public List<RedeemCode> generate(long actorId, AdminRedeemCreateRequest req) {
         ResourceLimits.integer(req.count() == null ? null : req.count().longValue(),
                 1, ResourceLimits.MAX_REDEEM_COUNT, "生成数量");
@@ -86,13 +91,22 @@ public class RedeemServiceImpl implements RedeemService {
         LocalDateTime expiresAt = req.expiresInHours() == null ? null
                 : LocalDateTime.now(ZoneOffset.UTC).plusHours(req.expiresInHours());
 
-        List<RedeemCode> created = new ArrayList<>(req.count());
-        for (int i = 0; i < req.count(); i++) {
-            created.add(insertOne(actorId, points, storageBytes, workQuotaBytes, expiresAt));
+        for (int attempt = 0; attempt < MAX_GENERATE_ATTEMPTS; attempt++) {
+            List<RedeemCode> created = createBatch(actorId, req.count(), points,
+                    storageBytes, workQuotaBytes, expiresAt);
+            try {
+                redeemCodeMapper.insert(created, INSERT_BATCH_SIZE);
+                log.info("兑换码生成: actor={} count={} points={} storage={} workQuota={} expiresAt={}",
+                        actorId, req.count(), points, storageBytes, workQuotaBytes, expiresAt);
+                return created;
+            } catch (RuntimeException e) {
+                if (!isDuplicateKey(e)) {
+                    throw e;
+                }
+                log.warn("兑换码撞唯一索引，整批换码重试（第 {} 次）", attempt + 1);
+            }
         }
-        log.info("兑换码生成: actor={} count={} points={} storage={} workQuota={} expiresAt={}",
-                actorId, req.count(), points, storageBytes, workQuotaBytes, expiresAt);
-        return created;
+        throw new BizException(500, "兑换码生成失败，请重试");
     }
 
     /**
@@ -219,10 +233,11 @@ public class RedeemServiceImpl implements RedeemService {
                 .eq(RedeemCode::getCode, code));
     }
 
-    /** 插一行；撞 code 唯一索引换码重试。 */
-    private RedeemCode insertOne(long actorId, BigDecimal points, long storageBytes,
-                                 long workQuotaBytes, LocalDateTime expiresAt) {
-        for (int attempt = 0; attempt < MAX_GENERATE_ATTEMPTS; attempt++) {
+    private List<RedeemCode> createBatch(long actorId, int count, BigDecimal points, long storageBytes,
+                                         long workQuotaBytes, LocalDateTime expiresAt) {
+        List<RedeemCode> created = new ArrayList<>(count);
+        Set<String> codes = new HashSet<>();
+        while (created.size() < count) {
             RedeemCode row = new RedeemCode();
             row.setId(idGenerator.nextId());
             row.setCode(randomCode());
@@ -232,14 +247,21 @@ public class RedeemServiceImpl implements RedeemService {
             row.setWorkQuotaDeltaBytes(workQuotaBytes);
             row.setExpiresAt(expiresAt);
             row.setCreatedBy(actorId);
-            try {
-                redeemCodeMapper.insert(row);
-                return row;
-            } catch (DuplicateKeyException e) {
-                log.warn("兑换码撞唯一索引，换码重试（第 {} 次）", attempt + 1);
+            if (codes.add(row.getCode())) {
+                created.add(row);
             }
         }
-        throw new BizException(500, "兑换码生成失败，请重试");
+        return created;
+    }
+
+    private static boolean isDuplicateKey(Throwable error) {
+        for (Throwable current = error; current != null; current = current.getCause()) {
+            if (current instanceof DuplicateKeyException
+                    || current instanceof SQLIntegrityConstraintViolationException) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private String randomCode() {
