@@ -17,6 +17,7 @@ import com.spring.gateway.storage.infrastructure.StorageReconcileTask;
 import com.spring.gateway.storage.infrastructure.ReconcileScheduler;
 import com.spring.gateway.storage.infrastructure.AliyunOssStorageService;
 import com.spring.gateway.workspace.service.WorkService;
+import com.spring.gateway.settings.entity.SystemSetting;
 import com.spring.gateway.settings.service.SystemSettingService;
 import com.spring.gateway.engine.client.EngineClient;
 import org.junit.jupiter.api.AfterEach;
@@ -40,6 +41,7 @@ import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -56,6 +58,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -97,6 +100,9 @@ class FileStorageServiceTests {
     void configureStorage() {
         when(systemSettingService.getStorageType()).thenReturn("local");
         when(systemSettingService.getWorkMaxBytes()).thenReturn(1024L);
+        when(systemSettingService.getSnapshot()).thenReturn(Map.of(
+                SystemSetting.KEY_STORAGE_TYPE, "local",
+                SystemSetting.KEY_WORK_MAX_BYTES, "1024"));
     }
 
     @AfterEach
@@ -171,7 +177,9 @@ class FileStorageServiceTests {
         Path knowledge = Path.of(workService.knowledgePath(userId), "declarative.md");
         Files.createDirectories(knowledge.getParent());
         Files.writeString(knowledge, "ab");
-        when(systemSettingService.getStorageType()).thenReturn("aliyun_oss");
+        when(systemSettingService.getSnapshot()).thenReturn(Map.of(
+                SystemSetting.KEY_STORAGE_TYPE, "aliyun_oss",
+                SystemSetting.KEY_WORK_MAX_BYTES, "1024"));
         when(remoteStorage.upload(any(), anyLong(), anyString(), anyString())).thenAnswer(call -> call.getArgument(2));
         when(remoteStorage.localPath(anyString())).thenReturn(java.util.Optional.empty());
         FileRecord first = upload(userId, session, 3);
@@ -397,10 +405,13 @@ class FileStorageServiceTests {
     void storageTypeIsSelectedOnce() {
         Long userId = insertUser(1024);
         Session session = insertSession(userId);
-        when(systemSettingService.getStorageType()).thenReturn("local", "aliyun_oss");
+        when(systemSettingService.getSnapshot()).thenReturn(Map.of(
+                SystemSetting.KEY_STORAGE_TYPE, "local",
+                SystemSetting.KEY_WORK_MAX_BYTES, "1024"));
         FileRecord row = upload(userId, session, 4);
         assertEquals("local", row.getStorageType());
-        verify(systemSettingService, times(1)).getStorageType();
+        verify(systemSettingService, times(1)).getSnapshot();
+        verify(systemSettingService, never()).getStorageType();
     }
 
     @Test

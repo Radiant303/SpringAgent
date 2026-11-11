@@ -4,7 +4,6 @@ import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
 import com.spring.gateway.billing.service.PointsAccountService;
 import com.spring.gateway.common.BizException;
-
 import com.spring.gateway.common.SnowflakeIdGenerator;
 import com.spring.gateway.identity.dto.LoginRequest;
 import com.spring.gateway.identity.dto.RegisterRequest;
@@ -14,6 +13,7 @@ import com.spring.gateway.identity.mapper.UserMapper;
 import com.spring.gateway.identity.service.AuthService;
 import com.spring.gateway.identity.service.AuthSessionService;
 import com.spring.gateway.identity.service.MailCodeService;
+import com.spring.gateway.settings.entity.SystemSetting;
 import com.spring.gateway.settings.service.SystemSettingService;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.junit.jupiter.api.BeforeEach;
@@ -24,6 +24,7 @@ import org.mockito.ArgumentCaptor;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -48,10 +49,14 @@ class AuthRegistrationDomainsUnitTests {
     @BeforeEach
     void setup() {
         TableInfoHelper.initTableInfo(new MapperBuilderAssistant(new MybatisConfiguration(), "domain-tests"), User.class);
-        when(settings.isMailRegisterEnabled()).thenReturn(true);
-        when(settings.isRegistrationOpen()).thenReturn(true);
-        when(settings.getRegistrationInitialPoints()).thenReturn(java.math.BigDecimal.ZERO);
-        when(settings.getMailRegisterDomains()).thenReturn(List.of("qq.com", "edu.cn"));
+        when(settings.getSnapshot()).thenReturn(Map.of(
+                SystemSetting.KEY_MAIL_REGISTER_ENABLED, "true",
+                SystemSetting.KEY_REGISTRATION_OPEN, "true",
+                SystemSetting.KEY_REGISTRATION_INITIAL_POINTS, "0",
+                SystemSetting.KEY_MAIL_REGISTER_DOMAINS, "[\"qq.com\",\"edu.cn\"]"));
+        when(settings.getMailRegisterDomains("[\"qq.com\",\"edu.cn\"]"))
+                .thenReturn(List.of("qq.com", "edu.cn"));
+        when(settings.getRegistrationInitialPoints(anyMap())).thenReturn(java.math.BigDecimal.ZERO);
         when(users.selectCount(null)).thenReturn(1L);
         when(ids.nextId()).thenReturn(42L);
         when(passwords.encode(anyString())).thenReturn("hash");
@@ -74,7 +79,7 @@ class AuthRegistrationDomainsUnitTests {
 
     @Test
     void regularRegistrationUsesConfiguredInitialPoints() {
-        when(settings.getRegistrationInitialPoints()).thenReturn(new java.math.BigDecimal("25.125"));
+        when(settings.getRegistrationInitialPoints(anyMap())).thenReturn(new java.math.BigDecimal("25.125"));
         auth.register(new RegisterRequest("member", "password123", "person@qq.com", "123456"));
         ArgumentCaptor<User> saved = ArgumentCaptor.forClass(User.class);
         verify(users).insert(saved.capture());
@@ -91,7 +96,7 @@ class AuthRegistrationDomainsUnitTests {
         verify(users).insert(saved.capture());
         assertEquals(java.math.BigDecimal.ZERO, saved.getValue().getPointsBalance());
         assertEquals(User.ROLE_OWNER, saved.getValue().getRole());
-        verify(settings, never()).getRegistrationInitialPoints();
+        verify(settings, never()).getRegistrationInitialPoints(anyMap());
         verify(points).grantRegistration(42L, new java.math.BigDecimal("1000"));
     }
 
@@ -112,49 +117,51 @@ class AuthRegistrationDomainsUnitTests {
     @ValueSource(strings = {"person@qq.com", " Person@EDU.CN "})
     void allowedDomainsSendRegisterCode(String email) {
         String normalized = MailCodeService.normalize(email);
-        when(codes.sendCode(normalized, MailCodeService.Scene.REGISTER)).thenReturn(60L);
+        when(codes.sendCode(eq(normalized), eq(MailCodeService.Scene.REGISTER), anyMap())).thenReturn(60L);
         assertEquals(60L, auth.sendSceneCode(email, MailCodeService.Scene.REGISTER));
-        verify(codes).sendCode(normalized, MailCodeService.Scene.REGISTER);
+        verify(codes).sendCode(eq(normalized), eq(MailCodeService.Scene.REGISTER), anyMap());
     }
 
     @Test
     void emptyListAndMockitoDefaultListRemainUnrestricted() {
-        when(settings.getMailRegisterDomains()).thenReturn(List.of());
+        when(settings.getMailRegisterDomains(nullable(String.class))).thenReturn(List.of());
         auth.register(new RegisterRequest("member", "password123", "person@outside.example", "123456"));
         auth.sendSceneCode("person@outside.example", MailCodeService.Scene.REGISTER);
         verify(codes).verifyCode("person@outside.example", "123456", MailCodeService.Scene.REGISTER);
-        verify(codes).sendCode("person@outside.example", MailCodeService.Scene.REGISTER);
+        verify(codes).sendCode(eq("person@outside.example"), eq(MailCodeService.Scene.REGISTER), anyMap());
         SystemSettingService defaults = mock(SystemSettingService.class);
-        when(defaults.isMailRegisterEnabled()).thenReturn(true);
-        when(defaults.isRegistrationOpen()).thenReturn(true);
+        when(defaults.getSnapshot()).thenReturn(Map.of(
+                SystemSetting.KEY_MAIL_REGISTER_ENABLED, "true",
+                SystemSetting.KEY_REGISTRATION_OPEN, "true"));
+        when(defaults.getRegistrationInitialPoints(anyMap())).thenReturn(java.math.BigDecimal.ZERO);
         AuthService defaultAuth = new AuthServiceImpl(users, ids, tokens, passwords, defaults, codes, points);
-        assertEquals(List.of(), defaults.getMailRegisterDomains());
+        assertEquals(List.of(), defaults.getMailRegisterDomains(null));
         defaultAuth.register(new RegisterRequest("second", "password123", "second@outside.example", "123456"));
     }
 
     @Test
     void disabledEmailVerificationKeepsUsernameRegistrationAndDoesNotStoreSuppliedEmail() {
-        when(settings.isMailRegisterEnabled()).thenReturn(false);
+        when(settings.getSnapshot()).thenReturn(Map.of(SystemSetting.KEY_REGISTRATION_OPEN, "true"));
         clearInvocations(settings);
         auth.register(new RegisterRequest("member", "password123", "person@outside.example", null));
         auth.register(new RegisterRequest("second", "password123", null, null));
         ArgumentCaptor<User> saved = ArgumentCaptor.forClass(User.class);
         verify(users, times(2)).insert(saved.capture());
         assertTrue(saved.getAllValues().stream().allMatch(user -> user.getEmail() == null));
-        verify(settings, never()).getMailRegisterDomains();
+        verify(settings, never()).getMailRegisterDomains(nullable(String.class));
         verifyNoInteractions(codes);
     }
 
     @Test
     void disabledEmailFeaturePreservesSendCodeRejectionWithoutDomainRead() {
-        when(settings.isMailRegisterEnabled()).thenReturn(false);
-        when(codes.sendCode("person@outside.example", MailCodeService.Scene.REGISTER))
+        when(settings.getSnapshot()).thenReturn(Map.of());
+        when(codes.sendCode(eq("person@outside.example"), eq(MailCodeService.Scene.REGISTER), anyMap()))
                 .thenThrow(new BizException(403, "当前未开启邮箱验证码功能"));
         clearInvocations(settings);
         var failure = assertThrows(BizException.class,
                 () -> auth.sendSceneCode("person@outside.example", MailCodeService.Scene.REGISTER));
         assertEquals(403, failure.getStatus());
-        verify(settings, never()).getMailRegisterDomains();
+        verify(settings, never()).getMailRegisterDomains(nullable(String.class));
     }
 
     @Test
@@ -164,7 +171,7 @@ class AuthRegistrationDomainsUnitTests {
                 () -> auth.register(new RegisterRequest("member", "password123", "not-an-email", "123456")));
         assertEquals("邮箱格式不正确", failure.getMessage());
         assertThrows(BizException.class, () -> auth.sendSceneCode("not-an-email", MailCodeService.Scene.REGISTER));
-        verify(settings, never()).getMailRegisterDomains();
+        verify(settings, never()).getMailRegisterDomains(nullable(String.class));
         verifyNoInteractions(codes);
     }
 
@@ -182,6 +189,7 @@ class AuthRegistrationDomainsUnitTests {
         when(users.exists(any())).thenReturn(true, false, false);
         when(passwords.matches("password123", "hash")).thenReturn(true);
         when(codes.sendCode(existing.getEmail(), MailCodeService.Scene.RESET)).thenReturn(60L);
+        when(codes.sendCode(eq(existing.getEmail()), eq(MailCodeService.Scene.RESET), anyMap())).thenReturn(60L);
         clearInvocations(settings);
         assertEquals(60L, auth.sendSceneCode(existing.getEmail(), MailCodeService.Scene.RESET));
         auth.resetPassword(new ResetPasswordRequest(existing.getEmail(), "123456", "new-password"));
@@ -189,10 +197,12 @@ class AuthRegistrationDomainsUnitTests {
         auth.sendBindCode(1L, "new@outside.example");
         auth.bindEmail(1L, "new@outside.example", "123456");
         auth.sendMyCode(1L);
-        verify(codes, times(2)).sendCode(existing.getEmail(), MailCodeService.Scene.RESET);
+        verify(codes).sendCode(eq(existing.getEmail()), eq(MailCodeService.Scene.RESET), anyMap());
+        verify(codes).sendCode(existing.getEmail(), MailCodeService.Scene.RESET);
         verify(codes).verifyCode(existing.getEmail(), "123456", MailCodeService.Scene.RESET);
         verify(codes).sendCode("new@outside.example", MailCodeService.Scene.BIND);
         verify(codes).verifyCode("new@outside.example", "123456", MailCodeService.Scene.BIND);
-        verifyNoInteractions(settings);
+        verify(settings).getSnapshot();
+        verifyNoMoreInteractions(settings);
     }
 }
