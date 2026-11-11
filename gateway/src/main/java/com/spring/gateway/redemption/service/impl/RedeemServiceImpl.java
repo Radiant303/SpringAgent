@@ -52,9 +52,6 @@ public class RedeemServiceImpl implements RedeemService {
     /** 批量写入撞唯一索引的最大尝试次数。 */
     private static final int MAX_GENERATE_ATTEMPTS = 5;
 
-    /** 每批写入行数。 */
-    private static final int INSERT_BATCH_SIZE = 500;
-
     private final RedeemCodeMapper redeemCodeMapper;
     private final UserMapper userMapper;
     private final PointsAccountService billingService;
@@ -71,6 +68,7 @@ public class RedeemServiceImpl implements RedeemService {
      * @return 生成的码行
      * @throws BizException 三项面值全为 0（400）
      */
+    @Transactional
     public List<RedeemCode> generate(long actorId, AdminRedeemCreateRequest req) {
         ResourceLimits.integer(req.count() == null ? null : req.count().longValue(),
                 1, ResourceLimits.MAX_REDEEM_COUNT, "生成数量");
@@ -95,7 +93,7 @@ public class RedeemServiceImpl implements RedeemService {
             List<RedeemCode> created = createBatch(actorId, req.count(), points,
                     storageBytes, workQuotaBytes, expiresAt);
             try {
-                redeemCodeMapper.insert(created, INSERT_BATCH_SIZE);
+                redeemCodeMapper.insertBatch(created);
                 log.info("兑换码生成: actor={} count={} points={} storage={} workQuota={} expiresAt={}",
                         actorId, req.count(), points, storageBytes, workQuotaBytes, expiresAt);
                 return created;

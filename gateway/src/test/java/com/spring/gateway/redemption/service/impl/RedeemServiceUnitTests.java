@@ -8,6 +8,10 @@ import com.spring.gateway.redemption.dto.AdminRedeemCreateRequest;
 import com.spring.gateway.redemption.entity.RedeemCode;
 import com.spring.gateway.redemption.mapper.RedeemCodeMapper;
 import com.spring.gateway.settings.service.SystemSettingService;
+import org.apache.ibatis.annotations.Insert;
+import org.apache.ibatis.mapping.BoundSql;
+import org.apache.ibatis.scripting.xmltags.XMLLanguageDriver;
+import org.apache.ibatis.session.Configuration;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.dao.DuplicateKeyException;
@@ -15,14 +19,14 @@ import org.springframework.dao.DuplicateKeyException;
 import java.math.BigDecimal;
 import java.sql.SQLIntegrityConstraintViolationException;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyCollection;
-import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -51,46 +55,57 @@ class RedeemServiceUnitTests {
 
     @Test
     void generateUsesOneBatchAndUniqueCodes() {
-        when(mapper.insert(anyCollection(), eq(500))).thenReturn(List.of());
+        when(mapper.insertBatch(anyList())).thenReturn(1);
 
         List<RedeemCode> rows = service.generate(7L, request(3));
 
         assertEquals(3, rows.size());
         assertEquals(3, rows.stream().map(RedeemCode::getCode).distinct().count());
-        verify(mapper, times(1)).insert(anyCollection(), eq(500));
+        verify(mapper, times(1)).insertBatch(anyList());
         verify(mapper, never()).insert(any(RedeemCode.class));
     }
 
     @Test
     void duplicateBatchIsRegeneratedAndRetried() {
-        when(mapper.insert(anyCollection(), eq(500)))
+        when(mapper.insertBatch(anyList()))
                 .thenThrow(new DuplicateKeyException("duplicate"))
-                .thenReturn(List.of());
+                .thenReturn(1);
 
         List<RedeemCode> rows = service.generate(7L, request(2));
 
         assertEquals(2, rows.size());
-        verify(mapper, times(2)).insert(anyCollection(), eq(500));
+        verify(mapper, times(2)).insertBatch(anyList());
     }
 
     @Test
     void wrappedSqlDuplicateIsAlsoRetried() {
-        when(mapper.insert(anyCollection(), eq(500)))
+        when(mapper.insertBatch(anyList()))
                 .thenThrow(new RuntimeException(new SQLIntegrityConstraintViolationException("duplicate")))
-                .thenReturn(List.of());
+                .thenReturn(1);
 
         assertEquals(1, service.generate(7L, request(1)).size());
-        verify(mapper, times(2)).insert(anyCollection(), eq(500));
+        verify(mapper, times(2)).insertBatch(anyList());
     }
 
     @Test
     void nonDuplicateFailureIsNotRetried() {
         IllegalStateException failure = new IllegalStateException("database unavailable");
-        when(mapper.insert(anyCollection(), eq(500))).thenThrow(failure);
+        when(mapper.insertBatch(anyList())).thenThrow(failure);
 
         assertSame(failure, assertThrows(IllegalStateException.class,
                 () -> service.generate(7L, request(1))));
-        verify(mapper, times(1)).insert(anyCollection(), eq(500));
+        verify(mapper, times(1)).insertBatch(anyList());
+    }
+
+    @Test
+    void batchInsertBuildsOneStatementWithAllRows() throws Exception {
+        Insert insert = RedeemCodeMapper.class.getMethod("insertBatch", List.class).getAnnotation(Insert.class);
+        var source = new XMLLanguageDriver().createSqlSource(
+                new Configuration(), String.join("\n", insert.value()), RedeemCode.class);
+
+        BoundSql bound = source.getBoundSql(Map.of("rows", List.of(new RedeemCode(), new RedeemCode())));
+
+        assertEquals(16, bound.getParameterMappings().size());
     }
 
     private AdminRedeemCreateRequest request(int count) {

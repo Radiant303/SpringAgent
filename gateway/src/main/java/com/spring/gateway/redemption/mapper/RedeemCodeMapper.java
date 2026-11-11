@@ -2,9 +2,12 @@ package com.spring.gateway.redemption.mapper;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.spring.gateway.redemption.entity.RedeemCode;
+import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Update;
+
+import java.util.List;
 
 /**
  * redeem_codes 表的 Mapper。
@@ -14,6 +17,19 @@ import org.apache.ibatis.annotations.Update;
  */
 @Mapper
 public interface RedeemCodeMapper extends BaseMapper<RedeemCode> {
+
+    @Insert("""
+            <script>
+            INSERT INTO redeem_codes (id, code, status, points_amount, storage_delta_bytes,
+                work_quota_delta_bytes, expires_at, created_by)
+            VALUES
+            <foreach collection="rows" item="row" separator=",">
+                (#{row.id}, #{row.code}, #{row.status}, #{row.pointsAmount}, #{row.storageDeltaBytes},
+                #{row.workQuotaDeltaBytes}, #{row.expiresAt}, #{row.createdBy})
+            </foreach>
+            </script>
+            """)
+    int insertBatch(@Param("rows") List<RedeemCode> rows);
 
     /**
      * 兑换抢占：ACTIVE 且未过期的码原子地转为 REDEEMED，并置兑换人/兑换时间/软删除。
