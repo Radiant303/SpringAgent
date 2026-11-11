@@ -601,15 +601,18 @@
   height: 35px;
   border-radius: 50%;
   background: conic-gradient(
-    from 0deg,
+    from 135deg,
     rgba(0, 0, 0, 0) 0deg,
-    rgba(0, 0, 0, 0.06) 90deg,
-    rgba(0, 0, 0, 0.14) 175deg,
-    rgba(0, 0, 0, 0.26) 240deg,
-    rgba(0, 0, 0, 0.40) 290deg,
-    rgba(0, 0, 0, 0.48) 320deg,
-    rgba(0, 0, 0, 0.36) 338deg,
-    rgba(0, 0, 0, 0.16) 351deg,
+    rgba(0, 0, 0, 0) 25deg,
+    rgba(0, 0, 0, 0.03) 45deg,
+    rgba(0, 0, 0, 0.08) 75deg,
+    rgba(0, 0, 0, 0.18) 120deg,
+    rgba(0, 0, 0, 0.30) 165deg,
+    rgba(0, 0, 0, 0.44) 210deg,
+    rgba(0, 0, 0, 0.50) 250deg,
+    rgba(0, 0, 0, 0.54) 315deg,
+    rgba(0, 0, 0, 0.54) 330deg,
+    rgba(0, 0, 0, 0.18) 350deg,
     rgba(0, 0, 0, 0) 360deg
   );
   -webkit-mask-image: radial-gradient(farthest-side, transparent calc(100% - 4.2px), #000 calc(100% - 3.4px));
@@ -618,6 +621,16 @@
   /* 位于消息区可视中线偏下 */
   top: 64px;
   animation: spin 0.9s linear infinite;
+}
+.chat-spinner::before {
+  content: "";
+  position: absolute;
+  width: 4px;
+  height: 4px;
+  right: -1px;
+  top: 21px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.54);
 }
 
 .msg.user {
@@ -665,7 +678,7 @@
   align-self: flex-start;
   color: var(--text-faint, rgba(0, 0, 0, 0.45));
   font-size: var(--fs-sm, 16px);
-  animation: pending-breathe 1.2s ease-in-out infinite;
+  animation: pending-breathe 2.4s ease-in-out infinite;
 }
 @keyframes pending-breathe {
   0%, 100% { opacity: 0.35; }
@@ -1192,6 +1205,16 @@ pre.tool-result.error { background: var(--diff-del-bg, rgba(192, 57, 43, 0.07));
 .fv-row.gap > span { color: var(--text-faint, rgba(0, 0, 0, 0.45)); }
 .fv-note { padding: 0 16px 10px; font-size: var(--fs-sm, 16px); color: var(--text-faint, rgba(0, 0, 0, 0.45)); }
 
+
+#app.is-view-loading #input-area { display: none; }
+#app:not(.is-view-loading) #input-area { animation: session-chrome-in 0.28s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+@keyframes session-chrome-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  #app:not(.is-view-loading) #input-area { animation: none; }
+}
 
 /* ---- 计划区 ---- */
 #input-area { position: relative; }
