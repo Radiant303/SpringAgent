@@ -1,5 +1,9 @@
 server:
   port: 16900
+  compression:
+    enabled: true
+    mime-types: application/json,text/plain
+    min-response-size: 1024
   tomcat:
     # part 数上限：批量 50 个文件 + sessionId 字段
     max-part-count: 60
