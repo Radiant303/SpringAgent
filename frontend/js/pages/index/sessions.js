@@ -17,6 +17,7 @@ import { discardPending, loadPlan } from "./stream.js";
 import { applyModelSelection, updateInputState } from "./input.js";
 
 let listGeneration = 0;
+let listFlight = null;
 let loadQueue = Promise.resolve();
 let queueSocket = null;
 let loadingView = null;
@@ -245,27 +246,38 @@ async function fetchSessionList(workId) {
 }
 
 export async function refreshSessionList() {
-  const generation = ++listGeneration;
   const workId = state.workId;
   const socket = rpc.ws;
+  if (listFlight && listFlight.generation === listGeneration
+    && listFlight.workId === workId && listFlight.socket === socket) return listFlight.task;
+  const generation = ++listGeneration;
   const before = new Map(Object.entries(runs).map(([sid, run]) => [sid, { run, busy: run.busy, seq: state.lastSeq[sid] }]));
-  let sessions;
+  const flight = { generation, workId, socket, task: null };
+  listFlight = flight;
+  flight.task = (async () => {
+    let sessions;
+    try {
+      sessions = (await fetchSessionList(workId)).filter((session) => !state.deletedSessions.has(session.sessionId));
+    } catch {
+      if (generation === listGeneration && state.workId === workId) UI.clearSkeleton("session-list");
+      return;
+    }
+    if (generation !== listGeneration || state.workId !== workId || rpc.ws !== socket || !state.connected) return;
+    for (const s of sessions) {
+      sessionTitles.set(s.sessionId, s.title || "(空会话)");
+      const previous = before.get(s.sessionId);
+      if (typeof s.busy === "boolean" && (previous
+        ? runs[s.sessionId] === previous.run && isBusy(s.sessionId) === previous.busy && state.lastSeq[s.sessionId] === previous.seq
+        : !runs[s.sessionId])) applyServerBusy(s.sessionId, s.busy);
+    }
+    updateInputState();
+    renderSessionList(sessions);
+  })();
   try {
-    sessions = (await fetchSessionList(workId)).filter((session) => !state.deletedSessions.has(session.sessionId));
-  } catch {
-    if (generation === listGeneration && state.workId === workId) UI.clearSkeleton("session-list");
-    return;
+    await flight.task;
+  } finally {
+    if (listFlight === flight) listFlight = null;
   }
-  if (generation !== listGeneration || state.workId !== workId || rpc.ws !== socket || !state.connected) return;
-  for (const s of sessions) {
-    sessionTitles.set(s.sessionId, s.title || "(空会话)");
-    const previous = before.get(s.sessionId);
-    if (typeof s.busy === "boolean" && (previous
-      ? runs[s.sessionId] === previous.run && isBusy(s.sessionId) === previous.busy && state.lastSeq[s.sessionId] === previous.seq
-      : !runs[s.sessionId])) applyServerBusy(s.sessionId, s.busy);
-  }
-  updateInputState();
-  renderSessionList(sessions);
 }
 
 function renderSessionList(sessions) {
