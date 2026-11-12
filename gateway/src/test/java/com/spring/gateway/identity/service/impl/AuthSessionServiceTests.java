@@ -9,7 +9,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory;
 import org.springframework.data.redis.core.StringRedisTemplate;
-import tools.jackson.databind.json.JsonMapper;
 
 import java.time.Duration;
 import java.util.UUID;
@@ -57,7 +56,7 @@ class AuthSessionServiceTests {
     }
 
     private AuthSessionService service(long accessTtlSeconds, long refreshTtlSeconds) {
-        return new AuthSessionServiceImpl(redis, JsonMapper.builder().build(), accessTtlSeconds, refreshTtlSeconds);
+        return new AuthSessionServiceImpl(redis, accessTtlSeconds, refreshTtlSeconds);
     }
 
     @Test

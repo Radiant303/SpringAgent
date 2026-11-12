@@ -1,6 +1,7 @@
 package com.spring.gateway.ws;
 
 import com.spring.gateway.config.WebSocketContainerConfig;
+import com.spring.gateway.identity.entity.User;
 import com.spring.gateway.identity.service.UserProfileService;
 import com.spring.gateway.identity.service.AuthSessionService;
 import lombok.RequiredArgsConstructor;
@@ -27,10 +28,10 @@ public class AuthHandshakeInterceptor implements HandshakeInterceptor {
 
     /** 用户 ID 会话属性。 */
     public static final String ATTR_USER_ID = "userId";
-    /** 访问令牌会话属性。 */
-    public static final String ATTR_TOKEN = "token";
     /** 用户不存在标记。 */
     public static final String ATTR_USER_MISSING = "authUserMissing";
+    /** 用户禁用标记。 */
+    public static final String ATTR_USER_DISABLED = "authUserDisabled";
 
     private final AuthSessionService authSessionService;
     private final UserProfileService userProfileService;
@@ -51,9 +52,11 @@ public class AuthHandshakeInterceptor implements HandshakeInterceptor {
             if (authentication.valid()) {
                 Long userId = authentication.userId();
                 attributes.put(ATTR_USER_ID, userId);
-                attributes.put(ATTR_TOKEN, token);
-                if (userProfileService.find(userId) == null) {
+                User user = userProfileService.find(userId);
+                if (user == null) {
                     attributes.put(ATTR_USER_MISSING, Boolean.TRUE);
+                } else if (User.STATUS_DISABLED.equals(user.getStatus())) {
+                    attributes.put(ATTR_USER_DISABLED, Boolean.TRUE);
                 }
                 return true;
             }

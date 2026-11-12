@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import hashlib
-import json
 import uuid
 from dataclasses import dataclass
 from functools import lru_cache
@@ -19,6 +18,21 @@ from spring_agent.core.config.settings import config
 
 _bearer_scheme = HTTPBearer(auto_error=False)
 
+_AUTHENTICATE_LUA = """
+local raw = redis.call('get', KEYS[1])
+if not raw then
+    if redis.call('exists', KEYS[2]) == 1 then return 'expired' else return 'invalid' end
+end
+local ok, access = pcall(cjson.decode, raw)
+if not ok or type(access) ~= 'table' or type(access.userId) ~= 'string'
+    or type(access.version) ~= 'string' then
+    return 'invalid'
+end
+local version = redis.call('get', 'auth:version:' .. access.userId)
+if not version or version ~= tostring(access.version) then return 'invalid' end
+return 'ok:' .. access.userId
+"""
+
 
 @dataclass(frozen=True)
 class AccessAuthentication:
@@ -32,6 +46,11 @@ class AccessAuthentication:
 def get_auth_redis() -> redis.Redis:
     """获取鉴权 Redis 客户端。"""
     return redis.from_url(config.cloud.redis_url, decode_responses=True, protocol=2)
+
+
+@lru_cache(maxsize=1)
+def _authenticate_script():
+    return get_auth_redis().register_script(_AUTHENTICATE_LUA)
 
 
 def _token_hash(token: str) -> str | None:
@@ -49,20 +68,17 @@ def authenticate_access_token(token: str) -> AccessAuthentication:
     token_hash = _token_hash(token)
     if token_hash is None:
         return AccessAuthentication(failure="token_invalid")
-    cache = get_auth_redis()
-    raw = cache.get(f"auth:access:{token_hash}")
-    if raw is None:
-        failure = "token_expired" if cache.exists(f"auth:expired:{token_hash}") else "token_invalid"
-        return AccessAuthentication(failure=failure)
+    result = _authenticate_script()(keys=[
+        f"auth:access:{token_hash}", f"auth:expired:{token_hash}",
+    ])
+    if result == "expired":
+        return AccessAuthentication(failure="token_expired")
+    if not isinstance(result, str) or not result.startswith("ok:"):
+        return AccessAuthentication(failure="token_invalid")
     try:
-        value = json.loads(raw)
-        user_id = int(value["userId"])
-        version = str(value["version"])
-    except (json.JSONDecodeError, KeyError, TypeError, ValueError):
+        return AccessAuthentication(user_id=int(result[3:]))
+    except ValueError:
         return AccessAuthentication(failure="token_invalid")
-    if cache.get(f"auth:version:{user_id}") != version:
-        return AccessAuthentication(failure="token_invalid")
-    return AccessAuthentication(user_id=user_id)
 
 
 def get_session_factory() -> sessionmaker[Session]:

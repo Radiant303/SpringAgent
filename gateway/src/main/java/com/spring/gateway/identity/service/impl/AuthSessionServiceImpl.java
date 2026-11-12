@@ -7,11 +7,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Service;
-import tools.jackson.databind.ObjectMapper;
 
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
 import java.util.HexFormat;
 import java.util.List;
@@ -51,6 +47,21 @@ public class AuthSessionServiceImpl implements AuthSessionService {
             redis.call('sadd', KEYS[4], ARGV[1] .. ':' .. ARGV[3] .. ':' .. ARGV[4])
             redis.call('pexpire', KEYS[4], ARGV[6] + 60000)
             return 'ok'
+            """);
+
+    private static final DefaultRedisScript<String> AUTHENTICATE_SCRIPT = script("""
+            local raw = redis.call('get', KEYS[1])
+            if not raw then
+                if redis.call('exists', KEYS[2]) == 1 then return 'expired' else return 'invalid' end
+            end
+            local ok, access = pcall(cjson.decode, raw)
+            if not ok or type(access) ~= 'table' or type(access.userId) ~= 'string'
+                or type(access.version) ~= 'string' then
+                return 'invalid'
+            end
+            local version = redis.call('get', 'auth:version:' .. access.userId)
+            if not version or version ~= tostring(access.version) then return 'invalid' end
+            return 'ok:' .. access.userId
             """);
 
     private static final DefaultRedisScript<String> REFRESH_SCRIPT = script("""
@@ -113,19 +124,17 @@ public class AuthSessionServiceImpl implements AuthSessionService {
             Long.class);
 
     private final StringRedisTemplate redis;
-    private final ObjectMapper objectMapper;
     private final long accessTtlSeconds;
     private final long refreshTtlSeconds;
 
     @Autowired
-    public AuthSessionServiceImpl(StringRedisTemplate redis, ObjectMapper objectMapper,
+    public AuthSessionServiceImpl(StringRedisTemplate redis,
                                   @Value("${app.auth.access-ttl-seconds:3600}") long accessTtlSeconds,
                                   @Value("${app.auth.refresh-ttl-seconds:2592000}") long refreshTtlSeconds) {
         if (accessTtlSeconds <= 0 || refreshTtlSeconds <= 0) {
             throw new IllegalArgumentException("令牌有效期必须为正数");
         }
         this.redis = redis;
-        this.objectMapper = objectMapper;
         this.accessTtlSeconds = accessTtlSeconds;
         this.refreshTtlSeconds = refreshTtlSeconds;
     }
@@ -171,23 +180,17 @@ public class AuthSessionServiceImpl implements AuthSessionService {
             return Authentication.invalid();
         }
         String hash = hashToken(token);
-        String raw = redis.opsForValue().get(ACCESS_PREFIX + hash);
-        if (raw == null) {
-            return Boolean.TRUE.equals(redis.hasKey(EXPIRED_PREFIX + hash))
-                    ? Authentication.expired() : Authentication.invalid();
+        String result = redis.execute(AUTHENTICATE_SCRIPT,
+                List.of(ACCESS_PREFIX + hash, EXPIRED_PREFIX + hash));
+        if ("expired".equals(result)) {
+            return Authentication.expired();
+        }
+        if (result == null || !result.startsWith("ok:")) {
+            return Authentication.invalid();
         }
         try {
-            AccessValue value = objectMapper.readValue(raw, AccessValue.class);
-            if (value == null) {
-                return Authentication.invalid();
-            }
-            long userId = Long.parseLong(value.userId());
-            String version = redis.opsForValue().get(VERSION_PREFIX + userId);
-            if (version == null || !version.equals(value.version())) {
-                return Authentication.invalid();
-            }
-            return Authentication.valid(userId);
-        } catch (tools.jackson.core.JacksonException | NumberFormatException e) {
+            return Authentication.valid(Long.parseLong(result.substring(3)));
+        } catch (NumberFormatException e) {
             return Authentication.invalid();
         }
     }
@@ -261,6 +264,4 @@ public class AuthSessionServiceImpl implements AuthSessionService {
         return new DefaultRedisScript<>(source, String.class);
     }
 
-    private record AccessValue(String userId, String version) {
-    }
 }

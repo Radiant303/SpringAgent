@@ -3,8 +3,7 @@
  */
 
 import { $, icon } from "../../utils/dom.js";
-import { getToken, getRole, goLogin, logout, refreshAccessToken, WS_BASE, USER_KEY, ROLE_LABELS } from "../../api/auth.js";
-import { api } from "../../api/client.js";
+import { getToken, getValidToken, getRole, goLogin, logout, refreshAccessToken, WS_BASE, USER_KEY, ROLE_LABELS } from "../../api/auth.js";
 import { rpc } from "../../api/rpc.js";
 import { UI } from "../../components/ui.js";
 import { state, runs, resetFlow, setStickToBottom, smoothScrollToBottom, updateStick, setViewLoading } from "./state.js";
@@ -90,8 +89,12 @@ export async function connectAndSetup() {
     state.lastSeq = {};
   }
   setConnected(false);
-  await api("/api/account/me");
-  const connection = rpc.connect(`${WS_BASE}/ws?token=${encodeURIComponent(getToken())}`);
+  const token = await getValidToken();
+  if (!token) {
+    goLogin("invalid");
+    return;
+  }
+  const connection = rpc.connect(`${WS_BASE}/ws?token=${encodeURIComponent(token)}`);
   const socket = rpc.ws;
   await connection;
   if (rpc.ws !== socket) return;

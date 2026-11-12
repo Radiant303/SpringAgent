@@ -1,16 +1,17 @@
 from __future__ import annotations
 
 import asyncio
-import secrets
+import hashlib
+import hmac
+import time
 import uuid
+from collections.abc import Mapping
 from pathlib import Path
 from typing import ClassVar
 
 from fastapi import WebSocket, WebSocketDisconnect
 
 from spring_agent.cloud import gateway_store
-from spring_agent.cloud.auth import authenticate_access_token
-from spring_agent.cloud.db import UserRow, get_sessionmaker
 from spring_agent.cloud.gateway_store import GatewaySessionStore, find_active_session, list_sessions_for_user
 from spring_agent.cloud.registry import CloudSessionHandle, get_registry
 from spring_agent.cloud.web_schema import ModelsListResult, WebInitializeResult, _model_infos
@@ -26,18 +27,25 @@ from spring_agent.core.rpc.server import BUSY, PROTOCOL_VERSION, SESSION_NOT_FOU
 
 SESSION_OCCUPIED = -32003
 SESSION_REPLACED = -32004
-WS_UNAUTHORIZED_CLOSE_CODE = 4401
-WS_DISABLED_CLOSE_CODE = 4403
 
 
-def _user_close_code(user_id: int) -> int | None:
-    with get_sessionmaker()() as s:
-        user = s.get(UserRow, user_id)
-        if user is None:
-            return WS_UNAUTHORIZED_CLOSE_CODE
-        if user.status != "active":
-            return WS_DISABLED_CLOSE_CODE
+def _gateway_identity(headers: Mapping[str, str]) -> tuple[int, str] | None:
+    try:
+        user_id = int(headers["x-user-id"])
+        connection_id = headers["x-connection-id"]
+        expires_at = int(headers["x-auth-expires"])
+        signature = headers["x-internal-signature"]
+        if user_id <= 0 or not connection_id or expires_at <= int(time.time()):
+            return None
+        payload = f"ws\n{user_id}\n{connection_id}\n{expires_at}".encode("utf-8")
+        expected = hmac.new(
+            config.cloud.internal_token.encode("utf-8"), payload, hashlib.sha256,
+        ).hexdigest()
+        if not hmac.compare_digest(signature, expected):
+            return None
+    except (KeyError, TypeError, ValueError):
         return None
+    return user_id, connection_id
 
 
 class CloudAppServer(AppServer):
@@ -333,16 +341,11 @@ class CloudAppServer(AppServer):
 
 async def ws_endpoint(websocket: WebSocket) -> None:
     await websocket.accept()
-    token = websocket.query_params.get("token")
-    authentication = await asyncio.to_thread(authenticate_access_token, token) if token else None
-    user_id = authentication.user_id if authentication else None
-    if user_id is None:
-        close_code = 4401 if authentication and authentication.failure == "token_expired" else 4402
-    else:
-        close_code = await asyncio.to_thread(_user_close_code, user_id)
-    if close_code is not None:
-        await websocket.close(code=close_code)
+    identity = _gateway_identity(websocket.headers)
+    if identity is None:
+        await websocket.close(code=4402)
         return
+    user_id, connection_id = identity
 
     async def read_line() -> str | None:
         try:
@@ -356,10 +359,7 @@ async def ws_endpoint(websocket: WebSocket) -> None:
         except (WebSocketDisconnect, RuntimeError) as e:
             raise ConnectionError("WebSocket 已关闭") from e
 
-    trusted = secrets.compare_digest(websocket.headers.get("x-internal-token", ""), config.cloud.internal_token)
-    connection_id = websocket.headers.get("x-connection-id") if trusted else None
-    chunk_large = trusted and websocket.headers.get("x-relay-chunking") == "1"
-    assert user_id is not None
+    chunk_large = websocket.headers.get("x-relay-chunking") == "1"
     connection = JsonRpcConnection(read_line, write_line, chunk_large=chunk_large)
     server = CloudAppServer(
         connection, user_id=user_id, data_root=Path(config.cloud.data_root).expanduser(),

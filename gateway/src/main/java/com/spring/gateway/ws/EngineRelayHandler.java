@@ -25,8 +25,6 @@ import tools.jackson.databind.node.ObjectNode;
 
 import java.io.IOException;
 import java.net.URI;
-import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -70,7 +68,7 @@ public class EngineRelayHandler extends TextWebSocketHandler {
     private final SessionHistoryService sessionHistoryService;
     private final WebSocketContainer webSocketContainer;
     private final EngineClient engineClient;
-    private final String internalToken;
+    private final WsIdentitySigner identitySigner;
 
     /**
      * 控制面方法 → 本地处理器注册表：表内方法由网关本地应答，不透传给引擎；
@@ -119,7 +117,7 @@ public class EngineRelayHandler extends TextWebSocketHandler {
         this.sessionHistoryService = sessionHistoryService;
         this.webSocketContainer = webSocketContainer;
         this.engineClient = engineClient;
-        this.internalToken = internalToken;
+        this.identitySigner = new WsIdentitySigner(internalToken);
     }
 
     @Override
@@ -130,18 +128,19 @@ public class EngineRelayHandler extends TextWebSocketHandler {
             browserSession.close(new CloseStatus(4401, "用户不存在"));
             return;
         }
-        String token = (String) browserSession.getAttributes().get(AuthHandshakeInterceptor.ATTR_TOKEN);
+        if (Boolean.TRUE.equals(browserSession.getAttributes().get(AuthHandshakeInterceptor.ATTR_USER_DISABLED))) {
+            browserSession.close(new CloseStatus(4403, "账号已被禁用"));
+            return;
+        }
         Long userId = (Long) browserSession.getAttributes().get(AuthHandshakeInterceptor.ATTR_USER_ID);
-        URI engineUri = URI.create(engineWsBase + "/ws?token="
-                + URLEncoder.encode(token, StandardCharsets.UTF_8));
+        URI engineUri = URI.create(engineWsBase + "/ws");
 
         StandardWebSocketClient client = new StandardWebSocketClient(webSocketContainer);
         WebSocketHttpHeaders headers = new WebSocketHttpHeaders();
-        headers.set("X-Internal-Token", internalToken);
         headers.set("X-Relay-Chunking", "1");
         String connectionId = java.util.UUID.randomUUID().toString();
         browserSession.getAttributes().put("controlConnectionId", connectionId);
-        headers.set("X-Connection-Id", connectionId);
+        identitySigner.sign(headers, userId, connectionId);
         WebSocketSession engineSession;
         try {
             engineSession = client

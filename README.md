@@ -300,11 +300,11 @@ docker compose logs --tail=100 springagent
 | `SPRINGAGENT_CLOUD_REDIS_URL` | Redis 连接串 | `redis://redis:6379/0` |
 | `SPRINGAGENT_CLOUD_RABBITMQ_URL` | RabbitMQ 连接串 | 由 `RABBITMQ_*` 拼出 |
 | `SPRINGAGENT_CLOUD_GATEWAY_BASE_URL` | 引擎回调网关地址 | `http://127.0.0.1:16900` |
-| `SPRINGAGENT_CLOUD_INTERNAL_TOKEN` | 内部接口共享令牌 | 必须与网关 `INTERNAL_TOKEN` 一致，≥32 字节 |
+| `SPRINGAGENT_CLOUD_INTERNAL_TOKEN` | 内部接口令牌与 WS 身份签名密钥 | 必须与网关 `INTERNAL_TOKEN` 一致，≥32 字节 |
 | `SPRINGAGENT_CLOUD_HOST` / `PORT` | 引擎监听地址 | `0.0.0.0:15900` |
 | `AUTH_ACCESS_TTL_SECONDS` | 访问令牌有效期 | `3600` |
 | `AUTH_REFRESH_TTL_SECONDS` | 刷新令牌有效期 | `2592000` |
-| `INTERNAL_TOKEN` | 网关内部接口共享令牌 | 与引擎保持一致，≥32 字节 |
+| `INTERNAL_TOKEN` | 网关内部接口令牌与 WS 身份签名密钥 | 与引擎保持一致，≥32 字节 |
 | `APP_DATA_ROOT` | 网关数据根目录 | `/data/cloud` |
 | `ENGINE_BASE_URL` | 网关访问引擎地址 | `http://127.0.0.1:15900` |
 | `SPRING_DATASOURCE_*` | 网关数据源 | `jdbc:mysql://mysql:3306/springagent` |
