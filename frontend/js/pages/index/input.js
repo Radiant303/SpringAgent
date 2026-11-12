@@ -365,7 +365,7 @@ export function syncChrome() {
   const pillH = dockHidden ? 0 : pill.offsetHeight;
   document.documentElement.style.setProperty("--plan-h", pillH + "px");
   const inputH = inputArea.offsetHeight;
-  const gap = dockHidden ? 12 : pillH + 10;
+  const gap = dockHidden ? 24 : pillH + 10;
   document.documentElement.style.setProperty("--scroll-b", inputH + gap + "px");
   maybeScroll(true);
 }
