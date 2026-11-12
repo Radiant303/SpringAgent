@@ -85,6 +85,7 @@ function selectSessionView(sid) {
   cancelSessionLoad();
   state.sessionId = sid;
   state.sessionReady = false;
+  state.sessionInitializing = true;
   setViewLoading(true);
   syncSessionSelection();
   drainPendingFor(null);
@@ -173,14 +174,21 @@ export async function resumeSession() {
   cancelSessionLoad();
   const view = viewContext(sid);
   if (!isViewCurrent(view)) return false;
+  state.sessionInitializing = true;
+  updateInputState();
   let result;
   try {
     result = await attachSession(sid, view);
   } catch {
+    if (isViewCurrent(view)) {
+      state.sessionInitializing = false;
+      updateInputState();
+    }
     return false;
   }
   if (!isViewCurrent(view)) return false;
   if (!result) {
+    state.sessionInitializing = false;
     addSystem("此会话仍由其他连接控制。点击会话可再次选择接管，或选择其他会话。");
     updateInputState();
     refreshSessionList();
@@ -195,10 +203,13 @@ export async function resumeSession() {
   applyServerBusy(sid, !!result.busy);
   drainPendingFor(sid);
   updateInputState();
+  const planLoading = loadPlan(view.generation);
   await subscribeStream(sid, true);
+  await planLoading;
   if (isViewCurrent(view)) {
-    loadPlan(view.generation);
+    state.sessionInitializing = false;
     refreshSessionList();
+    updateInputState();
   }
   return true;
 }
@@ -236,6 +247,8 @@ function queueSessionLoad(view, attachedResult) {
         addSystem("加载历史失败：" + e.message, true);
       }
       if (!isLoadCurrent(view)) return;
+      setViewLoading(false);
+      updateInputState();
       appendPendingInput(result);
       await planLoading;
       if (!isLoadCurrent(view)) return;
@@ -255,6 +268,7 @@ function queueSessionLoad(view, attachedResult) {
       if (unsubscribed && !subscribed && isConnectionCurrent(view)) await subscribeStream(view.sid, true);
       if (loadingView === view) loadingView = null;
       if (isLoadCurrent(view)) {
+        state.sessionInitializing = false;
         setViewLoading(false);
         updateInputState();
       }
@@ -418,6 +432,7 @@ export function newSession() {
   detachSession(state.sessionId);
   state.sessionId = null;
   state.sessionReady = false;
+  state.sessionInitializing = false;
   setViewLoading(false);
   syncSessionSelection();
   drainPendingFor(null);
@@ -441,6 +456,7 @@ export async function openWorkSession(preferredSid = null) {
     sessions = (await fetchSessionList(view.workId)).filter((session) => !state.deletedSessions.has(session.sessionId));
   } catch (e) {
     if (!isScopeCurrent(view)) return;
+    state.sessionInitializing = false;
     setViewLoading(false);
     UI.clearSkeleton("session-list");
     UI.clearSkeleton("messages");
@@ -465,6 +481,7 @@ export async function openWorkSession(preferredSid = null) {
   }
   detachSession(previousSid);
   state.sessionId = null;
+  state.sessionInitializing = false;
   localStorage.removeItem("sa.sessionId");
   clearMessages();
   renderSessionList(sessions);

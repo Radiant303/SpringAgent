@@ -53,6 +53,7 @@ export const state = {
   works: [],
   connected: false,
   sessionReady: false,
+  sessionInitializing: false,
   viewLoading: true,
   viewGeneration: 0,
   assistant: null,      // 当前流式正文气泡 {el, answer, text}

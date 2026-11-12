@@ -21,7 +21,7 @@ export function updateInputState() {
   const creating = !state.sessionId && draftSending;
   send.classList.toggle("hidden", busy);
   stop.classList.toggle("hidden", !busy);
-  const controlled = !state.sessionId || state.sessionReady;
+  const controlled = !state.sessionId || (state.sessionReady && !state.sessionInitializing);
   send.disabled = !state.connected || !controlled || creating || state.modelChanging
     || !!$("upload-btn")?.dataset.uploading || !editorHasContent();
   stop.disabled = !state.connected || !controlled;
@@ -44,8 +44,8 @@ export async function send() {
     addSystem("尚未连接，不能发送消息", true);
     return;
   }
-  if (state.sessionId && !state.sessionReady) {
-    addSystem("当前页面未控制此会话，请重新连接或接管会话", true);
+  if (state.sessionId && (!state.sessionReady || state.sessionInitializing)) {
+    addSystem("当前会话尚未就绪，请稍后发送", true);
     return;
   }
   if (isBusy(state.sessionId) || (!state.sessionId && draftSending) || state.modelChanging || $("upload-btn")?.dataset.uploading) {
