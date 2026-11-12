@@ -1,6 +1,7 @@
 package com.spring.gateway.billing.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.spring.gateway.billing.dto.UsageRecordView;
 import com.spring.gateway.billing.entity.UsageRecord;
 import com.spring.gateway.billing.mapper.UsageRecordMapper;
@@ -25,7 +26,10 @@ public class UsageQueryServiceImpl implements UsageQueryService {
 
     @Override
     public PageResult<Map<String, Object>> summarize(Long userId, String from, String to, PageQuery query) {
-        return PageResult.of(usageRecordMapper.sumByUser(query.toPage(), userId, from, to));
+        Page<Map<String, Object>> page = query.toPage();
+        page.setSearchCount(false);
+        page.setTotal(usageRecordMapper.countByUser(userId, from, to));
+        return PageResult.of(usageRecordMapper.sumByUser(page, userId, from, to));
     }
 
     @Override

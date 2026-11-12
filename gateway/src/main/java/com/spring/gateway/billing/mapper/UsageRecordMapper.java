@@ -21,6 +21,25 @@ import java.util.Map;
 public interface UsageRecordMapper extends BaseMapper<UsageRecord> {
 
     /**
+     * 统计用户与模型的分组数。
+     *
+     * @param userId 只看该用户；null 为全部
+     * @param from   起始时间（含）；null 不限
+     * @param to     截止时间（不含）；null 不限
+     * @return 分组数
+     */
+    @Select("""
+            SELECT COUNT(DISTINCT r.user_id, r.model_id)
+            FROM usage_records r JOIN users u ON u.id = r.user_id
+            WHERE (#{userId} IS NULL OR r.user_id = #{userId})
+              AND (#{from} IS NULL OR r.created_at >= #{from})
+              AND (#{to} IS NULL OR r.created_at < #{to})
+            """)
+    long countByUser(@Param("userId") Long userId,
+                     @Param("from") String from,
+                     @Param("to") String to);
+
+    /**
      * 管理后台用量统计：按 用户 × 模型 分组的聚合（可选按用户与时间段过滤）。
      *
      * @param page   分页对象（总数 = 分组数）
