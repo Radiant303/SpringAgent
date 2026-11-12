@@ -14,7 +14,7 @@ import { discardSessionAttachments } from "./upload.js";
 import { addSystem, userNode } from "./chatView.js";
 import { clearMessages, loadHistory } from "./history.js";
 import { discardPending, loadPlan } from "./stream.js";
-import { applyModelSelection, updateInputState } from "./input.js";
+import { applyModelSelection, updateInputState, syncChrome } from "./input.js";
 
 let listGeneration = 0;
 let listFlight = null;
@@ -247,9 +247,10 @@ function queueSessionLoad(view, attachedResult) {
         addSystem("加载历史失败：" + e.message, true);
       }
       if (!isLoadCurrent(view)) return;
-      setViewLoading(false);
-      updateInputState();
       appendPendingInput(result);
+      setViewLoading(false);
+      syncChrome();
+      updateInputState();
       await planLoading;
       if (!isLoadCurrent(view)) return;
       state.sessionReady = true;
@@ -270,6 +271,7 @@ function queueSessionLoad(view, attachedResult) {
       if (isLoadCurrent(view)) {
         state.sessionInitializing = false;
         setViewLoading(false);
+        syncChrome();
         updateInputState();
       }
     }

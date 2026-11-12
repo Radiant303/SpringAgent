@@ -1889,7 +1889,7 @@ pre.tool-result.error { background: var(--diff-del-bg, rgba(192, 57, 43, 0.07));
 @media (max-width: 760px) {
   #sidebar { position: absolute; z-index: 50; height: 100%; background: var(--ground, #fefefe); box-shadow: var(--shadow); }
   #main, #app.sidebar-collapsed #main { margin: 0; border: none; border-radius: 0; }
-  #messages { padding: 14px 12px; }
+  #messages { padding: 14px 12px var(--scroll-b); }
   #input-area { padding: 0 12px 14px; }
   #plan-dock { left: 12px; right: 12px; }
   #plan-panel { padding: 14px 16px 16px; }
