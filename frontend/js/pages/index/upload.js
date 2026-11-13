@@ -1,5 +1,5 @@
 /**
- * 聊天附件上传与删除。
+ * 聊天图片上传与删除。
  *
  * @author hanbing
  * @since 2026-10-14
@@ -35,8 +35,14 @@ export function discardSessionAttachments(sessionId) {
 
 /** 单文件大小上限（字节） */
 const MAX_FILE_BYTES = 100 * 1024 * 1024;
-/** 输入框内待发送附件数量上限 */
+/** 输入框内待发送图片数量上限 */
 const MAX_ATTACHMENTS = 50;
+/** 可上传的图片类型；视觉模型直接接受的位图格式 */
+const IMAGE_TYPE = /^image\/(png|jpe?g|gif|webp)$/;
+
+function isImageFile(file) {
+  return IMAGE_TYPE.test(file.type);
+}
 
 async function ensureSession() {
   if (state.sessionId) return;
@@ -80,21 +86,27 @@ export async function deleteAttachment(fileId, node = null) {
   updateInputState();
 }
 
-/** 批量上传附件，逐文件独立成败。 */
+/** 批量上传图片，逐文件独立成败。 */
 export async function uploadFiles(files) {
   const btn = $("upload-btn");
   if (!state.connected || isBusy(state.sessionId) || state.modelChanging
       || btn.dataset.uploading || (state.sessionId && !state.sessionReady)) {
-    addSystem("当前状态不能上传文件", true);
+    addSystem("当前状态不能上传图片", true);
     return;
   }
+  const images = files.filter(isImageFile);
+  if (images.length < files.length) {
+    UI.toast(`已跳过 ${files.length - images.length} 个非图片文件`, { type: "error" });
+  }
+  if (!images.length) return;
+  files = images;
   const free = MAX_ATTACHMENTS - pendingAtts.size;
   if (free <= 0) {
-    UI.toast(`附件最多 ${MAX_ATTACHMENTS} 个，请先移除部分附件`, { type: "error" });
+    UI.toast(`图片最多 ${MAX_ATTACHMENTS} 张，请先移除部分图片`, { type: "error" });
     return;
   }
   if (files.length > free) {
-    UI.toast(`附件最多 ${MAX_ATTACHMENTS} 个，已忽略超出的 ${files.length - free} 个文件`, { type: "error" });
+    UI.toast(`图片最多 ${MAX_ATTACHMENTS} 张，已忽略超出的 ${files.length - free} 张`, { type: "error" });
     files = files.slice(0, free);
   }
   const oversized = files.filter((file) => file.size > MAX_FILE_BYTES);
@@ -145,7 +157,7 @@ export async function uploadFiles(files) {
     UI.toast(e.message || "上传失败", { type: "error" });
   } finally {
     delete btn.dataset.uploading;
-    btn.title = "上传文件";
+    btn.title = "上传图片";
     updateInputState();
   }
 }
@@ -157,7 +169,7 @@ async function onPaste(e) {
   const files = [...(data.items || [])]
     .filter((item) => item.kind === "file")
     .map((item) => item.getAsFile())
-    .filter(Boolean);
+    .filter((file) => file && isImageFile(file));
   if (files.length) {
     e.preventDefault();
     await uploadFiles(files.map((file) =>

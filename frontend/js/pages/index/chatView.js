@@ -14,8 +14,8 @@ const ATTACH_IMAGE_RE = /!\[([^\]]*)\]\((https?:\/\/[^\s)]+)\)/g;
 
 function isImageAttachment(att) {
   return Boolean(
-    (att?.mimeType && att.mimeType.startsWith("image/")) ||
-    /\.(png|jpe?g|gif|webp|svg|bmp|ico)$/i.test(att?.name || "")
+    (att?.mimeType && /^image\/(png|jpe?g|gif|webp)$/.test(att.mimeType)) ||
+    /\.(png|jpe?g|gif|webp)$/i.test(att?.name || "")
   );
 }
 
