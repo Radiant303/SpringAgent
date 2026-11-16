@@ -4,6 +4,7 @@
 
 import { $, el, scrollToBottom, markScrolling, hidePending } from "../../utils/dom.js";
 import { SproutManager } from "../../components/sprout.js";
+import { mobileLayout, isMobileLayout } from "./responsive.js";
 import { workGroupNode, refreshWorkSummary, answerNode } from "./chatView.js";
 
 export const AUTO_SOURCES = new Set(["file_monitor"]);
@@ -153,19 +154,21 @@ export function smoothScrollToBottom() {
 
 export function createAssistantTurnNode(isDynamic = false) {
   const wrap = el("div", "assistant-turn");
-  const petBox = el("div", "turn-pet");
-  const canvas = el("canvas", "sprout-pet");
-  petBox.appendChild(canvas);
   const content = el("div", "turn-content");
-  wrap.appendChild(petBox);
-  wrap.appendChild(content);
-
+  let petBox = null;
+  let canvas = null;
   let pet = null;
-  if (typeof SproutManager !== "undefined" && SproutManager?.register) {
-    pet = SproutManager.register(canvas, isDynamic);
-    wrap._sproutPet = pet;
+  if (!isMobileLayout()) {
+    petBox = el("div", "turn-pet");
+    canvas = el("canvas", "sprout-pet");
+    petBox.appendChild(canvas);
+    wrap.appendChild(petBox);
+    if (typeof SproutManager !== "undefined" && SproutManager?.register) {
+      pet = SproutManager.register(canvas, isDynamic);
+      wrap._sproutPet = pet;
+    }
   }
-
+  wrap.appendChild(content);
   return { el: wrap, content, petBox, canvas, pet };
 }
 
@@ -180,6 +183,11 @@ export function updateLatestPet() {
     }
   }
 }
+
+mobileLayout.addEventListener("change", (event) => {
+  if (event.matches) SproutManager.makeAllStatic();
+  else updateLatestPet();
+});
 
 export function ensureTurn() {
   if (state.currentTurn) return state.currentTurn;

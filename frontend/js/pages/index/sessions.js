@@ -15,6 +15,7 @@ import { addSystem, userNode } from "./chatView.js";
 import { clearMessages, loadHistory } from "./history.js";
 import { discardPending, loadPlan } from "./stream.js";
 import { applyModelSelection, updateInputState, syncChrome } from "./input.js";
+import { closeMobileSidebar } from "./responsive.js";
 
 let listGeneration = 0;
 let listFlight = null;
@@ -416,6 +417,7 @@ export function onSessionInvalidated({ sessionId: sid, deleted }) {
 }
 
 export function switchSession(sid) {
+  closeMobileSidebar();
   if (state.deletedSessions.has(sid)) return;
   if (sid === state.sessionId && state.sessionReady) return;
   if (!state.connected) {
@@ -429,6 +431,7 @@ export function switchSession(sid) {
 }
 
 export function newSession() {
+  closeMobileSidebar();
   state.viewGeneration++;
   cancelSessionLoad();
   detachSession(state.sessionId);

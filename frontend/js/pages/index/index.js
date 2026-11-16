@@ -38,6 +38,7 @@ import {
 import { initUpload } from "./upload.js";
 import { initVersionNotice } from "./version.js";
 import { syncPlaceholder } from "./editor.js";
+import { closeMobileSidebar, initResponsiveLayout, isMobileLayout, mobileLayout } from "./responsive.js";
 import { initRipple } from "../../components/ripple.js";
 
 initRipple();
@@ -313,19 +314,23 @@ export function bind() {
   };
   if ($("send-btn")) $("send-btn").onclick = send;
   if ($("stop-btn")) $("stop-btn").onclick = cancelTurn;
-  if ($("new-session-btn")) $("new-session-btn").onclick = newSession;
+  for (const id of ["new-session-btn", "mobile-new-session"]) {
+    if ($(id)) $(id).onclick = newSession;
+  }
   if ($("new-work-btn")) $("new-work-btn").onclick = createWork;
 
-  const toggleSidebar = () => {
-    const app = $("app");
-    const sidebar = $("sidebar");
-    if (!app || !sidebar) return;
-    const collapsed = app.classList.toggle("sidebar-collapsed");
-    sidebar.inert = collapsed;
-    sidebar.setAttribute("aria-hidden", String(collapsed));
+  initResponsiveLayout();
+  const syncInputMode = () => {
+    const editor = $("input");
+    if (!editor) return;
+    const mobile = isMobileLayout();
+    editor.dataset.placeholder = mobile
+      ? "输入消息"
+      : "输入消息，Enter 发送，Shift+Enter 换行，Esc 中断运行";
+    editor.setAttribute("enterkeyhint", mobile ? "enter" : "send");
   };
-  if ($("toggle-sidebar")) $("toggle-sidebar").onclick = toggleSidebar;
-  if ($("expand-sidebar")) $("expand-sidebar").onclick = toggleSidebar;
+  mobileLayout.addEventListener("change", syncInputMode);
+  syncInputMode();
 
   const msgBox = $("messages");
   if (msgBox) {
@@ -434,7 +439,7 @@ export function bind() {
   if (input) {
     input.addEventListener("keydown", (e) => {
       if ($("input-card")?.classList.contains("hidden")) return;
-      if (e.key === "Enter" && !e.shiftKey && !e.isComposing) {
+      if (e.key === "Enter" && !isMobileLayout() && !e.shiftKey && !e.isComposing) {
         e.preventDefault();
         send();
       }
@@ -446,6 +451,10 @@ export function bind() {
   }
 
   document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && closeMobileSidebar()) {
+      e.preventDefault();
+      return;
+    }
     const qCard = $("question-card");
     if (qCard && !qCard.classList.contains("hidden")) {
       if (e.key === "Escape") { e.preventDefault(); settleQuestion(null); return; }

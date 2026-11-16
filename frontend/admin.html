@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>账户中心 - SpringAgent</title>
   <link rel="icon" type="image/png" href="/static/assets/images/log.png">
   <script>
@@ -30,11 +30,15 @@
     <span class="admin-loading-peg" aria-hidden="true"></span>
   </div>
   <div id="admin-app">
-    <aside id="admin-nav">
-      <a id="back-link" href="/static/index.html">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
-        返回
-      </a>
+    <aside id="admin-nav" aria-label="设置">
+      <div id="admin-nav-head">
+        <a id="back-link" href="/static/index.html">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
+          <span>返回</span>
+        </a>
+        <h1 id="admin-nav-title">设置</h1>
+        <span class="admin-nav-head-balance" aria-hidden="true"></span>
+      </div>
 
       <div class="nav-group">
         <div class="nav-item" data-page="account">
@@ -121,6 +125,13 @@
     </aside>
 
     <main id="admin-main">
+      <header id="admin-mobile-head">
+        <button id="admin-mobile-back" class="icon-btn" type="button" title="返回设置" aria-label="返回设置">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
+        </button>
+        <h1 id="admin-mobile-title"></h1>
+        <span aria-hidden="true"></span>
+      </header>
 
       <!-- 账号与安全：所有角色可见 -->
       <section class="admin-page" data-page="account">

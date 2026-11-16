@@ -95,12 +95,10 @@
 
 @media (max-width: 760px) {
   .assistant-turn {
-    gap: 8px;
+    gap: 0;
   }
-  .turn-pet,
-  .sprout-pet {
-    width: 32px;
-    height: 32px;
+  .turn-pet {
+    display: none;
   }
   .turn-content > .pending-indicator {
     margin-top: 4px;

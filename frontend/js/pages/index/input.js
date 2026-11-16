@@ -157,7 +157,10 @@ export function positionModelMenus() {
   const height = window.innerHeight;
   const anchor = $("model-btn").getBoundingClientRect();
   menu.style.left = Math.max(8, Math.min(anchor.right - menu.offsetWidth, width - menu.offsetWidth - 8)) + "px";
-  menu.style.top = Math.max(8, anchor.top - menu.offsetHeight - 8) + "px";
+  const inTopbar = !!$("model-topbar-slot")?.contains($("model-btn"));
+  const openAbove = !inTopbar && (anchor.top >= menu.offsetHeight + 8 || anchor.top >= height - anchor.bottom);
+  const top = openAbove ? anchor.top - menu.offsetHeight - 8 : anchor.bottom + 8;
+  menu.style.top = Math.max(8, Math.min(top, height - menu.offsetHeight - 8)) + "px";
   const child = $("effort-menu");
   if (!child || child.classList.contains("hidden")) return;
   const rowTop = menu.offsetTop + $("effort-btn").offsetTop;

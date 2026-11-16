@@ -6,7 +6,7 @@ import { $ } from "../utils/dom.js";
 import { getToken, getUsername, getRole, isStaff, goLogin, logout, ROLE_LABELS } from "../api/auth.js";
 import { UI } from "../components/ui.js";
 import { initRipple } from "../components/ripple.js";
-import { registerPageLoader, switchPage, pageFromHash } from "./admin/nav.js";
+import { registerPageLoader, switchPage, pageFromHash, showMobileSettings, isMobileAdminLayout } from "./admin/nav.js";
 import { loadAccount, openChangePassword, onBindEmail } from "./admin/account.js";
 import { loadMyPoints, onUserRedeem } from "./admin/points.js";
 import { loadKnowledge, bindKnowledge } from "./admin/knowledge.js";
@@ -72,7 +72,14 @@ export function init() {
   }
 
   document.querySelectorAll("#admin-nav .nav-item").forEach((el) => {
+    el.setAttribute("role", "link");
+    el.tabIndex = 0;
     el.onclick = () => switchPage(el.dataset.page);
+    el.onkeydown = (event) => {
+      if (event.key !== "Enter") return;
+      event.preventDefault();
+      switchPage(el.dataset.page);
+    };
   });
 
   // 下拉框与日期框换成自绘控件
@@ -144,9 +151,23 @@ export function init() {
     if (e.key === "Enter") onUserRedeem();
   });
 
-  // 页内链接与浏览器前进后退走 hash
-  window.addEventListener("hashchange", () => switchPage(pageFromHash()));
-  switchPage(pageFromHash());
+  if ($("admin-mobile-back")) $("admin-mobile-back").onclick = showMobileSettings;
+  const mobileAdmin = window.matchMedia("(max-width: 820px)");
+  window.addEventListener("hashchange", () => {
+    if (isMobileAdminLayout() && !location.hash) showMobileSettings();
+    else switchPage(pageFromHash());
+  });
+  mobileAdmin.addEventListener("change", (event) => {
+    if (event.matches) {
+      if (location.hash) $("admin-app")?.classList.add("has-active-page");
+      else showMobileSettings();
+    } else {
+      $("admin-app")?.classList.remove("has-active-page");
+      if (!document.querySelector(".admin-page.active")) switchPage("account");
+    }
+  });
+  if (isMobileAdminLayout() && !location.hash) showMobileSettings();
+  else switchPage(pageFromHash());
 }
 
 if (document.readyState === "loading") {

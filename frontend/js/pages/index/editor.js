@@ -104,6 +104,7 @@ export function syncPlaceholder() {
   const editor = editorEl();
   if (!editor) return;
   editor.classList.toggle("is-empty", !editorHasContent());
+  editor.classList.toggle("is-multiline", editorText().includes("\n") || !!editor.querySelector("[data-attach-id]"));
 }
 
 /* 发送清空等场景下，chip 被移除但不删服务端文件（文件已随消息发出） */

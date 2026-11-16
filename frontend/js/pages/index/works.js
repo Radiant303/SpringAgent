@@ -11,6 +11,7 @@ import { addSystem } from "./chatView.js";
 import { openWorkSession, refreshSessionList } from "./sessions.js";
 import { clearMessages } from "./history.js";
 import { updateInputState } from "./input.js";
+import { closeMobileSidebar } from "./responsive.js";
 
 export const FOLDER_SVG = '<svg class="sb-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 7a2 2 0 0 1 2-2h3.8l2 2.2h7.2a2 2 0 0 1 2 2V17a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z"/></svg>';
 
@@ -93,6 +94,7 @@ export function renderWorks() {
 }
 
 export async function selectWork(workId) {
+  closeMobileSidebar();
   if (workId === state.workId) return;
   state.workId = workId;
   localStorage.setItem("sa.workId", workId);

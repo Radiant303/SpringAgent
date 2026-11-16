@@ -540,9 +540,9 @@ UI.enhanceDate(inp);               // 只换一个日期框
 - **被动登出**：接口 401 / WebSocket 4401 → `login.html?reason=expired`；4403 → `?reason=disabled`。需要回到原页面时带 `next=当前路径+hash`，登录页只接受本站 `/static/` 下的地址。
 - **退出登录**：清除 `sa.token`、`sa.username`、`sa.role`、`sa.sessionId` 后跳登录页。
 - **账户中心分页**：用 `#hash` 定位（`admin.html#points`），可以直接链接到某一页。
-- **键盘**：Esc 关闭对话框 / 菜单；Enter 提交表单；对话框内 Tab 循环聚焦。
+- **键盘**：Esc 关闭对话框 / 菜单；桌面端 Enter 提交表单，手机聊天输入框 Enter 换行、点击发送按钮提交；对话框内 Tab 循环聚焦。
 - **长文本**：单行省略号截断（`overflow: hidden; text-overflow: ellipsis; white-space: nowrap`），完整内容放 `title`。
-- **响应式**：主站断点 760px，账户中心 820px（导航改为顶部横向滚动），登录页 480px。新组件至少在 400px 宽度下不溢出。
+- **响应式**：主站断点 760px，账户中心 820px，登录页 480px。主站窄屏使用默认收起的抽屉侧栏，点击遮罩或选择项目/会话后关闭；顶栏展示模型选择而非会话标题，输入区空态为单行、换行后展开；助手回合不创建精灵，避免占用正文宽度。账户中心窄屏使用纵向设置目录，详情页提供返回目录按钮，`#hash` 仍可直达详情。页面使用 `100dvh` 与 `safe-area-inset-*`，触屏操作不依赖 hover，移动端表单输入字号至少 16px。新组件至少在 400px 宽度下不溢出。
 
 ## 8. 代码约定
 

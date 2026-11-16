@@ -53,17 +53,34 @@ export function pageFromHash() {
   return pageAllowed(page) ? page : "account";
 }
 
+export function isMobileAdminLayout() {
+  return window.matchMedia("(max-width: 820px)").matches;
+}
+
+export function showMobileSettings() {
+  $("admin-app")?.classList.remove("has-active-page");
+  document.title = "设置 - SpringAgent";
+  if (location.hash) history.replaceState(null, "", location.pathname + location.search);
+  window.scrollTo(0, 0);
+}
+
 export function switchPage(page) {
   if (!pageAllowed(page)) page = "account";
-  document.querySelectorAll("#admin-nav .nav-item").forEach((el) =>
-    el.classList.toggle("active", el.dataset.page === page));
+  const mobile = isMobileAdminLayout();
+  $("admin-app")?.classList.toggle("has-active-page", mobile);
+  document.querySelectorAll("#admin-nav .nav-item").forEach((el) => {
+    el.classList.toggle("active", el.dataset.page === page);
+  });
   document.querySelectorAll(".admin-page").forEach((el) =>
     el.classList.toggle("active", el.dataset.page === page));
-  document.title = (PAGE_TITLES[page] || "账户中心") + " - SpringAgent";
+  const title = PAGE_TITLES[page] || "账户中心";
+  document.title = title + " - SpringAgent";
+  if ($("admin-mobile-title")) $("admin-mobile-title").textContent = title;
   if (location.hash !== "#" + page) history.replaceState(null, "", "#" + page);
   const main = $("admin-main");
   if (main) main.scrollTop = 0;
-  
+  if (mobile) window.scrollTo(0, 0);
+
   const loading = startLoadingBar();
   const loader = pageLoaders[page];
   const section = document.querySelector(`.admin-page[data-page="${page}"]`);
