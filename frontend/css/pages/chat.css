@@ -509,7 +509,7 @@
 }
 #mobile-new-session,
 .mobile-menu-icon,
-.mobile-upload-icon {
+#upload-btn .mobile-upload-icon {
   display: none;
 }
 #app.sidebar-collapsed #expand-sidebar {

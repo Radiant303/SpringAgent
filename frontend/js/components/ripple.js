@@ -33,7 +33,7 @@ function ripple(host, x, y) {
 
 export function initRipple() {
   document.addEventListener("pointerdown", (event) => {
-    if (event.button !== 0) return;
+    if (event.button !== 0 || event.pointerType === "touch") return;
     const host = allowed(event.target);
     if (!host) return;
     const rect = host.getBoundingClientRect();
