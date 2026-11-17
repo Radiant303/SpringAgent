@@ -275,7 +275,7 @@ body.login-page { display: flex; flex-direction: column; min-height: 100vh; back
 - **不要**用蓝色聚焦环或发光阴影。
 - 放在灰色分组卡片里的输入框反过来用白底（`.group-card .settings-number { background: #fff }`）。
 - 有单位的输入框在右侧放单位文字（MB、tokens），13px 弱文字。
-- 开关用 `input.switch`：44×26px，关闭时灰底 `rgba(0,0,0,0.15)`，打开时 `#0a84ff`，白色圆形滑块 22px。不要用绿色开关。
+- 开关用 `input.switch`：44×26px，关闭时灰底 `rgba(0,0,0,0.15)`，打开时 `#0a84ff`，白色圆形滑块 22px。轨道和滑块均使用 `--corner-shape: round`，不应用连续曲率。不要用绿色开关。
 - 数字输入框不要原生步进箭头（`index.css` 里已全局去掉）。
 - 下拉框和日期框不要用原生控件，见 §6.12。
 
