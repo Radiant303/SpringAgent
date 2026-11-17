@@ -144,16 +144,19 @@
 
     <main id="main">
       <header id="topbar">
-        <button id="expand-sidebar" class="sb-icon-btn" title="展开侧栏" aria-label="展开侧栏" aria-controls="sidebar" aria-expanded="false">
-          <svg class="desktop-sidebar-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="4.5" width="17" height="15" rx="3"/><path d="M9.5 4.5v15"/></svg>
-          <svg class="mobile-menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M5 7h14M5 12h14M5 17h14"/></svg>
-        </button>
+        <img id="collapsed-brand" class="brand-logo" src="/static/assets/images/log.png" alt="SpringAgent">
+        <div id="collapsed-actions">
+          <button id="expand-sidebar" class="sb-icon-btn" title="展开侧栏" aria-label="展开侧栏" aria-controls="sidebar" aria-expanded="false">
+            <svg class="desktop-sidebar-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="4.5" width="17" height="15" rx="3"/><path d="M9.5 4.5v15"/></svg>
+            <svg class="mobile-menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M5 7h14M5 12h14M5 17h14"/></svg>
+          </button>
+          <button id="mobile-new-session" class="sb-icon-btn" type="button" title="新建会话" aria-label="新建会话">
+            <svg viewBox="0 0 24 24"><path d="M 12 2.1 C 6.532 2.1 2.1 6.532 2.1 12 C 2.1 13.923 2.649 15.719 3.598 17.239 L 2.517 19.821 C 2.104 20.809 2.829 21.9 3.901 21.9 L 12 21.9 C 17.468 21.9 21.9 17.468 21.9 12 C 21.9 6.532 17.468 2.1 12 2.1 Z M 3.9 12 C 3.9 7.526 7.526 3.9 12 3.9 C 16.473 3.9 20.1 7.526 20.1 12 C 20.1 16.473 16.473 20.1 11.999 20.1 L 4.352 20.1 L 5.635 17.035 C 5.635 17.035 5.352 16.629 5.352 16.629 C 4.437 15.317 3.9 13.723 3.9 12 Z" fill="currentColor" fill-opacity="0.902" fill-rule="evenodd"/><g class="nb-plus"><path d="M 12 7.5 L 12 16.5 M 7.5 12 L 16.5 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></g></svg>
+          </button>
+        </div>
         <span id="breadcrumb"><span id="session-title"></span></span>
         <span id="model-topbar-slot"></span>
         <span class="spacer"></span>
-        <button id="mobile-new-session" class="sb-icon-btn" type="button" title="新建会话" aria-label="新建会话">
-          <svg viewBox="0 0 24 24"><path d="M 12 2.1 C 6.532 2.1 2.1 6.532 2.1 12 C 2.1 13.923 2.649 15.719 3.598 17.239 L 2.517 19.821 C 2.104 20.809 2.829 21.9 3.901 21.9 L 12 21.9 C 17.468 21.9 21.9 17.468 21.9 12 C 21.9 6.532 17.468 2.1 12 2.1 Z M 3.9 12 C 3.9 7.526 7.526 3.9 12 3.9 C 16.473 3.9 20.1 7.526 20.1 12 C 20.1 16.473 16.473 20.1 11.999 20.1 L 4.352 20.1 L 5.635 17.035 C 5.635 17.035 5.352 16.629 5.352 16.629 C 4.437 15.317 3.9 13.723 3.9 12 Z" fill="currentColor" fill-opacity="0.902" fill-rule="evenodd"/><g class="nb-plus"><path d="M 12 7.5 L 12 16.5 M 7.5 12 L 16.5 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></g></svg>
-        </button>
       </header>
 
       <!-- 首屏为加载转圈：历史加载完成前不判定“空会话”，避免先闪出首页字标再跳成消息列表 -->
