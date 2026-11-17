@@ -2024,6 +2024,7 @@ pre.tool-result.error { background: var(--diff-del-bg, rgba(192, 57, 43, 0.07));
     padding: 8px;
     border: none;
     border-radius: 28px;
+    --corner-shape: round;
   }
   #input {
     order: 2;
@@ -2039,15 +2040,18 @@ pre.tool-result.error { background: var(--diff-del-bg, rgba(192, 57, 43, 0.07));
   .round-btn, .tool-btn { width: 40px; height: 40px; flex-shrink: 0; }
   #upload-btn { order: 1; background: var(--surface); }
   #send-btn, #stop-btn { order: 4; margin-left: auto; }
-  #input-card:has(#input.is-multiline, #input > div, #input > br) {
+  #input-card:has(#input.is-multiline, #input:not(.is-empty), #input:focus, #input > div, #input > br) {
     flex-wrap: wrap;
     align-items: center;
     padding: 12px 12px 8px;
+    border-radius: calc(28px * var(--corner-ratio));
+    --corner-shape: superellipse(1.5);
   }
-  #input-card:has(#input.is-multiline, #input > div, #input > br) #input {
+  #input-card:has(#input.is-multiline, #input:not(.is-empty), #input:focus, #input > div, #input > br) #input {
     order: 0;
     flex: 0 0 100%;
     width: 100%;
+    max-height: min(88px, 32dvh);
     padding: 0 4px 12px;
   }
   .model-item { min-height: 44px; }
