@@ -821,30 +821,32 @@ input.switch {
   -webkit-appearance: none;
   position: relative;
   flex-shrink: 0;
-  width: 36px;
-  height: 20px;
+  width: 44px;
+  height: 26px;
   margin: 0;
+  border: none;
   border-radius: 999px;
   background: rgba(0, 0, 0, 0.15);
   cursor: pointer;
-  transition: background-color 0.18s;
+  transition: background-color 0.2s ease;
 }
 input.switch::before {
   content: "";
   position: absolute;
   top: 2px;
   left: 2px;
-  width: 16px;
-  height: 16px;
+  width: 22px;
+  height: 22px;
   border-radius: 50%;
   --corner-shape: round;
   background: #fff;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
-  transition: transform 0.18s;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.22);
+  transition: transform 0.2s ease;
 }
-input.switch:checked { background: #111; }
-input.switch:checked::before { transform: translateX(16px); }
+input.switch:checked { background: #0a84ff; }
+input.switch:checked::before { transform: translateX(18px); }
 input.switch:focus-visible { outline: 2px solid rgba(23, 131, 255, 0.4); outline-offset: 2px; }
+input.switch:disabled { opacity: 0.45; cursor: not-allowed; }
 
 .quota-inherit { color: var(--text-faint, rgba(0, 0, 0, 0.45)); }
 

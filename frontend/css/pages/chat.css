@@ -2005,23 +2005,39 @@ pre.tool-result.error { background: var(--diff-del-bg, rgba(192, 57, 43, 0.07));
   .um-item { height: 44px; }
   #main, #app.sidebar-collapsed #main { margin: 0; border: none; border-radius: 0; }
   #topbar {
-    height: calc(52px + env(safe-area-inset-top, 0px));
-    padding: env(safe-area-inset-top, 0px) max(12px, env(safe-area-inset-right, 0px)) 0 max(12px, env(safe-area-inset-left, 0px));
+    position: absolute;
+    inset: 0 0 auto;
+    z-index: 30;
+    height: auto;
+    padding: calc(10px + env(safe-area-inset-top, 0px)) max(12px, env(safe-area-inset-right, 0px)) 10px max(12px, env(safe-area-inset-left, 0px));
+    background: transparent;
+    pointer-events: none;
   }
+  #collapsed-brand { display: none; }
   #collapsed-actions { display: contents; }
-  #expand-sidebar, #mobile-new-session { display: inline-flex; width: 40px; height: 40px; color: var(--text); }
-  #expand-sidebar, #mobile-new-session, #model-topbar-slot #model-btn {
-    background: var(--bg);
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+  #expand-sidebar, #mobile-new-session {
+    display: inline-flex;
+    width: 40px;
+    height: 40px;
+    color: var(--text);
+    border-radius: 50%;
+    --corner-shape: round;
   }
-  #expand-sidebar, #mobile-new-session { border-radius: 50%; --corner-shape: round; }
-  #mobile-new-session { order: 3; margin-right: -6px; }
+  #expand-sidebar, #mobile-new-session, #model-topbar-slot #model-btn {
+    border: 1px solid rgba(255, 255, 255, 0.72);
+    background: rgba(255, 255, 255, 0.62);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+    -webkit-backdrop-filter: blur(18px) saturate(1.4);
+    backdrop-filter: blur(18px) saturate(1.4);
+    pointer-events: auto;
+  }
+  #mobile-new-session { order: 3; margin: 0; }
   #mobile-new-session svg { width: 22px; height: 22px; }
   #expand-sidebar .desktop-sidebar-icon, #upload-btn .desktop-upload-icon { display: none; }
   #expand-sidebar .mobile-menu-icon, #upload-btn .mobile-upload-icon { display: block; }
   #breadcrumb { display: none; }
-  #model-topbar-slot { order: 1; display: flex; min-width: 0; }
-  #topbar > .spacer { order: 2; }
+  #model-topbar-slot { order: 1; display: flex; flex: 1; justify-content: center; min-width: 0; pointer-events: auto; }
+  #topbar > .spacer { display: none; }
   #model-pill { min-width: 0; }
   #model-topbar-slot #model-btn {
     width: auto;
@@ -2036,7 +2052,7 @@ pre.tool-result.error { background: var(--diff-del-bg, rgba(192, 57, 43, 0.07));
   #model-topbar-slot #model-btn .model-caret { display: none; }
   #messages {
     min-height: 0;
-    padding: 14px max(12px, env(safe-area-inset-right, 0px)) var(--scroll-b) max(12px, env(safe-area-inset-left, 0px));
+    padding: calc(72px + env(safe-area-inset-top, 0px)) max(12px, env(safe-area-inset-right, 0px)) var(--scroll-b) max(12px, env(safe-area-inset-left, 0px));
     scrollbar-gutter: auto;
     overscroll-behavior: contain;
   }

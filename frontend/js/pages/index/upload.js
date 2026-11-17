@@ -222,6 +222,9 @@ export function initUpload() {
   const picker = $("upload-input");
   const editor = editorEl();
   if (!btn || !picker || !editor) return;
+  btn.addEventListener("pointerdown", (event) => {
+    if (event.button === 0) event.preventDefault();
+  });
   btn.addEventListener("click", () => {
     if (!btn.disabled) picker.click();
   });
