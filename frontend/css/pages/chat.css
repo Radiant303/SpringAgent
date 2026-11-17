@@ -508,6 +508,20 @@
   flex-shrink: 0;
   padding: 0 16px;
   background: var(--bg, #ffffff);
+  border-bottom: 1px solid var(--border, rgba(0, 0, 0, 0.08));
+}
+@media (min-width: 761px) {
+  #main.topbar-immersive #topbar {
+    position: absolute;
+    inset: 0 0 auto;
+    z-index: 30;
+    background: transparent;
+    border-bottom-color: transparent;
+  }
+  #main.topbar-immersive #messages { padding-top: 0; }
+}
+@media (max-width: 760px) {
+  #topbar { border-bottom: none; }
 }
 #expand-sidebar {
   display: none;
