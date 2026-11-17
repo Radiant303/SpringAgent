@@ -15,6 +15,12 @@
       -webkit-tap-highlight-color: transparent;
       border-radius: 16px;
     }
+    @supports (corner-shape: superellipse(1.5)) {
+      canvas {
+        border-radius: 20px;
+        corner-shape: superellipse(1.5);
+      }
+    }
     canvas:focus { outline: none; }
     canvas:focus-visible { outline: 2px solid #9dc577; outline-offset: 4px; }
   </style>

@@ -51,7 +51,7 @@ export function tableSkeleton(tbody, rows = 10) {
       const w = SKELETON_WIDTHS[(r * cols + c) % SKELETON_WIDTHS.length];
       bar.style.width = w;
       bar.style.height = "16px";
-      bar.style.borderRadius = "6px";
+      bar.style.borderRadius = "calc(6px * var(--corner-ratio))";
       td.appendChild(bar);
       tr.appendChild(td);
     }

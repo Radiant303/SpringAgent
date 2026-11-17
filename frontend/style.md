@@ -137,7 +137,11 @@ font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-s
 
 ### 圆角（越大的容器圆角越大）
 
-| 圆角 | 用于 |
+矩形圆角统一使用 `corner-shape: superellipse(1.5)` 连续曲率。表中数值是普通圆角基准，连续曲率半径 = 基准 × 1.25；`base.css` 的 `--corner-ratio` 在支持时为 1.25，不支持时为 1。正圆与半圆胶囊不参与换算，头像、发送键、加载环等正圆控件在 `border-radius: 50%` 旁设置 `--corner-shape: round`。
+
+共用外边界的嵌套卡片、图片或控件使用同心圆角：内外圈基准半径分别乘以同一倍率，间距 = 换算后外圈半径 − 换算后内圈半径 − 边框宽度，用 `calc()` 从半径变量计算间距；与外边界距离较大的独立内容不套用此规则。
+
+| 普通圆角基准 | 用于 |
 |---|---|
 | 4–5px | 徽章、`kbd` |
 | 8px | 小文字按钮、菜单内条目、32px 图标按钮（类似 iOS 应用图标比例） |
@@ -187,6 +191,7 @@ font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-s
 ```
 
 - 侧栏顶部：28px 圆形 Logo（`/static/assets/images/log.png`）+ 收起按钮，高 56px。
+- 桌面收起侧栏后，顶栏左侧显示 Logo 与“展开侧栏＋新建会话”白色胶囊按钮组，不放搜索；展开态不改变。
 - 侧栏分组小标题：13px 弱文字，`padding: 16px 8px 4px`。
 - 侧栏列表行：36px 高、圆角 10px、hover `.04`、选中 `.06`。次要信息（大小、时间、删除按钮）**只在悬停时出现**，平时一行干净的名称。
 - 侧栏可滚动区底部用 `mask-image` 渐隐 40px，不加分隔线。
@@ -234,7 +239,7 @@ body.login-page { display: flex; flex-direction: column; min-height: 100vh; back
 - 键盘焦点给按钮画**一圈** `:focus-visible` outline（`2px solid rgba(23,131,255,0.4)`，`outline-offset: 1px`，与 `input.switch` 一致）；
   鼠标点击不显示焦点样式。不要用"边框变色 + 底变白"来表示按钮焦点——那是输入框的做法，会叠成双层框。
 - 禁用状态 `opacity: 0.5 ~ 0.55`。
-- 全站按钮与侧栏导航统一使用点击水波纹：从指针位置扩散，键盘触发时从按钮中心扩散；使用 `currentColor` 低透明度，禁用按钮不触发，`prefers-reduced-motion` 下关闭。
+- 桌面端按钮与侧栏导航统一使用点击水波纹：从指针位置扩散，键盘触发时从按钮中心扩散；触屏不生成水波纹。使用 `currentColor` 低透明度，禁用按钮不触发，`prefers-reduced-motion` 下关闭。根节点设置 `-webkit-tap-highlight-color: transparent`，不显示浏览器默认的轻点底色。
 
 #### 胶囊多选标签
 
@@ -344,17 +349,20 @@ const v = await UI.dialog({
 
 ```css
 .menu {
-  padding: 6px;
+  --menu-radius: calc(16px * var(--corner-ratio));
+  --item-radius: calc(10px * var(--corner-ratio));
+  padding: calc(var(--menu-radius) - var(--item-radius) - 1px);
   background: #fff;
   border: 1px solid rgba(0, 0, 0, 0.06);
-  border-radius: 16px;                  /* 小菜单 12px */
+  border-radius: var(--menu-radius);    /* 小菜单 12px */
   box-shadow: 0 10px 32px rgba(0, 0, 0, 0.1), 0 1px 3px rgba(0, 0, 0, 0.04);
   animation: pop-in 0.14s ease-out;
 }
+.menu-item { border-radius: var(--item-radius); }
 .menu-item:hover { background: rgba(0, 0, 0, 0.04); }
 ```
 
-行高按用途分两档：
+行高与圆角按用途分档，嵌套间距按 §5 的同心公式计算：
 
 | 行高 | 圆角 | 用于 |
 |---|---|---|
@@ -368,7 +376,7 @@ const v = await UI.dialog({
 
 - 输入工具栏只保留一个“模型名 · 强度 ˅”入口，32px 高、14px 字、999px 圆角、左右 12px 内边距，常态透明，悬停和打开均为 `--surface` 浅灰底，按下不额外加深；菜单打开时鼠标移开仍保留浅灰底。模型名主文字，强度和箭头弱文字；无边框、无阴影。
 - 长模型名用省略号，完整名称放 `title`；强度不截断。聊天入口和强度菜单中的挡位首字母大写（`Low / High / Xhigh / On / Off`），接口值仍为小写。不支持思考的模型隐藏分隔符、强度和菜单内的强度入口。
-- 主浮层宽 224px，强度子菜单宽 136px，均为 6px 内边距、12px 圆角；列表行高 36px。模型名称和挡位左对齐，左侧对勾固定占 16px，与文字间隔 12px，避免把名称推到右侧形成大片空白。
+- 主浮层宽 224px，强度子菜单宽 136px，圆角基准 12px；内边距按同心公式计算，连续曲率生效时为 4px。列表行高 36px。模型名称和挡位左对齐，左侧对勾固定占 16px，与文字间隔 12px，避免把名称推到右侧形成大片空白。
 - 主浮层底部用一条内缩分隔线隔开“思考强度 / 当前挡位 >”，分隔线上下间距 6px。不添加副标题、能力说明或成功提示文字。
 - 悬停或点击强度行，在其侧边展开独立白色圆角子菜单，主菜单保持可见。空间不足时向左翻转；窄屏左右都放不下时贴齐主菜单，在强度行上方展示，保证不溢出屏幕。
 - 两层菜单直接复用自绘下拉列表的 `ui-pop 0.14s ease both`，不单独定义入场动画；数据和选择未变时不重建菜单、不重新聚焦。
@@ -542,7 +550,8 @@ UI.enhanceDate(inp);               // 只换一个日期框
 - **账户中心分页**：用 `#hash` 定位（`admin.html#points`），可以直接链接到某一页。
 - **键盘**：Esc 关闭对话框 / 菜单；桌面端 Enter 提交表单，手机聊天输入框 Enter 换行、点击发送按钮提交；对话框内 Tab 循环聚焦。
 - **长文本**：单行省略号截断（`overflow: hidden; text-overflow: ellipsis; white-space: nowrap`），完整内容放 `title`。
-- **响应式**：主站断点 760px，账户中心 820px，登录页 480px。主站窄屏使用默认收起的抽屉侧栏，点击遮罩或选择项目/会话后关闭；顶栏展示模型选择而非会话标题，输入区空态为单行、换行后展开；助手回合不创建精灵，避免占用正文宽度。账户中心窄屏使用纵向设置目录，详情页提供返回目录按钮，`#hash` 仍可直达详情。页面使用 `100dvh` 与 `safe-area-inset-*`，触屏操作不依赖 hover，移动端表单输入字号至少 16px。新组件至少在 400px 宽度下不溢出。
+- **响应式**：主站断点 760px，账户中心 820px，登录页 480px。主站窄屏使用默认收起的抽屉侧栏，点击遮罩或选择项目/会话后关闭；顶栏展示模型选择而非会话标题，模型按钮保留 `999px` 半圆胶囊；输入区仅在无内容且未聚焦时显示 `28px` 半圆胶囊单行；文本框聚焦、已有内容或换行后展开为顶部文本区＋底部操作区，使用连续曲率并按倍率换算为 `35px` 圆角；展开文本区顶部对齐，最高 88px，超出后内部滚动；助手回合不创建精灵，避免占用正文宽度。账户中心窄屏使用纵向设置目录，详情页提供返回目录按钮，`#hash` 仍可直达详情。页面使用 `100dvh` 与 `safe-area-inset-*`，触屏操作不依赖 hover，移动端表单输入字号至少 16px。新组件至少在 400px 宽度下不溢出。
+- **移动后台目录**：每行 56px 高，图标与文字垂直居中，箭头右对齐；分组左右内边距 16px，分隔线从文字左缘开始，不穿过图标区域。
 
 ## 8. 代码约定
 

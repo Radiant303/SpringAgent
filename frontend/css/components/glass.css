@@ -4,6 +4,7 @@
 .glass {
   position: relative;
   border-radius: var(--r, 999px);
+  --corner-shape: round;
   background: linear-gradient(135deg,
     rgba(255, 255, 255, 0.30), rgba(255, 255, 255, 0.08) 55%, rgba(255, 255, 255, 0.20));
   box-shadow: 0 10px 30px rgba(19, 41, 61, 0.14), 0 2px 6px rgba(19, 41, 61, 0.06);

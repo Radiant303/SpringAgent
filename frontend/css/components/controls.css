@@ -16,7 +16,7 @@
   height: 34px;
   padding: 0 10px;
   border: none;
-  border-radius: 10px;
+  border-radius: calc(10px * var(--corner-ratio));
   outline: none;
   background: #f2f2f2;
   color: var(--text, rgba(0, 0, 0, 0.9));
@@ -71,11 +71,13 @@
 
 /* ---- 浮层：挂在 body 上（fixed），不会被滚动容器裁切 ---- */
 .ui-popover {
+  --popover-radius: calc(12px * var(--corner-ratio));
+  --item-radius: calc(8px * var(--corner-ratio));
   position: fixed;
   z-index: 350;
-  padding: 4px;
+  padding: calc(var(--popover-radius) - var(--item-radius) - 1px);
   border: 1px solid rgba(0, 0, 0, 0.06);
-  border-radius: 12px;
+  border-radius: var(--popover-radius);
   background: #fff;
   box-shadow: 0 10px 32px rgba(0, 0, 0, 0.1), 0 1px 3px rgba(0, 0, 0, 0.04);
   animation: ui-pop 0.14s ease both;
@@ -93,11 +95,14 @@
   gap: 8px;
   height: 34px;
   padding: 0 10px;
-  border-radius: 8px;
+  border-radius: var(--item-radius);
   font-size: 14px;
   color: var(--text, rgba(0, 0, 0, 0.9));
   white-space: nowrap;
   cursor: pointer;
+}
+.ui-popover .admin-action-item {
+  border-radius: var(--item-radius);
 }
 .ui-option-label {
   flex: 1;
@@ -154,7 +159,7 @@
   height: 28px;
   padding: 0;
   border: none;
-  border-radius: 8px;
+  border-radius: calc(8px * var(--corner-ratio));
   background: transparent;
   color: var(--text-dim, rgba(0, 0, 0, 0.6));
 }
@@ -183,7 +188,7 @@
   height: 32px;
   padding: 0;
   border: none;
-  border-radius: 8px;
+  border-radius: calc(8px * var(--corner-ratio));
   background: transparent;
   color: var(--text, rgba(0, 0, 0, 0.9));
   font: inherit;
@@ -225,7 +230,7 @@
 .ui-cal-link {
   padding: 4px 6px;
   border: none;
-  border-radius: 8px;
+  border-radius: calc(8px * var(--corner-ratio));
   background: transparent;
   font-size: 13px;
   color: var(--link, #1783ff);

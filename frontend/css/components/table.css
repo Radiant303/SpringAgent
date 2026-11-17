@@ -4,7 +4,7 @@
 .table-card {
   margin-top: 16px;
   border: 1px solid var(--admin-border, rgba(0, 0, 0, 0.08));
-  border-radius: 12px;
+  border-radius: calc(12px * var(--corner-ratio));
   background: #fff;
   overflow-x: auto;
   overflow-y: hidden;
@@ -221,7 +221,7 @@ button.admin-btn.more-btn[aria-expanded="true"] {
   height: 32px;
   padding: 0 10px;
   border: none;
-  border-radius: 8px;
+  border-radius: calc(8px * var(--corner-ratio));
   background: transparent;
   color: var(--text, rgba(0, 0, 0, 0.9));
   font-size: 13px;
@@ -243,7 +243,7 @@ button.admin-btn.primary {
   height: 34px;
   padding: 0 16px;
   border: none;
-  border-radius: 10px;
+  border-radius: calc(10px * var(--corner-ratio));
   background: #111;
   color: #fff !important;
   font-size: 14px;
@@ -269,7 +269,7 @@ button.admin-btn.primary:active {
 .usage-filter .admin-btn:not(.primary) {
   height: 34px;
   padding: 0 16px;
-  border-radius: 10px;
+  border-radius: calc(10px * var(--corner-ratio));
   background: #f2f2f2;
   color: var(--text, rgba(0, 0, 0, 0.9));
   font-size: 14px;

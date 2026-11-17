@@ -53,6 +53,7 @@
   width: 28px;
   height: 28px;
   border-radius: 50%;
+  --corner-shape: round;
   object-fit: cover;
   user-select: none;
   -webkit-user-drag: none;
@@ -66,7 +67,7 @@
   height: 32px;
   padding: 0;
   border: none;
-  border-radius: 8px;
+  border-radius: calc(8px * var(--corner-ratio));
   background: transparent;
   color: var(--text-dim, rgba(0, 0, 0, 0.6));
 }
@@ -91,7 +92,7 @@
   gap: 8px;
   padding: 0 8px 0 10px;
   border: 1px solid rgba(0, 0, 0, 0.08);
-  border-radius: 12px;
+  border-radius: calc(12px * var(--corner-ratio));
   background: #fff;
   font-size: 14px;
   color: var(--text, rgba(0, 0, 0, 0.9));
@@ -122,7 +123,7 @@
   min-width: 20px;
   height: 20px;
   padding: 0 5px;
-  border-radius: 5px;
+  border-radius: calc(5px * var(--corner-ratio));
   background: rgba(0, 0, 0, 0.04);
   font-family: inherit;
   font-size: 12px;
@@ -158,7 +159,7 @@
   gap: 8px;
   padding: 0 8px;
   border: none;
-  border-radius: 10px;
+  border-radius: calc(10px * var(--corner-ratio));
   background: transparent;
   font-size: 14px;
   color: var(--text, rgba(0, 0, 0, 0.9));
@@ -199,7 +200,7 @@
   flex-shrink: 0;
   height: 18px;
   padding: 0 5px;
-  border-radius: 5px;
+  border-radius: calc(5px * var(--corner-ratio));
   background: rgba(0, 0, 0, 0.045);
   font-size: 11px;
   line-height: 18px;
@@ -224,7 +225,7 @@
   margin-right: -4px;
   padding: 0;
   border: none;
-  border-radius: 6px;
+  border-radius: calc(6px * var(--corner-ratio));
   background: transparent;
   color: var(--text-faint, rgba(0, 0, 0, 0.45));
 }
@@ -287,10 +288,11 @@
   border: 1.5px solid rgba(0, 0, 0, 0.12);
   border-top-color: var(--text-dim);
   border-radius: 50%;
+  --corner-shape: round;
 }
 .session-attention {
   padding: 0 6px;
-  border-radius: 4px;
+  border-radius: calc(4px * var(--corner-ratio));
   background: var(--notice-bg);
   color: var(--warn);
   font-size: 12px;
@@ -300,6 +302,7 @@
   width: 6px;
   height: 6px;
   border-radius: 50%;
+  --corner-shape: round;
   background: var(--text-dim);
 }
 @keyframes session-spin {
@@ -321,7 +324,7 @@
   gap: 10px;
   margin-bottom: 6px;
   padding: 8px 8px 8px 12px;
-  border-radius: 12px;
+  border-radius: calc(12px * var(--corner-ratio));
   background: rgba(0, 0, 0, 0.04);
   color: var(--text, rgba(0, 0, 0, 0.9));
   text-decoration: none;
@@ -382,7 +385,7 @@
   gap: 8px;
   height: 44px;
   padding: 0 8px;
-  border-radius: 12px;
+  border-radius: calc(12px * var(--corner-ratio));
   font-size: 14px;
   color: var(--text, rgba(0, 0, 0, 0.9));
   cursor: pointer;
@@ -396,6 +399,7 @@
   width: 28px;
   height: 28px;
   border-radius: 50%;
+  --corner-shape: round;
   flex-shrink: 0;
 }
 .user-chip #user-name {
@@ -407,7 +411,7 @@
 .user-badge {
   flex-shrink: 0;
   padding: 0 5px;
-  border-radius: 4px;
+  border-radius: calc(4px * var(--corner-ratio));
   background: #111;
   color: #fff;
   font-size: 12px;
@@ -425,15 +429,17 @@
 }
 
 .user-menu {
+  --menu-radius: calc(16px * var(--corner-ratio));
+  --item-radius: calc(10px * var(--corner-ratio));
   position: absolute;
   left: 0;
   right: 0;
   bottom: 58px;
   z-index: 60;
-  padding: 6px;
+  padding: calc(var(--menu-radius) - var(--item-radius) - 1px);
   background: #fff;
   border: 1px solid rgba(0, 0, 0, 0.06);
-  border-radius: 16px;
+  border-radius: var(--menu-radius);
   box-shadow: 0 10px 32px rgba(0, 0, 0, 0.1), 0 1px 3px rgba(0, 0, 0, 0.04);
   transform-origin: bottom center;
   animation: pop-in 0.14s ease-out;
@@ -450,7 +456,7 @@
   gap: 10px;
   padding: 0 10px;
   border: none;
-  border-radius: 10px;
+  border-radius: var(--item-radius);
   background: transparent;
   font-size: 14px;
   color: var(--text, rgba(0, 0, 0, 0.9));
@@ -483,7 +489,7 @@
   background: var(--bg, #ffffff);
   margin: 8px 8px 8px 0;
   border: 1px solid rgba(0, 0, 0, 0.05);
-  border-radius: 12px;
+  border-radius: calc(12px * var(--corner-ratio));
   overflow: hidden;
   transition: margin 0.28s cubic-bezier(0.4, 0, 0.2, 1);
 }
@@ -615,6 +621,7 @@
   width: 35px;
   height: 35px;
   border-radius: 50%;
+  --corner-shape: round;
   background: conic-gradient(from 0deg, transparent 0deg 55deg, #6e6e6e 360deg);
   -webkit-mask-image: radial-gradient(farthest-side, transparent calc(100% - 3px - 0.5px), #000 calc(100% - 3px + 0.5px));
   mask-image: radial-gradient(farthest-side, transparent calc(100% - 3px - 0.5px), #000 calc(100% - 3px + 0.5px));
@@ -632,6 +639,7 @@
   height: 3px;
   background: #6e6e6e;
   border-radius: 50%;
+  --corner-shape: round;
   transform: translateX(-50%);
 }
 
@@ -640,7 +648,7 @@
   max-width: 82%;
   padding: 10px 16px;
   background: var(--active-bg, #f5f5f5);
-  border-radius: 18px;
+  border-radius: calc(18px * var(--corner-ratio));
   white-space: pre-wrap;
 }
 
@@ -694,7 +702,7 @@
   margin: 12px 0;
   background: var(--bg, #ffffff);
   border: 1px solid var(--border, rgba(0, 0, 0, 0.08));
-  border-radius: 12px;
+  border-radius: calc(12px * var(--corner-ratio));
   overflow: hidden;
 }
 
@@ -721,7 +729,7 @@
   height: 32px;
   padding: 0;
   border: none;
-  border-radius: 8px;
+  border-radius: calc(8px * var(--corner-ratio));
   background: transparent;
   color: var(--text-dim, rgba(0, 0, 0, 0.6));
   cursor: pointer;
@@ -829,7 +837,7 @@
   left: 0;
   height: 4px;
   background-color: rgba(0, 0, 0, 0.18);
-  border-radius: 5px;
+  border-radius: calc(5px * var(--corner-ratio));
   pointer-events: auto;
   cursor: pointer;
   transition: height 0.16s ease-out, background-color 0.16s ease-out;
@@ -1042,6 +1050,7 @@
   border: 1.5px solid rgba(0, 0, 0, 0.12);
   border-top-color: var(--text-dim, rgba(0, 0, 0, 0.6));
   border-radius: 50%;
+  --corner-shape: round;
   animation: spin 0.8s linear infinite;
 }
 .tool-status.error { color: var(--danger, #FF3849); }
@@ -1060,7 +1069,7 @@ pre.tool-args, pre.tool-result, pre.tool-diff {
   margin: 4px 0;
   padding: 8px 10px;
   background: var(--code-bg, #f5f5f5);
-  border-radius: 8px;
+  border-radius: calc(8px * var(--corner-ratio));
   font-family: ui-monospace, Consolas, "PingFang SC", "Microsoft YaHei", monospace;
   font-size: var(--fs-sm, 16px);
   line-height: calc(22 / 14);
@@ -1125,7 +1134,7 @@ pre.tool-result.error { background: var(--diff-del-bg, rgba(192, 57, 43, 0.07));
 .file-view {
   margin-top: 2px;
   background: var(--color-surface, #f5f5f5);
-  border-radius: 12px;
+  border-radius: calc(12px * var(--corner-ratio));
   overflow: hidden;
 }
 .fv-head {
@@ -1147,7 +1156,7 @@ pre.tool-result.error { background: var(--diff-del-bg, rgba(192, 57, 43, 0.07));
   height: 26px;
   padding: 0;
   border: none;
-  border-radius: 8px;
+  border-radius: calc(8px * var(--corner-ratio));
   background: transparent;
   color: var(--text-faint, rgba(0, 0, 0, 0.45));
   cursor: pointer;
@@ -1281,7 +1290,7 @@ pre.tool-result.error { background: var(--diff-del-bg, rgba(192, 57, 43, 0.07));
   -webkit-backdrop-filter: blur(24px) saturate(1.8);
   backdrop-filter: blur(24px) saturate(1.8);
   border: 0.5px solid rgba(0, 0, 0, 0.13);
-  border-radius: 20px;
+  border-radius: calc(20px * var(--corner-ratio));
   padding: 18px 6px 20px 20px;
   max-height: min(300px, 50vh);
   display: flex;
@@ -1328,7 +1337,7 @@ pre.tool-result.error { background: var(--diff-del-bg, rgba(192, 57, 43, 0.07));
   margin-left: 18px;
   padding: 4px 8px;
   border: none;
-  border-radius: 10px;
+  border-radius: calc(10px * var(--corner-ratio));
   background: #f7f7f7;
   color: var(--text, rgba(0, 0, 0, 0.9));
   font-size: var(--fs-sm, 16px);
@@ -1376,6 +1385,7 @@ pre.tool-result.error { background: var(--diff-del-bg, rgba(192, 57, 43, 0.07));
   height: 16px;
   border: 1.5px solid rgba(0, 0, 0, 0.18);
   border-radius: 50%;
+  --corner-shape: round;
 }
 #plan-items li.in_progress .plan-mark {
   border-color: rgba(0, 0, 0, 0.18);
@@ -1415,7 +1425,7 @@ pre.tool-result.error { background: var(--diff-del-bg, rgba(192, 57, 43, 0.07));
   margin: 0 auto;
   background: var(--panel, #ffffff);
   border: 1px solid rgba(0, 0, 0, 0.06);
-  border-radius: 24px;
+  border-radius: calc(24px * var(--corner-ratio));
   padding: 14px 14px 10px 18px;
   box-shadow: rgba(0, 0, 0, 0.07) 0px 5px 16px -4px;
   transition: 0.3s;
@@ -1468,7 +1478,7 @@ pre.tool-result.error { background: var(--diff-del-bg, rgba(192, 57, 43, 0.07));
   max-width: calc(var(--content-max, 780px) - 36px);
   margin: -18px auto 0;
   padding: 24px 16px 8px;
-  border-radius: 0 0 18px 18px;
+  border-radius: 0 0 calc(18px * var(--corner-ratio)) calc(18px * var(--corner-ratio));
   background: var(--surface, #f5f5f5);
   font-size: 13px;
   color: var(--text-faint, rgba(0, 0, 0, 0.45));
@@ -1528,7 +1538,7 @@ pre.tool-result.error { background: var(--diff-del-bg, rgba(192, 57, 43, 0.07));
   color: #fff;
   font-size: 12px;
   padding: 5px 10px;
-  border-radius: 8px;
+  border-radius: calc(8px * var(--corner-ratio));
   white-space: nowrap;
   opacity: 0;
   pointer-events: none;
@@ -1572,15 +1582,17 @@ pre.tool-result.error { background: var(--diff-del-bg, rgba(192, 57, 43, 0.07));
 #model-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 #model-menu, #effort-menu {
+  --menu-radius: calc(12px * var(--corner-ratio));
+  --item-radius: calc(8px * var(--corner-ratio));
   position: fixed;
   z-index: 20;
   width: 224px;
   max-width: calc(100vw - 16px);
   box-sizing: border-box;
-  padding: 6px;
+  padding: calc(var(--menu-radius) - var(--item-radius) - 1px);
   background: var(--panel);
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: var(--menu-radius);
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.08), 0 1px 3px rgba(0, 0, 0, 0.04);
   animation: ui-pop 0.14s ease both;
 }
@@ -1608,7 +1620,7 @@ pre.tool-result.error { background: var(--diff-del-bg, rgba(192, 57, 43, 0.07));
   box-sizing: border-box;
   padding: 6px 10px;
   border: none;
-  border-radius: 8px;
+  border-radius: var(--item-radius);
   background: transparent;
   color: var(--text);
   font: inherit;
@@ -1622,7 +1634,11 @@ pre.tool-result.error { background: var(--diff-del-bg, rgba(192, 57, 43, 0.07));
 .model-item-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .model-check { width: 16px; flex-shrink: 0; display: inline-flex; color: var(--text-dim); }
 .model-check .icon { width: 16px; height: 16px; }
-#effort-section { margin: 6px 2px 0; padding-top: 6px; border-top: 1px solid var(--border); }
+#effort-section {
+  margin: 6px 0 0;
+  padding-top: 6px;
+  background: linear-gradient(var(--border), var(--border)) center top / calc(100% - 4px) 1px no-repeat;
+}
 .model-menu-value { color: var(--text-faint); white-space: nowrap; }
 .model-arrow { width: 16px; height: 16px; flex-shrink: 0; color: var(--text-faint); }
 
@@ -1630,6 +1646,7 @@ pre.tool-result.error { background: var(--diff-del-bg, rgba(192, 57, 43, 0.07));
   width: 32px;
   height: 32px;
   border-radius: 50%;
+  --corner-shape: round;
   border: none;
   background: var(--accent, #1f1f1f);
   color: rgba(245, 245, 245, 0.9);
@@ -1648,6 +1665,7 @@ pre.tool-result.error { background: var(--diff-del-bg, rgba(192, 57, 43, 0.07));
   width: 32px;
   height: 32px;
   border-radius: 50%;
+  --corner-shape: round;
   border: none;
   background: transparent;
   color: var(--text-dim);
@@ -1708,6 +1726,7 @@ pre.tool-result.error { background: var(--diff-del-bg, rgba(192, 57, 43, 0.07));
   padding: 0;
   border: none;
   border-radius: 50%;
+  --corner-shape: round;
   background: transparent;
   color: var(--text-dim);
   cursor: pointer;
@@ -1728,10 +1747,12 @@ pre.tool-result.error { background: var(--diff-del-bg, rgba(192, 57, 43, 0.07));
 .attach-chip:hover .attach-remove { display: inline-flex; }
 .attach-chip:hover .attach-remove ~ .attach-icon { display: none; }
 .attach-preview {
+  --preview-radius: calc(12px * var(--corner-ratio));
+  --image-radius: calc(8px * var(--corner-ratio));
   position: fixed;
   z-index: 60;
-  padding: 8px;
-  border-radius: 12px;
+  padding: calc(var(--preview-radius) - var(--image-radius));
+  border-radius: var(--preview-radius);
   background: #fff;
   box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.08);
   animation: ui-pop 0.14s ease both;
@@ -1739,7 +1760,7 @@ pre.tool-result.error { background: var(--diff-del-bg, rgba(192, 57, 43, 0.07));
 .attach-preview img {
   max-width: 320px;
   max-height: 220px;
-  border-radius: 8px;
+  border-radius: var(--image-radius);
   display: block;
   object-fit: contain;
 }
@@ -1810,7 +1831,7 @@ pre.tool-result.error { background: var(--diff-del-bg, rgba(192, 57, 43, 0.07));
   margin: 0 auto;
   background: var(--panel, #ffffff);
   border: 1px solid var(--border, rgba(0, 0, 0, 0.08));
-  border-radius: 16px;
+  border-radius: calc(16px * var(--corner-ratio));
   padding: 12px 14px;
   box-shadow: 0 2px 14px rgba(0, 0, 0, 0.06);
 }
@@ -1841,7 +1862,7 @@ pre.tool-result.error { background: var(--diff-del-bg, rgba(192, 57, 43, 0.07));
   width: 100%;
   padding: 8px 12px;
   border: 1px solid var(--border, rgba(0, 0, 0, 0.08));
-  border-radius: 10px;
+  border-radius: calc(10px * var(--corner-ratio));
   background: var(--panel, #ffffff);
   text-align: left;
   font-size: var(--fs-sm, 16px);
@@ -1858,7 +1879,7 @@ pre.tool-result.error { background: var(--diff-del-bg, rgba(192, 57, 43, 0.07));
   align-items: center;
   justify-content: center;
   border: 1px solid var(--border, rgba(0, 0, 0, 0.08));
-  border-radius: 5px;
+  border-radius: calc(5px * var(--corner-ratio));
   font-size: 12px;
   color: var(--text-faint, rgba(0, 0, 0, 0.45));
   background: var(--code-bg, #f5f5f5);
@@ -1868,7 +1889,7 @@ pre.tool-result.error { background: var(--diff-del-bg, rgba(192, 57, 43, 0.07));
 #question-custom {
   flex: 1;
   border: 1px solid var(--border, rgba(0, 0, 0, 0.08));
-  border-radius: 10px;
+  border-radius: calc(10px * var(--corner-ratio));
   padding: 8px 12px;
   font: inherit;
   font-size: var(--fs-sm, 16px);
@@ -1884,7 +1905,7 @@ pre.tool-result.error { background: var(--diff-del-bg, rgba(192, 57, 43, 0.07));
   margin-top: 10px;
   padding: 8px 10px;
   background: var(--code-bg, #f5f5f5);
-  border-radius: 8px;
+  border-radius: calc(8px * var(--corner-ratio));
   font-family: ui-monospace, Consolas, "PingFang SC", "Microsoft YaHei", monospace;
   font-size: var(--fs-sm, 16px);
   line-height: calc(22 / 14);
@@ -1980,6 +2001,7 @@ pre.tool-result.error { background: var(--diff-del-bg, rgba(192, 57, 43, 0.07));
     max-width: min(240px, calc(100vw - 128px));
     height: 40px;
     padding: 0 10px;
+    --corner-shape: round;
   }
   #model-topbar-slot #model-name { display: block; }
   #model-topbar-slot #model-effort { display: inline-flex; }

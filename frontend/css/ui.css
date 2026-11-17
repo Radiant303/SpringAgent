@@ -17,7 +17,7 @@
   height: 36px;
   padding: 0 16px;
   border: none;
-  border-radius: var(--radius, 12px);
+  border-radius: calc(var(--radius, 12px) * var(--corner-ratio));
   background: #111;
   color: #fff;
   font-size: 14px;
@@ -41,7 +41,7 @@
   height: 36px;
   padding: 0 16px;
   border: none;
-  border-radius: var(--radius, 12px);
+  border-radius: calc(var(--radius, 12px) * var(--corner-ratio));
   background: var(--danger, #FF3849);
   color: #fff;
   font-size: 14px;
@@ -65,6 +65,7 @@
   padding: 0;
   border: none;
   border-radius: 50%;
+  --corner-shape: round;
   background: transparent;
   color: #000;
   font-size: 20px;
@@ -113,6 +114,7 @@
   border: 2px solid rgba(23, 131, 255, 0.2);
   border-top-color: var(--link, #1783ff);
   border-radius: 50%;
+  --corner-shape: round;
   animation: spin 0.8s linear infinite;
   box-sizing: border-box;
   flex-shrink: 0;
@@ -134,7 +136,7 @@ button.is-loading {
   display: inline-flex;
   align-items: center;
   padding: 2px 8px;
-  border-radius: 6px;
+  border-radius: calc(6px * var(--corner-ratio));
   font-size: 12px;
   line-height: 16px;
   background: var(--surface, #f5f5f5);
@@ -159,7 +161,7 @@ kbd, .kbd kbd {
   min-width: 18px;
   height: 18px;
   padding: 0 4px;
-  border-radius: 4px;
+  border-radius: calc(4px * var(--corner-ratio));
   background: rgba(0, 0, 0, 0.06);
   color: var(--text-faint, rgba(0, 0, 0, 0.45));
   font-family: inherit;

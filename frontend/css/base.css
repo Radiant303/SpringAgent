@@ -6,6 +6,19 @@ html {
   -webkit-tap-highlight-color: transparent;
 }
 
+:root {
+  --corner-ratio: 1;
+}
+
+@supports (corner-shape: superellipse(1.5)) {
+  :root {
+    --corner-ratio: 1.25;
+  }
+  *, *::before, *::after, ::-webkit-scrollbar-thumb {
+    corner-shape: var(--corner-shape, superellipse(1.5));
+  }
+}
+
 html, body {
   margin: 0;
   height: 100%;
@@ -32,7 +45,7 @@ button, input, select, textarea {
 button {
   font: inherit;
   cursor: pointer;
-  border-radius: 10px;
+  border-radius: calc(10px * var(--corner-ratio));
   border: 1px solid transparent;
   background: #f2f2f2;
   color: var(--text, rgba(0, 0, 0, 0.9));
@@ -62,6 +75,7 @@ button:disabled {
 .ripple-ink {
   position: absolute;
   border-radius: 50%;
+  --corner-shape: round;
   background: currentColor;
   opacity: 0.12;
   pointer-events: none;
@@ -87,7 +101,7 @@ button:disabled {
 
 ::-webkit-scrollbar-thumb {
   background: var(--scrollbar-thumb, #c8c8c8);
-  border-radius: 3px;
+  border-radius: calc(3px * var(--corner-ratio));
 }
 
 ::-webkit-scrollbar-thumb:hover {
