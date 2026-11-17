@@ -1126,7 +1126,16 @@ button.knowledge-toc-parent:hover { background: transparent; }
     font-size: 16px;
     white-space: normal;
   }
-  .nav-item + .nav-item { border-top: 1px solid var(--admin-line); }
+  .nav-item + .nav-item { border-top: 0; }
+  .nav-item + .nav-item::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 32px;
+    right: 0;
+    height: 1px;
+    background: var(--admin-line);
+  }
   .nav-item:hover, .nav-item.active { background: transparent; font-weight: 400; }
   .nav-item svg { width: 20px; height: 20px; flex-basis: 20px; }
   .nav-item::after {
