@@ -2036,8 +2036,8 @@ pre.tool-result.error { background: var(--diff-del-bg, rgba(192, 57, 43, 0.07));
   #expand-sidebar .desktop-sidebar-icon, #upload-btn .desktop-upload-icon { display: none; }
   #expand-sidebar .mobile-menu-icon, #upload-btn .mobile-upload-icon { display: block; }
   #breadcrumb { display: none; }
-  #model-topbar-slot { order: 1; display: flex; flex: 1; justify-content: center; min-width: 0; pointer-events: auto; }
-  #topbar > .spacer { display: none; }
+  #model-topbar-slot { order: 1; display: flex; min-width: 0; pointer-events: auto; }
+  #topbar > .spacer { order: 2; }
   #model-pill { min-width: 0; }
   #model-topbar-slot #model-btn {
     width: auto;
