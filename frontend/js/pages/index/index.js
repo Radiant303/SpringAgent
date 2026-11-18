@@ -39,9 +39,6 @@ import { initUpload } from "./upload.js";
 import { initVersionNotice } from "./version.js";
 import { syncPlaceholder } from "./editor.js";
 import { closeMobileSidebar, initResponsiveLayout, isMobileLayout, mobileLayout } from "./responsive.js";
-import { initRipple } from "../../components/ripple.js";
-
-initRipple();
 
 // Markdown 配置
 if (typeof marked !== "undefined" && marked.setOptions) {

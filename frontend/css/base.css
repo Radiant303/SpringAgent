@@ -64,31 +64,6 @@ button:disabled {
   cursor: not-allowed;
 }
 
-.ripple-relative { position: relative; }
-.ripple-viewport {
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  overflow: hidden;
-  pointer-events: none;
-}
-.ripple-ink {
-  position: absolute;
-  border-radius: 50%;
-  --corner-shape: round;
-  background: currentColor;
-  opacity: 0.12;
-  pointer-events: none;
-  transform: scale(0);
-  animation: ripple-ink 0.55s ease-out forwards;
-}
-@keyframes ripple-ink {
-  to { transform: scale(1); opacity: 0; }
-}
-@media (prefers-reduced-motion: reduce) {
-  .ripple-ink { display: none; }
-}
-
 /* 统一极简滚动条 */
 ::-webkit-scrollbar {
   width: 6px;
