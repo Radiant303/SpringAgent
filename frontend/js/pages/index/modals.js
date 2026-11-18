@@ -12,6 +12,10 @@ import { state, runs, runOf, setBusy } from "./state.js";
 import { refreshSessionList, sessionLabel } from "./sessions.js";
 
 const pendingBySession = new Map();
+const INPUT_CARD_IDS = ["input-card", "question-card", "approval-card"];
+/** 输入卡片高度过渡时长（毫秒） */
+const INPUT_CARD_SWAP_DURATION = 180;
+let inputStageHeightAnimation = null;
 let activeRequest = null;
 let approvalGeneration = 0;
 let questionGeneration = 0;
@@ -27,10 +31,29 @@ function updateAttention(sid) {
   run.attention = request?.type || null;
 }
 
+function swapInputCard(id) {
+  const next = $(id);
+  if (!next || !next.classList.contains("hidden")) return;
+  const stage = $("input-stage");
+  const startHeight = stage?.getBoundingClientRect().height || 0;
+  inputStageHeightAnimation?.cancel();
+  for (const cardId of INPUT_CARD_IDS) {
+    const card = $(cardId);
+    card?.classList.toggle("hidden", cardId !== id);
+    if (card) card.inert = cardId !== id;
+  }
+  if (!stage || window.matchMedia("(prefers-reduced-motion: reduce)").matches
+      || typeof stage.animate !== "function") return;
+  const endHeight = next.getBoundingClientRect().height;
+  if (!startHeight || startHeight === endHeight) return;
+  inputStageHeightAnimation = stage.animate([
+    { height: `${startHeight}px`, overflow: "hidden" },
+    { height: `${endHeight}px`, overflow: "hidden" },
+  ], { duration: INPUT_CARD_SWAP_DURATION, easing: "cubic-bezier(0.2, 0.8, 0.2, 1)" });
+}
+
 function hideCards() {
-  $("approval-card")?.classList.add("hidden");
-  $("question-card")?.classList.add("hidden");
-  $("input-card")?.classList.remove("hidden");
+  swapInputCard("input-card");
 }
 
 function enqueueRequest(type, params) {
@@ -115,8 +138,7 @@ function showApproval(params) {
       diffEl.textContent = "";
     }
   }
-  $("input-card")?.classList.add("hidden");
-  $("approval-card")?.classList.remove("hidden");
+  swapInputCard("approval-card");
   $("approval-card")?.focus({ preventScroll: true });
 }
 
@@ -137,8 +159,7 @@ function showQuestion(params, custom = "") {
   $("question-actions")?.classList.toggle("hidden", !params.allowCustom);
   if ($("question-custom-num")) $("question-custom-num").textContent = String((params.options || []).length + 1);
   if ($("question-custom")) $("question-custom").value = custom;
-  $("input-card")?.classList.add("hidden");
-  $("question-card")?.classList.remove("hidden");
+  swapInputCard("question-card");
   if (params.allowCustom) $("question-custom")?.focus();
 }
 

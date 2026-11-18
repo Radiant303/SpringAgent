@@ -21,6 +21,8 @@ export function updateInputState() {
   const creating = !state.sessionId && draftSending;
   send.classList.toggle("hidden", busy);
   stop.classList.toggle("hidden", !busy);
+  send.inert = busy;
+  stop.inert = !busy;
   const controlled = !state.sessionId || (state.sessionReady && !state.sessionInitializing);
   send.disabled = !state.connected || !controlled || creating || state.modelChanging
     || !!$("upload-btn")?.dataset.uploading || !editorHasContent();
