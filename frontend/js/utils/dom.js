@@ -135,7 +135,7 @@ export function showPending(container) {
   hidePending();
   const parent = container || $("messages");
   if (!parent) return;
-  const node = el("div", "pending-indicator", "请求中…");
+  const node = el("div", "pending-indicator", "正在思考");
   node.id = "pending-indicator";
   parent.appendChild(node);
 }
