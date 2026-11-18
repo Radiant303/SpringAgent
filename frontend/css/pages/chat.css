@@ -726,7 +726,7 @@
       90deg,
       var(--text-dim, rgba(0, 0, 0, 0.6)) 0%,
       var(--text-dim, rgba(0, 0, 0, 0.6)) 40%,
-      var(--text-faint, rgba(0, 0, 0, 0.45)) 50%,
+      rgba(0, 0, 0, 0.3) 50%,
       var(--text-dim, rgba(0, 0, 0, 0.6)) 60%,
       var(--text-dim, rgba(0, 0, 0, 0.6)) 100%
     )
