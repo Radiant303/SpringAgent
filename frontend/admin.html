@@ -30,6 +30,11 @@
     <span class="admin-loading-peg" aria-hidden="true"></span>
   </div>
   <div id="admin-app">
+    <script>
+      if (location.hash && window.matchMedia("(max-width: 820px)").matches) {
+        document.currentScript.parentElement.classList.add("has-active-page");
+      }
+    </script>
     <aside id="admin-nav" aria-label="设置">
       <div id="admin-nav-head">
         <a id="back-link" href="/static/index.html">
