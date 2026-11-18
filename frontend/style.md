@@ -139,6 +139,8 @@ font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-s
 
 矩形圆角统一使用 `corner-shape: superellipse(1.5)` 连续曲率。表中数值是普通圆角基准，连续曲率半径 = 基准 × 1.25；`base.css` 的 `--corner-ratio` 在支持时为 1.25，不支持时为 1。正圆与半圆胶囊不参与换算，头像、发送键、加载环等正圆控件在 `border-radius: 50%` 旁设置 `--corner-shape: round`。
 
+大面积滚动外框直接使用 `corner-shape: round`，避免滚动时反复进行超椭圆路径裁切；目前包括 `#main`、`#admin-main`、`.mc-list`、`.failure-detail` 和 `.knowledge-layout`。不要使用会继承给内部控件的 `--corner-shape`，外框以外的按钮、气泡和输入框仍保持连续曲率。
+
 共用外边界的嵌套卡片、图片或控件使用同心圆角：内外圈基准半径分别乘以同一倍率，间距 = 换算后外圈半径 − 换算后内圈半径 − 边框宽度，用 `calc()` 从半径变量计算间距；与外边界距离较大的独立内容不套用此规则。
 
 | 普通圆角基准 | 用于 |

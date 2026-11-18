@@ -138,6 +138,7 @@ body {
   scrollbar-gutter: stable;
   border: 1px solid rgba(0, 0, 0, 0.05);
   border-radius: calc(12px * var(--corner-ratio));
+  corner-shape: round;
   background: #fff;
 }
 
@@ -493,6 +494,7 @@ button.row-link:hover { text-decoration: none; }
   background: #fff;
   border: 1px solid rgba(0, 0, 0, 0.08);
   border-radius: calc(12px * var(--corner-ratio));
+  corner-shape: round;
   scrollbar-gutter: stable;
   transition: opacity 0.15s;
 }
@@ -872,7 +874,7 @@ input.switch:disabled { opacity: 0.45; cursor: not-allowed; }
 #failure-table .admin-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 #failure-pager { flex-wrap: wrap; gap: 8px; }
 .admin-page[data-page="failure-events"] .admin-btn:focus-visible { outline: 2px solid rgba(23, 131, 255, 0.4); outline-offset: 1px; }
-.failure-detail { position: fixed; inset: 0; box-sizing: border-box; width: min(860px, calc(100vw - 32px)); max-width: none; max-height: min(84vh, 900px); margin: auto; padding: 0; border: 0; border-radius: calc(16px * var(--corner-ratio)); background: #fff; color: var(--text); box-shadow: 0 16px 48px rgba(0, 0, 0, 0.14); outline: none; overflow: hidden; }
+.failure-detail { position: fixed; inset: 0; box-sizing: border-box; width: min(860px, calc(100vw - 32px)); max-width: none; max-height: min(84vh, 900px); margin: auto; padding: 0; border: 0; border-radius: calc(16px * var(--corner-ratio)); corner-shape: round; background: #fff; color: var(--text); box-shadow: 0 16px 48px rgba(0, 0, 0, 0.14); outline: none; overflow: hidden; }
 .failure-detail[open] { display: flex; flex-direction: column; }
 .failure-detail::backdrop { background: rgba(0, 0, 0, 0.32); }
 .failure-detail-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex: none; padding: 20px 24px; border-bottom: 1px solid var(--admin-border, rgba(0, 0, 0, 0.08)); }
@@ -921,6 +923,7 @@ input.switch:disabled { opacity: 0.45; cursor: not-allowed; }
   align-items: stretch;
   border: 1px solid var(--border, rgba(0, 0, 0, 0.08));
   border-radius: calc(12px * var(--corner-ratio));
+  corner-shape: round;
   background: var(--bg, #fff);
   overflow: hidden;
 }
