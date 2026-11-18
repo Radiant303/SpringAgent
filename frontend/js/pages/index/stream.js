@@ -5,7 +5,8 @@
 import { $, el, hidePending, appendKeepingBottom, icon, revealStreamText } from "../../utils/dom.js";
 import { apiFetch } from "../../api/client.js";
 import { rpc } from "../../api/rpc.js";
-import { enhanceCodeBlocks, setMarkdown } from "../../utils/markdown.js";
+import { setMarkdown } from "../../utils/markdown.js";
+import { createAdaptiveRenderer } from "../../utils/adaptiveRender.js";
 import { SproutManager } from "../../components/sprout.js";
 import {
   state,
@@ -58,6 +59,13 @@ const PUMP_TARGET_REMAIN = 16;
 let compactionHideTimer = null;
 /** 渲染目标（回答/思考/工具参数节点）→ 匀速整形泵 */
 const pumps = new Map();
+
+/** 回答正文的自适应节流渲染：流式期间也带完整代码卡片与高亮 */
+const answerRenderer = createAdaptiveRenderer((a) => {
+  setMarkdown(a.answer, a.text, true);
+  revealStreamText(a.answer);
+  maybeScroll();
+});
 
 /** 匀速整形泵：增量先入缓冲，按帧匀速喂给渲染，摊平上游到达抖动 */
 class SmoothPump {
@@ -177,11 +185,13 @@ function hideCompactionStatus() {
 export function flushPending() {
   for (const pump of pumps.values()) pump.drainAll();
   pumps.clear();
+  answerRenderer.flush();
 }
 
 export function discardPending() {
   for (const pump of pumps.values()) pump.destroy();
   pumps.clear();
+  answerRenderer.discard();
 }
 
 function applyToolArgs(card) {
@@ -335,9 +345,7 @@ export function onSessionEvent(sid, event, seq) {
       if (!a.text && !pumps.has(a)) setActive(null);
       pumpFor(a, (text) => {
         a.text += text;
-        setMarkdown(a.answer, a.text, false);
-        revealStreamText(a.answer);
-        maybeScroll();
+        answerRenderer.schedule(a);
       }).push(event.text);
       break;
     }
@@ -470,7 +478,6 @@ export function finishTurn(event) {
   closeWork();
   foldTurnGroups(true);
   if (state.currentTurn) foldTurnProcess(state.currentTurn.content, true);
-  if (state.assistant) enhanceCodeBlocks(state.assistant.answer);
   state.assistant = null;
   state.tools.clear();
   discardEmptyTurn();
