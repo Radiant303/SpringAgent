@@ -81,7 +81,11 @@ export function revealStreamText(root) {
   const now = performance.now();
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
     acceptNode(node) {
-      if (!node.nodeValue || node.parentElement?.closest("pre, .katex")) return NodeFilter.FILTER_REJECT;
+      const parent = node.parentElement;
+      if (!node.nodeValue || !parent) return NodeFilter.FILTER_REJECT;
+      if (parent.closest("pre, .katex")) return NodeFilter.FILTER_REJECT;
+      // 表格结构元素下的文本包 span 会被提升为匿名单元格，把该行的列挤歪
+      if (/^(TABLE|THEAD|TBODY|TFOOT|TR)$/.test(parent.tagName)) return NodeFilter.FILTER_REJECT;
       return NodeFilter.FILTER_ACCEPT;
     },
   });
