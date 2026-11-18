@@ -720,13 +720,26 @@
 .pending-indicator {
   flex-shrink: 0;
   align-self: flex-start;
-  color: var(--text-faint, rgba(0, 0, 0, 0.45));
+  color: transparent;
   font-size: var(--fs-sm, 16px);
-  animation: pending-breathe 2.4s ease-in-out infinite;
+  background: linear-gradient(
+      90deg,
+      var(--text-dim, rgba(0, 0, 0, 0.6)) 0%,
+      var(--text-dim, rgba(0, 0, 0, 0.6)) 40%,
+      var(--text-faint, rgba(0, 0, 0, 0.45)) 50%,
+      var(--text-dim, rgba(0, 0, 0, 0.6)) 60%,
+      var(--text-dim, rgba(0, 0, 0, 0.6)) 100%
+    )
+    0 0 / 300% 100%;
+  background-clip: text;
+  animation: pending-shimmer 2s ease-out infinite;
 }
-@keyframes pending-breathe {
-  0%, 100% { opacity: 0.35; }
-  50% { opacity: 1; }
+@keyframes pending-shimmer {
+  from { background-position: 100% 0; }
+  to { background-position: 0 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pending-indicator { animation: none; }
 }
 
 /* ---- 代码块卡片 ---- */
