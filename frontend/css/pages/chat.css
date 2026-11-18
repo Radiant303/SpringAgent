@@ -516,7 +516,7 @@
     z-index: 30;
     background: transparent;
   }
-  #main.topbar-immersive #messages { padding-top: 0; }
+  #main.topbar-immersive #messages { padding-top: 72px; }
 }
 #expand-sidebar {
   display: none;
