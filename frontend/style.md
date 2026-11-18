@@ -551,7 +551,7 @@ UI.enhanceDate(inp);               // 只换一个日期框
 
 - **登录**：独立页面 `login.html`（`#register` 进入注册模式）。需要登录的页面在 `<head>` 里先检查 token，没有就 `location.replace` 到登录页，避免先闪出页面内容（见 §9 模板）。
 - **被动登出**：接口 401 / WebSocket 4401 → `login.html?reason=expired`；4403 → `?reason=disabled`。需要回到原页面时带 `next=当前路径+hash`，登录页只接受本站 `/static/` 下的地址。
-- **退出登录**：清除 `sa.token`、`sa.username`、`sa.role`、`sa.sessionId` 后跳登录页。
+- **退出登录**：清除 `sa.token`、`sa.username`、`sa.role`、`sa.sessionId` 后跳登录页。移动端用户菜单不展示退出登录，替换为「设置」入口，点击进入账户中心的设置目录页。
 - **账户中心分页**：用 `#hash` 定位（`admin.html#points`），可以直接链接到某一页。
 - **键盘**：Esc 关闭对话框 / 菜单；桌面端 Enter 提交表单，手机聊天输入框 Enter 换行、点击发送按钮提交；对话框内 Tab 循环聚焦。
 - **长文本**：单行省略号截断（`overflow: hidden; text-overflow: ellipsis; white-space: nowrap`），完整内容放 `title`。

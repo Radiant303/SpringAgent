@@ -467,6 +467,7 @@
 .um-item:hover {
   background: rgba(0, 0, 0, 0.04);
 }
+#um-settings { display: none; }
 .um-item svg {
   width: 18px;
   height: 18px;
@@ -2083,6 +2084,8 @@ pre.tool-result.error { background: var(--diff-del-bg, rgba(192, 57, 43, 0.07));
   }
   .session-del { opacity: 1; }
   .um-item { height: 44px; }
+  #um-settings { display: flex; }
+  #user-menu #logout-btn { display: none; }
   #main, #app.sidebar-collapsed #main { margin: 0; border: none; border-radius: 0; }
   #topbar {
     position: absolute;
