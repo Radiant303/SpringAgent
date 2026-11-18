@@ -2,7 +2,7 @@
  * 实时事件流调度与处理
  */
 
-import { $, el, hidePending, appendKeepingBottom, icon } from "../../utils/dom.js";
+import { $, el, hidePending, appendKeepingBottom, icon, revealStreamText } from "../../utils/dom.js";
 import { apiFetch } from "../../api/client.js";
 import { rpc } from "../../api/rpc.js";
 import { enhanceCodeBlocks, setMarkdown } from "../../utils/markdown.js";
@@ -50,77 +50,106 @@ import { notifyStorageChanged } from "../../utils/storage.js";
 
 export const USAGE_RING_LEN = 56.5;
 
-/** 两次渲染的最长间隔（毫秒） */
-const MAX_RENDER_WAIT = 2000;
-/** 渲染等待时长相对渲染耗时的倍数 */
-const RENDER_WAIT_RATE = 2;
+/** 到达速率无统计时的兜底输出速率（字符/秒） */
+const PUMP_FALLBACK_SPEED = 58;
+/** 匀速整形泵的目标缓冲水位（字符） */
+const PUMP_TARGET_REMAIN = 16;
 
 let compactionHideTimer = null;
-/** 渲染目标（回答/思考/工具参数节点）→ 渲染队列 */
-const renderQueues = new Map();
+/** 渲染目标（回答/思考/工具参数节点）→ 匀速整形泵 */
+const pumps = new Map();
 
-/** 按渲染耗时合并流式更新 */
-class RenderQueue {
-  constructor(render) {
-    this.render = render;
-    this.pending = "";
-    this.timer = null;
-    this.updatableAt = 0;
+/** 匀速整形泵：增量先入缓冲，按帧匀速喂给渲染，摊平上游到达抖动 */
+class SmoothPump {
+  constructor(flushSlice) {
+    this.flushSlice = flushSlice;
+    this.buffer = "";
+    this.acc = 0;
+    this.last = 0;
+    this.raf = 0;
+    this.lastPushAt = 0;
+    this.intervalEma = 0;
+    this.chunkEma = 0;
+    this.hasFlushed = false;
   }
 
   push(text) {
-    this.pending += text;
-    this.schedule();
+    const now = performance.now();
+    if (this.lastPushAt) {
+      const dt = now - this.lastPushAt;
+      this.intervalEma = this.intervalEma ? this.intervalEma * 0.8 + dt * 0.2 : dt;
+    }
+    this.lastPushAt = now;
+    this.chunkEma = this.chunkEma ? this.chunkEma * 0.8 + text.length * 0.2 : text.length;
+    this.buffer += text;
+    if (!this.raf) {
+      this.last = performance.now();
+      const loop = (now) => {
+        this.raf = 0;
+        this.tick(now);
+        if (this.buffer) this.raf = requestAnimationFrame(loop);
+      };
+      this.raf = requestAnimationFrame(loop);
+    }
   }
 
-  schedule() {
-    if (this.timer !== null || !this.pending) return;
-    const delay = Math.max(0, this.updatableAt - performance.now());
-    if (delay <= 0) {
-      this.flush();
+  tick(now) {
+    // dt 封顶 50ms：切后台或卡顿恢复后不猛冲
+    const dt = Math.max(0, Math.min(now - this.last, 50)) / 1000;
+    this.last = now;
+    const remain = this.buffer.length;
+    if (!remain) {
+      this.acc = 0;
       return;
     }
-    this.timer = setTimeout(() => {
-      this.timer = null;
-      this.flush();
-    }, delay);
+    const base = this.intervalEma > 0
+      ? (this.chunkEma / this.intervalEma) * 900
+      : PUMP_FALLBACK_SPEED;
+    // 水位高于目标加速、低于减速，把缓冲稳在目标附近
+    const speed = Math.max(15, Math.min(400, base + (remain - PUMP_TARGET_REMAIN) * 5));
+    this.acc += speed * dt;
+    let n = Math.floor(this.acc);
+    this.acc -= n;
+    if (n <= 0 && !this.hasFlushed) n = 1;
+    if (n <= 0) return;
+    n = Math.min(n, remain);
+    const text = this.buffer.slice(0, n);
+    this.buffer = this.buffer.slice(n);
+    this.hasFlushed = true;
+    this.flushSlice(text);
   }
 
-  flush() {
-    if (this.timer !== null) {
-      clearTimeout(this.timer);
-      this.timer = null;
-    }
-    if (!this.pending) return;
-    const text = this.pending;
-    this.pending = "";
-    const startedAt = performance.now();
-    this.render(text);
-    const now = performance.now();
-    this.updatableAt = now + Math.min(MAX_RENDER_WAIT, (now - startedAt) * RENDER_WAIT_RATE);
-    this.schedule();
-  }
-
+  /** 倒空剩余缓冲并停泵 */
   drainAll() {
-    this.flush();
+    if (this.raf) {
+      cancelAnimationFrame(this.raf);
+      this.raf = 0;
+    }
+    if (this.buffer) {
+      const text = this.buffer;
+      this.buffer = "";
+      this.hasFlushed = true;
+      this.flushSlice(text);
+    }
+    this.acc = 0;
   }
 
   destroy() {
-    if (this.timer !== null) {
-      clearTimeout(this.timer);
-      this.timer = null;
+    if (this.raf) {
+      cancelAnimationFrame(this.raf);
+      this.raf = 0;
     }
-    this.pending = "";
+    this.buffer = "";
   }
 }
 
-function queueFor(key, render) {
-  let queue = renderQueues.get(key);
-  if (!queue) {
-    queue = new RenderQueue(render);
-    renderQueues.set(key, queue);
+function pumpFor(key, flushSlice) {
+  let pump = pumps.get(key);
+  if (!pump) {
+    pump = new SmoothPump(flushSlice);
+    pumps.set(key, pump);
   }
-  return queue;
+  return pump;
 }
 
 function showCompactionStatus(text, done = false) {
@@ -144,15 +173,15 @@ function hideCompactionStatus() {
   $("context-status")?.classList.add("hidden");
 }
 
-/** 把所有渲染队列的缓冲一次性写入 DOM */
+/** 把所有整形泵的缓冲一次性写入 DOM */
 export function flushPending() {
-  for (const queue of renderQueues.values()) queue.drainAll();
-  renderQueues.clear();
+  for (const pump of pumps.values()) pump.drainAll();
+  pumps.clear();
 }
 
 export function discardPending() {
-  for (const queue of renderQueues.values()) queue.destroy();
-  renderQueues.clear();
+  for (const pump of pumps.values()) pump.destroy();
+  pumps.clear();
 }
 
 function applyToolArgs(card) {
@@ -303,10 +332,11 @@ export function onSessionEvent(sid, event, seq) {
     case "text_delta": {
       settleFinishedTools();
       const a = ensureAssistant();
-      if (!a.text && !renderQueues.has(a)) setActive(null);
-      queueFor(a, (text) => {
+      if (!a.text && !pumps.has(a)) setActive(null);
+      pumpFor(a, (text) => {
         a.text += text;
         setMarkdown(a.answer, a.text, false);
+        revealStreamText(a.answer);
         maybeScroll();
       }).push(event.text);
       break;
@@ -320,8 +350,9 @@ export function onSessionEvent(sid, event, seq) {
         setActive(state.thinking);
       }
       const body = state.thinking.querySelector(".thinking-text");
-      queueFor(body, (text) => {
+      pumpFor(body, (text) => {
         appendKeepingBottom(body, text);
+        revealStreamText(body);
         maybeScroll();
       }).push(event.text);
       break;
@@ -341,7 +372,7 @@ export function onSessionEvent(sid, event, seq) {
     case "tool_args_delta": {
       const card = state.tools.get(event.tool_call_id);
       if (card) {
-        queueFor("args:" + event.tool_call_id, (text) => {
+        pumpFor("args:" + event.tool_call_id, (text) => {
           appendKeepingBottom(card.args, text);
           applyToolArgs(card);
           maybeScroll();
