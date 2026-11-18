@@ -63,13 +63,6 @@ export function init() {
   const staff = isStaff();
   const myName = getUsername();
 
-  // 分组显隐：管理组对站长/管理员开放，系统组仅站长
-  if (staff) $("nav-group-admin")?.classList.remove("hidden");
-  if (role === "owner") {
-    $("nav-group-system")?.classList.remove("hidden");
-    $("nav-failure-events")?.classList.remove("hidden");
-  }
-
   document.querySelectorAll("#admin-nav .nav-item").forEach((el) => {
     el.setAttribute("role", "link");
     el.tabIndex = 0;

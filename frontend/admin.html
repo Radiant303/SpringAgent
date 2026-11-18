@@ -127,6 +127,19 @@
           社群设置
         </div>
       </div>
+      <script>
+        (function () {
+          var role = "user";
+          try { role = localStorage.getItem("sa.role") || "user"; } catch (e) {}
+          if (role === "owner" || role === "admin") {
+            document.getElementById("nav-group-admin").classList.remove("hidden");
+          }
+          if (role === "owner") {
+            document.getElementById("nav-group-system").classList.remove("hidden");
+            document.getElementById("nav-failure-events").classList.remove("hidden");
+          }
+        })();
+      </script>
     </aside>
 
     <main id="admin-main">
