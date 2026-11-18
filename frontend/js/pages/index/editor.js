@@ -6,6 +6,13 @@
  */
 
 import { $ } from "../../utils/dom.js";
+import { isMobileLayout, mobileLayout } from "./responsive.js";
+
+/** 输入框布局过渡时长（毫秒） */
+const INPUT_LAYOUT_DURATION = 200;
+const INPUT_LAYOUT_EASING = "cubic-bezier(0.2, 0.8, 0.2, 1)";
+const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+let inputLayoutAnimations = [];
 
 export function editorEl() {
   return $("input");
@@ -99,12 +106,71 @@ export function insertPlainText(text) {
   syncPlaceholder();
 }
 
-/** 占位符：无文本且无 chip 时加 is-empty */
+function cancelInputLayout() {
+  for (const animation of inputLayoutAnimations) animation.cancel();
+  inputLayoutAnimations = [];
+}
+
+function inputLayoutNodes(card) {
+  const nodes = [editorEl(), $("upload-btn"), $("send-control")];
+  const model = $("model-pill");
+  if (model && card.contains(model)) nodes.push(model);
+  return nodes.filter((node) => node && node.getClientRects().length);
+}
+
+function snapshotInputLayout(card) {
+  return new Map([card, ...inputLayoutNodes(card)]
+    .map((node) => [node, node.getBoundingClientRect()]));
+}
+
+function animateInputLayout(card, previous) {
+  const current = snapshotInputLayout(card);
+  const options = { duration: INPUT_LAYOUT_DURATION, easing: INPUT_LAYOUT_EASING };
+  const animations = [];
+  const oldCard = previous.get(card);
+  const newCard = current.get(card);
+  if (oldCard && newCard && oldCard.height !== newCard.height) {
+    animations.push(card.animate([
+      { height: `${oldCard.height}px` },
+      { height: `${newCard.height}px` },
+    ], options));
+  }
+  for (const node of inputLayoutNodes(card)) {
+    const before = previous.get(node);
+    const after = current.get(node);
+    if (!before || !after) continue;
+    const x = before.left - after.left;
+    const y = before.top - after.top;
+    if (Math.abs(x) < 0.5 && Math.abs(y) < 0.5) continue;
+    animations.push(node.animate([
+      { transform: `translate(${x}px, ${y}px)` },
+      { transform: "translate(0, 0)" },
+    ], options));
+  }
+  inputLayoutAnimations = animations;
+}
+
+mobileLayout.addEventListener("change", cancelInputLayout);
+reducedMotion.addEventListener("change", cancelInputLayout);
+
+/** 同步输入框空态与移动端布局 */
 export function syncPlaceholder() {
   const editor = editorEl();
   if (!editor) return;
-  editor.classList.toggle("is-empty", !editorHasContent());
-  editor.classList.toggle("is-multiline", editorText().includes("\n") || !!editor.querySelector("[data-attach-id]"));
+  const card = $("input-card");
+  const empty = !editorHasContent();
+  const multiline = editorText().includes("\n") || !!editor.querySelector("[data-attach-id]");
+  const expanded = !empty || multiline || !!editor.querySelector(":scope > div, :scope > br");
+  const layoutChanged = !!card && card.classList.contains("is-expanded") !== expanded;
+  const previous = layoutChanged ? snapshotInputLayout(card) : null;
+  if (layoutChanged) cancelInputLayout();
+  editor.classList.toggle("is-empty", empty);
+  editor.classList.toggle("is-multiline", multiline);
+  card?.classList.toggle("is-expanded", expanded);
+  if (!layoutChanged) return;
+  if (card.classList.contains("hidden") || !isMobileLayout() || reducedMotion.matches
+      || typeof card.animate !== "function") return;
+  animateInputLayout(card, previous);
 }
 
 /* 发送清空等场景下，chip 被移除但不删服务端文件（文件已随消息发出） */

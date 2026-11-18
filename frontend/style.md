@@ -477,6 +477,7 @@ loader().catch((e) => { UI.settleSkeletons(section); showError(e.message); });
 | 卡片悬停上浮 | `transform: translateY(-1px)`, `box-shadow`（150ms ease，仅卡片级，表格容器 `data-card-hover="false"` 禁用，内部元素不上浮） |
 | 表格行入场 | `tableRowEnter 0.2s`（纯透明度渐入，交错步进 25ms 封顶 250ms，内部行不上浮） |
 | 输入框聚焦 | `border-color, box-shadow 0.15s`；空输入框聚焦不改变布局 |
+| 单行 / 展开输入框 | 高度与控件位置 200ms FLIP 过渡，仅在布局状态改变时运行 |
 | 输入 / 提问 / 审批切换 | 透明度 + 4px 位移（140–160ms），容器高度过渡 180ms |
 | 发送 / 停止切换 | 同一槽位内淡入淡出（120–150ms），交互状态立即切换 |
 | 菜单弹出 | `pop-in 0.14s ease-out` |
