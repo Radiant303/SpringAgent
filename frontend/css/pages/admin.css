@@ -1080,15 +1080,18 @@ button.knowledge-toc-parent:hover { background: transparent; }
     overflow: visible;
     background: var(--admin-card, #f7f7f7);
   }
-  #admin-nav-head {
+  #admin-nav-head,
+  #admin-mobile-head {
     display: grid;
     grid-template-columns: 40px 1fr 40px;
     align-items: center;
     height: calc(52px + env(safe-area-inset-top, 0px));
-    margin-bottom: 16px;
+    margin: 0 0 16px;
     padding-top: env(safe-area-inset-top, 0px);
   }
-  #back-link {
+  #back-link,
+  #admin-mobile-back {
+    align-self: center;
     justify-content: center;
     width: 40px;
     height: 40px;
@@ -1099,7 +1102,8 @@ button.knowledge-toc-parent:hover { background: transparent; }
     color: var(--text);
   }
   #back-link span { display: none; }
-  #back-link svg { width: 22px; height: 22px; }
+  #back-link svg,
+  #admin-mobile-back svg { width: 22px; height: 22px; }
   #admin-nav-title {
     display: block;
     margin: 0;
@@ -1159,16 +1163,6 @@ button.knowledge-toc-parent:hover { background: transparent; }
     border: none;
     border-radius: 0;
   }
-  #admin-mobile-head {
-    display: grid;
-    grid-template-columns: 40px 1fr 40px;
-    align-items: center;
-    height: calc(52px + env(safe-area-inset-top, 0px));
-    margin: 0 -8px 16px;
-    padding-top: env(safe-area-inset-top, 0px);
-  }
-  #admin-mobile-back { width: 40px; height: 40px; }
-  #admin-mobile-back svg { width: 22px; height: 22px; }
   #admin-mobile-title {
     margin: 0;
     overflow: hidden;
