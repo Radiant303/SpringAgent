@@ -701,7 +701,7 @@
   animation: stream-fade-char 250ms linear both;
 }
 @keyframes stream-fade-char {
-  from { opacity: 0; }
+  from { opacity: 0.15; }
   to { opacity: 1; }
 }
 @media (prefers-reduced-motion: reduce) {

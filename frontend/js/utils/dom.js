@@ -83,7 +83,7 @@ export function revealStreamText(root) {
     acceptNode(node) {
       const parent = node.parentElement;
       if (!node.nodeValue || !parent) return NodeFilter.FILTER_REJECT;
-      if (parent.closest("pre, .katex")) return NodeFilter.FILTER_REJECT;
+      if (parent.closest(".katex")) return NodeFilter.FILTER_REJECT;
       // 表格结构元素下的文本包 span 会被提升为匿名单元格，把该行的列挤歪
       if (/^(TABLE|THEAD|TBODY|TFOOT|TR)$/.test(parent.tagName)) return NodeFilter.FILTER_REJECT;
       return NodeFilter.FILTER_ACCEPT;
@@ -110,6 +110,7 @@ export function revealStreamText(root) {
 
   let active = false;
   for (const { node, chars: parts, start } of nodes) {
+    if (node.parentElement.closest("pre")) continue;
     let frag = null;
     let plainStart = 0;
     for (let i = 0; i < parts.length; i++) {
