@@ -6,7 +6,7 @@ import { $, icon } from "../../utils/dom.js";
 import { getToken, getValidToken, getRole, goLogin, logout, refreshAccessToken, WS_BASE, USER_KEY, ROLE_LABELS } from "../../api/auth.js";
 import { rpc } from "../../api/rpc.js";
 import { UI } from "../../components/ui.js";
-import { state, runs, resetFlow, setStickToBottom, smoothScrollToBottom, updateStick, setViewLoading } from "./state.js";
+import { state, runs, resetFlow, smoothScrollToBottom, updateStick, interruptAutoScroll, setViewLoading } from "./state.js";
 import { addSystem } from "./chatView.js";
 import { loadWorks, createWork } from "./works.js";
 import { openSession, newSession, resumeSession, refreshSessionList, onSessionInvalidated } from "./sessions.js";
@@ -333,6 +333,8 @@ export function bind() {
   if (msgBox) {
     new MutationObserver(syncEmpty).observe(msgBox, { childList: true });
     msgBox.addEventListener("scroll", updateStick);
+    msgBox.addEventListener("wheel", interruptAutoScroll, { passive: true });
+    msgBox.addEventListener("touchstart", interruptAutoScroll, { passive: true });
     const ensureCopyIcons = (btn) => {
       if (!btn || btn.querySelector(".icon-tick")) return;
       const curIcon = btn.querySelector(".icon");

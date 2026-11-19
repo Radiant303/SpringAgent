@@ -100,14 +100,41 @@ export function updateStick() {
   if (smoothScrolling) return;
   const box = $("messages");
   if (!box) return;
-  stickToBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 80;
+  stickToBottom = state.currentTurn?.autoScroll === false
+    ? false
+    : box.scrollHeight - box.scrollTop - box.clientHeight < 80;
   if (stickToBottom) hasNewBelow = false;
   syncScrollBtn();
 }
 
+export function interruptAutoScroll() {
+  if (smoothScrollCancel) smoothScrollCancel();
+  if (state.currentTurn) state.currentTurn.autoScroll = false;
+  stickToBottom = false;
+  syncScrollBtn();
+}
+
+function anchorLatestTurn(box) {
+  const turn = state.currentTurn;
+  if (!turn?.anchorAtTop || turn.autoScroll === false) return false;
+  const boxTop = box.getBoundingClientRect().top + box.clientTop;
+  const turnTop = turn.el.getBoundingClientRect().top;
+  if (turnTop > boxTop + 1) return false;
+  const top = box.scrollTop + turnTop - boxTop;
+  box.scrollTop = Math.max(0, Math.min(top, box.scrollHeight - box.clientHeight));
+  turn.autoScroll = false;
+  stickToBottom = false;
+  hasNewBelow = true;
+  syncScrollBtn();
+  return true;
+}
+
 export function maybeScroll(layoutOnly = false) {
-  if (stickToBottom) {
+  const box = $("messages");
+  if (!box) return;
+  if (stickToBottom && state.currentTurn?.autoScroll !== false) {
     scrollToBottom();
+    anchorLatestTurn(box);
     return;
   }
   if (!layoutOnly) hasNewBelow = true;
@@ -195,6 +222,8 @@ export function ensureTurn() {
   if (welcome) welcome.remove();
   const turn = createAssistantTurnNode(true);
   const msgBox = $("messages");
+  turn.anchorAtTop = !!msgBox?.querySelector(".assistant-turn");
+  turn.autoScroll = true;
   if (msgBox) msgBox.appendChild(turn.el);
   state.currentTurn = turn;
   updateLatestPet();

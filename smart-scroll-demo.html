@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>智能锚定滚动演示</title>
+  <style>
+    :root {
+      color-scheme: light;
+      font-family: Inter, "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+      color: #202522;
+      background: #edf1ed;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; overflow: hidden; }
+    button, textarea { font: inherit; }
+    button { cursor: pointer; }
+    .demo {
+      width: min(1040px, 100%);
+      height: 100vh;
+      height: 100dvh;
+      margin: 0 auto;
+      padding: 22px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .demo-header { display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; }
+    .eyebrow { margin: 0 0 5px; color: #66806d; font-size: 12px; font-weight: 700; letter-spacing: .12em; }
+    h1 { margin: 0; font-size: clamp(23px, 3vw, 32px); letter-spacing: -.04em; }
+    .intro { max-width: 460px; margin: 0; color: #667069; font-size: 13px; line-height: 1.65; text-align: right; }
+    .chat {
+      flex: 1;
+      min-height: 0;
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr) auto;
+      overflow: hidden;
+      background: rgba(255, 255, 255, .94);
+      border: 1px solid rgba(53, 75, 60, .1);
+      border-radius: 22px;
+      box-shadow: 0 20px 60px rgba(42, 61, 47, .1);
+    }
+    .toolbar { padding: 14px 16px; display: flex; align-items: center; gap: 14px; border-bottom: 1px solid #e8ece8; }
+    .mode-buttons { display: flex; gap: 8px; }
+    .mode-button, .reset-button {
+      border: 1px solid #dfe5df;
+      border-radius: 10px;
+      padding: 8px 12px;
+      color: #58635b;
+      background: #fff;
+      font-size: 13px;
+      transition: .16s ease;
+    }
+    .mode-button:hover, .reset-button:hover { border-color: #9fb4a4; background: #f5f8f5; }
+    .mode-button.active { color: #fff; border-color: #426c4e; background: #426c4e; }
+    .reset-button { padding-inline: 10px; }
+    .status { margin-left: auto; display: flex; align-items: center; gap: 7px; color: #657068; font-size: 12px; white-space: nowrap; }
+    .status-dot { width: 7px; height: 7px; border-radius: 50%; background: #9aa49d; }
+    .status.following .status-dot { background: #4b8b5c; box-shadow: 0 0 0 4px rgba(75, 139, 92, .12); }
+    .status.locked .status-dot { background: #c38732; box-shadow: 0 0 0 4px rgba(195, 135, 50, .12); }
+    .status.interrupted .status-dot { background: #a76c6c; }
+    .viewport { position: relative; min-height: 0; border-top: 2px solid transparent; }
+    .viewport-label {
+      position: absolute;
+      z-index: 2;
+      top: 0;
+      right: 18px;
+      transform: translateY(-50%);
+      padding: 0 6px;
+      color: #97a199;
+      background: #fff;
+      font-size: 10px;
+      pointer-events: none;
+    }
+    .scroll-bottom {
+      position: absolute;
+      z-index: 3;
+      right: 26px;
+      bottom: 22px;
+      width: 46px;
+      height: 46px;
+      display: grid;
+      place-items: center;
+      border: 1px solid rgba(66, 108, 78, .16);
+      border-radius: 50%;
+      color: #365f43;
+      background: rgba(255, 255, 255, .94);
+      box-shadow: 0 8px 26px rgba(38, 65, 45, .18);
+      opacity: 1;
+      transform: translateY(0);
+      transition: opacity .16s ease, transform .16s ease, background .16s ease;
+    }
+    .scroll-bottom:hover { background: #f0f6f1; }
+    .scroll-bottom.hidden { opacity: 0; transform: translateY(8px); pointer-events: none; }
+    .scroll-bottom svg { width: 21px; height: 21px; }
+    #messages {
+      height: 100%;
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      padding: 26px clamp(16px, 4vw, 42px) 32px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      scrollbar-gutter: stable;
+    }
+    #messages::-webkit-scrollbar { width: 8px; }
+    #messages::-webkit-scrollbar-thumb { background: #d5ddd6; border-radius: 10px; }
+    .msg { flex-shrink: 0; }
+    .msg.user { align-self: flex-end; max-width: 78%; }
+    .msg.user .msg-text {
+      padding: 10px 15px;
+      border-radius: 16px 16px 4px 16px;
+      color: #fff;
+      background: #426c4e;
+      line-height: 1.6;
+      white-space: pre-wrap;
+    }
+    .assistant-turn { display: flex; align-items: flex-start; gap: 12px; width: 100%; }
+    .avatar {
+      flex: 0 0 34px;
+      width: 34px;
+      height: 34px;
+      display: grid;
+      place-items: center;
+      border-radius: 11px;
+      color: #fff;
+      background: #79967f;
+      font-size: 15px;
+      font-weight: 700;
+    }
+    .turn-content { flex: 1; min-width: 0; }
+    .answer { color: #303832; font-size: 15px; line-height: 1.85; white-space: pre-wrap; word-break: break-word; }
+    .assistant-turn.streaming .answer::after { content: ""; display: inline-block; width: 7px; height: 17px; margin-left: 3px; vertical-align: -3px; background: #73917a; animation: blink .8s infinite; }
+    .empty { margin: auto; color: #8a958d; text-align: center; font-size: 14px; line-height: 1.8; }
+    .composer { display: flex; align-items: flex-end; gap: 10px; padding: 14px 16px 16px; border-top: 1px solid #e8ece8; background: #fafbfa; }
+    #prompt {
+      flex: 1;
+      min-height: 44px;
+      max-height: 100px;
+      resize: none;
+      border: 1px solid #dce3dd;
+      border-radius: 12px;
+      outline: none;
+      padding: 11px 13px;
+      color: #303832;
+      background: #fff;
+      line-height: 1.5;
+    }
+    #prompt:focus { border-color: #79967f; box-shadow: 0 0 0 3px rgba(121, 150, 127, .12); }
+    #send {
+      height: 44px;
+      border: 0;
+      border-radius: 12px;
+      padding: 0 18px;
+      color: #fff;
+      background: #2f5c3d;
+      font-weight: 600;
+    }
+    #send:disabled { cursor: default; opacity: .45; }
+    .hint { margin: 10px 2px 0; color: #8a948c; font-size: 11px; }
+    @keyframes blink { 50% { opacity: 0; } }
+    @media (max-width: 680px) {
+      .demo { padding: 12px; gap: 10px; }
+      .demo-header { align-items: flex-start; }
+      .intro { display: none; }
+      .toolbar { flex-wrap: wrap; gap: 10px; padding: 10px; }
+      .mode-button { padding: 8px 9px; font-size: 12px; }
+      .status { width: 100%; margin-left: 2px; }
+      .viewport-label { display: none; }
+      #messages { padding: 20px 14px 26px; scrollbar-gutter: auto; }
+      .avatar { display: none; }
+      .composer { padding: 10px; }
+      .hint { display: none; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .assistant-turn.streaming .answer::after { animation: none; }
+      .mode-button, .reset-button { transition: none; }
+    }
+  </style>
+</head>
+<body>
+  <main class="demo">
+    <header class="demo-header">
+      <div>
+        <p class="eyebrow">SMART ANCHOR SCROLL</p>
+        <h1>智能锚定滚动</h1>
+      </div>
+      <p class="intro">首轮持续跟随最新输出；后续轮在回复开头到达视口顶部时停住。流式期间滚动鼠标滚轮或触摸滑动，可随时接管视口。</p>
+    </header>
+
+    <section class="chat">
+      <div class="toolbar">
+        <div class="mode-buttons">
+          <button class="mode-button active" id="first-demo" type="button">首轮：持续钉底</button>
+          <button class="mode-button" id="later-demo" type="button">后续轮：锚定开头</button>
+          <button class="reset-button" id="reset" type="button">重置</button>
+        </div>
+        <div class="status following" id="status" role="status" aria-live="polite">
+          <span class="status-dot"></span>
+          <span id="status-text">准备演示</span>
+        </div>
+      </div>
+
+      <div class="viewport">
+        <span class="viewport-label">消息视口上边界</span>
+        <div id="messages" aria-label="演示消息"></div>
+        <button class="scroll-bottom hidden" id="scroll-bottom" type="button" title="回到底部" aria-label="回到底部">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M12 4v16m0 0-6-6m6 6 6-6"/>
+          </svg>
+        </button>
+      </div>
+
+      <div>
+        <form class="composer" id="composer">
+          <textarea id="prompt" rows="1" aria-label="演示问题">请详细解释智能锚定滚动，以及它为什么适合长回复。</textarea>
+          <button id="send" type="submit">发送演示</button>
+        </form>
+        <p class="hint">Enter 发送 · 输出时滚轮 / 触摸可打断 · 两个演示按钮可直接对比行为</p>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const messages = document.getElementById("messages");
+    const prompt = document.getElementById("prompt");
+    const send = document.getElementById("send");
+    const status = document.getElementById("status");
+    const statusText = document.getElementById("status-text");
+    const scrollBottom = document.getElementById("scroll-bottom");
+    const firstDemo = document.getElementById("first-demo");
+    const laterDemo = document.getElementById("later-demo");
+
+    const longAnswer = `智能锚定滚动的目标，不是让页面一直追着新文字跑，而是在“看到最新内容”和“保留阅读上下文”之间切换合适的策略。
+
+一、首轮对话为什么持续钉底
+
+首轮通常没有更早的阅读上下文。用户刚刚发出问题，最关心的是模型正在生成什么，因此只要内容超出视口，就持续把最新消息滚动到可见区域。即使回复很长，用户也能看到生成进度，不会误以为页面卡住。
+
+二、后续轮为什么需要锚定开头
+
+后续轮出现时，屏幕上往往已经有历史消息。新回复会从历史消息下方向下增长。如果始终钉底，当回复超过一屏后，回复的标题、结论和第一段就会被逐渐顶出视口。用户生成结束后想从头阅读，还要手动滚回去找开头。
+
+锚定策略会先跟随输出向上推。当最新 AI 回复容器的顶部到达消息视口的上边界时，立即停止自动滚动，并把容器顶部精确对齐这个边界。之后正文继续增长，但视口不再移动。
+
+三、关键判断方式
+
+每一小段文本写入页面后，先计算本帧钉底后的布局，再读取最新回复顶部与消息视口顶部的位置关系。如果回复顶部已经到达或越过边界，就把滚动位置校正到回复的文档起点，并关闭当前回合的自动滚动。
+
+这个顺序很重要。如果只检查上一帧的位置，再执行钉底，单段输出较长时就会先越过边界一帧，下一段文字到来后才锁定，产生可见的跳动。
+
+四、用户操作始终优先
+
+流式输出期间，在消息区域滚动鼠标滚轮或开始触摸滑动，会立即取消当前回合的自动滚动。之后即使文字继续增长，也不会把用户正在阅读的位置抢走。
+
+五、可以观察到的差异
+
+首轮演示中，状态会保持“自动滚到底部”，滚动条随新文字不断向下。后续轮演示中，回复顶部触达上方边界后，状态会变为“已锁定回复开头”，第一段会一直停留在视口顶部。
+
+六、边界情况
+
+单帧输出跨越大段距离时，需要直接钳制到回复顶部，而不是保留钉底后的越界位置。回复尚未达到顶部边界前，仍正常跟随输出。锁定只影响当前回合，下一次发送会重新初始化滚动策略。
+
+现在正文仍在继续增长。如果你看到的是后续轮演示，并且没有手动打断，视口应该已经停在这段回复的开头。下面增加更多内容，用来确认页面不会再次自动下滚。
+
+七、实现上的最小状态
+
+每个 AI 回合只需要记录两个状态：是否采用顶部锚定，以及当前回合是否仍允许自动滚动。首轮不采用顶部锚定；后续轮采用。触顶或用户主动操作后，关闭自动滚动即可。
+
+八、阅读体验
+
+这种策略避免了两个极端：完全不滚动会让用户看不到模型正在响应；永远钉底则会让长文开头消失。先跟随、再锚定，可以让生成过程有反馈，同时保留自然的阅读起点。
+
+九、继续输出测试
+
+这一段用于增加正文高度。你可以观察状态标签和滚动条：锁定之后，滚动位置保持不变，只有内容高度继续增加。也可以重新点击“首轮：持续钉底”比较两者的差别。
+
+十、演示结束前的最后一段
+
+如果此时你滚动滚轮或触摸消息区域，当前回合会立即交还滚动控制权。重新开始任意演示即可恢复对应策略。`;
+
+    let timer = 0;
+    let offset = 0;
+    let currentTurn = null;
+    let currentAnswer = null;
+    let anchorAtTop = false;
+    let autoScroll = true;
+    let streaming = false;
+    let statusKind = "following";
+    let scrollAnimation = 0;
+
+    function setStatus(text, kind) {
+      statusText.textContent = text;
+      status.className = `status ${kind}`;
+      statusKind = kind;
+    }
+
+    function syncScrollButton() {
+      const distance = messages.scrollHeight - messages.scrollTop - messages.clientHeight;
+      scrollBottom.classList.toggle("hidden", distance <= 120 || (streaming && autoScroll));
+    }
+
+    function scrollToBottom() {
+      messages.scrollTop = messages.scrollHeight;
+      syncScrollButton();
+    }
+
+    function smoothScrollToBottom() {
+      cancelAnimationFrame(scrollAnimation);
+      autoScroll = false;
+      const start = messages.scrollTop;
+      const delta = messages.scrollHeight - messages.clientHeight - start;
+      if (delta <= 0) {
+        syncScrollButton();
+        return;
+      }
+      const startedAt = performance.now();
+      const step = (now) => {
+        const progress = Math.min((now - startedAt) / 500, 1);
+        messages.scrollTop = start + delta * (1 - Math.pow(1 - progress, 3));
+        if (progress < 1) {
+          scrollAnimation = requestAnimationFrame(step);
+          return;
+        }
+        scrollAnimation = 0;
+        messages.scrollTop = messages.scrollHeight;
+        syncScrollButton();
+      };
+      scrollAnimation = requestAnimationFrame(step);
+    }
+
+    function maybeScroll() {
+      if (!autoScroll) {
+        syncScrollButton();
+        return;
+      }
+      scrollToBottom();
+      if (!anchorAtTop || !currentTurn) return;
+      const boxTop = messages.getBoundingClientRect().top + messages.clientTop;
+      const turnTop = currentTurn.getBoundingClientRect().top;
+      if (turnTop > boxTop + 1) return;
+      const top = messages.scrollTop + turnTop - boxTop;
+      messages.scrollTop = Math.max(0, Math.min(top, messages.scrollHeight - messages.clientHeight));
+      autoScroll = false;
+      setStatus("已锁定回复开头 · 后续输出不再滚动", "locked");
+      syncScrollButton();
+    }
+
+    function interruptAutoScroll() {
+      cancelAnimationFrame(scrollAnimation);
+      scrollAnimation = 0;
+      if (streaming && autoScroll) {
+        autoScroll = false;
+        setStatus("已由你打断 · 当前回合不再自动滚动", "interrupted");
+      }
+      syncScrollButton();
+    }
+
+    function addUser(text) {
+      const wrap = document.createElement("div");
+      wrap.className = "msg user";
+      const body = document.createElement("div");
+      body.className = "msg-text";
+      body.textContent = text;
+      wrap.appendChild(body);
+      messages.appendChild(wrap);
+    }
+
+    function addAssistant() {
+      anchorAtTop = Boolean(messages.querySelector(".assistant-turn"));
+      autoScroll = true;
+      const wrap = document.createElement("div");
+      wrap.className = "assistant-turn streaming";
+      const avatar = document.createElement("div");
+      avatar.className = "avatar";
+      avatar.textContent = "AI";
+      const content = document.createElement("div");
+      content.className = "turn-content";
+      const answer = document.createElement("div");
+      answer.className = "answer";
+      content.appendChild(answer);
+      wrap.append(avatar, content);
+      messages.appendChild(wrap);
+      currentTurn = wrap;
+      currentAnswer = answer;
+    }
+
+    function stopStream() {
+      clearInterval(timer);
+      timer = 0;
+      streaming = false;
+      currentTurn?.classList.remove("streaming");
+      send.disabled = false;
+      syncScrollButton();
+    }
+
+    function finishStream() {
+      stopStream();
+      if (statusKind === "following") {
+        setStatus(anchorAtTop ? "输出完成" : "首轮输出完成 · 持续保持在底部", "done");
+      } else if (statusKind === "locked") {
+        setStatus("输出完成 · 视口仍停在回复开头", "locked");
+      } else if (statusKind === "interrupted") {
+        setStatus("输出完成 · 未恢复自动滚动", "interrupted");
+      }
+    }
+
+    function startStream(text, mode = null) {
+      stopStream();
+      cancelAnimationFrame(scrollAnimation);
+      scrollAnimation = 0;
+      if (mode) {
+        messages.textContent = "";
+        currentTurn = null;
+        if (mode === "later") {
+          addUser("先简单介绍一下这个页面。");
+          const historyTurn = document.createElement("div");
+          historyTurn.className = "assistant-turn";
+          historyTurn.innerHTML = '<div class="avatar">AI</div><div class="turn-content"><div class="answer">这是一个用于体验智能锚定滚动的单文件演示。上面两个按钮可以分别重放首轮和后续轮行为，输出过程中随时可以手动滚动。</div></div>';
+          messages.appendChild(historyTurn);
+        }
+      }
+      const effectiveMode = mode || (messages.querySelector(".assistant-turn") ? "later" : "first");
+      firstDemo.classList.toggle("active", effectiveMode === "first");
+      laterDemo.classList.toggle("active", effectiveMode === "later");
+      addUser(text);
+      addAssistant();
+      offset = 0;
+      streaming = true;
+      send.disabled = true;
+      scrollToBottom();
+      setStatus(anchorAtTop ? "后续轮 · 正在向上推，等待回复顶部到顶" : "首轮 · 自动滚到底部", "following");
+      timer = setInterval(() => {
+        offset = Math.min(offset + 4, longAnswer.length);
+        currentAnswer.textContent = longAnswer.slice(0, offset);
+        maybeScroll();
+        if (offset >= longAnswer.length) finishStream();
+      }, 24);
+    }
+
+    firstDemo.addEventListener("click", () => startStream("请详细解释智能锚定滚动，以及它为什么适合长回复。", "first"));
+    laterDemo.addEventListener("click", () => startStream("这次给一个长回复，演示如何把开头锁定在视口顶部。", "later"));
+    document.getElementById("reset").addEventListener("click", () => {
+      stopStream();
+      cancelAnimationFrame(scrollAnimation);
+      scrollAnimation = 0;
+      messages.textContent = "";
+      messages.innerHTML = '<div class="empty">选择上方任意演示，或直接发送一条消息。<br>首轮与后续轮会自动采用不同滚动策略。</div>';
+      currentTurn = null;
+      firstDemo.classList.add("active");
+      laterDemo.classList.remove("active");
+      setStatus("等待开始", "done");
+      syncScrollButton();
+    });
+    document.getElementById("composer").addEventListener("submit", (event) => {
+      event.preventDefault();
+      if (streaming) return;
+      startStream(prompt.value.trim() || "请生成一段长回复。");
+    });
+    prompt.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" && !event.shiftKey && !event.isComposing) {
+        event.preventDefault();
+        if (!streaming) startStream(prompt.value.trim() || "请生成一段长回复。");
+      }
+    });
+    scrollBottom.addEventListener("click", () => {
+      if (streaming) setStatus("正在回到底部 · 不恢复自动滚动", "interrupted");
+      smoothScrollToBottom();
+    });
+    messages.addEventListener("scroll", syncScrollButton, { passive: true });
+    messages.addEventListener("wheel", interruptAutoScroll, { passive: true });
+    messages.addEventListener("touchstart", interruptAutoScroll, { passive: true });
+
+    startStream("请详细解释智能锚定滚动，以及它为什么适合长回复。", "first");
+  </script>
+</body>
+</html>
