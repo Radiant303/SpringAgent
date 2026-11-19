@@ -901,8 +901,7 @@
 }
 
 .markdown-body .code-block pre code,
-.code-block pre code,
-.code-block pre code.hljs {
+.code-block pre code {
   display: block;
   overflow: visible !important;
   font-family: "SF Mono", Menlo, Monaco, Consolas, "Liberation Mono", "PingFang SC", "Microsoft YaHei", monospace;

@@ -6,7 +6,7 @@
  */
 
 import { el, icon } from "./dom.js";
-import { formatLangName, highlightHtml } from "./highlight.js";
+import { formatLangName, highlightElement } from "./highlight.js";
 
 function renderMathToken(token) {
   return window.katex.renderToString(token.text, {
@@ -124,10 +124,7 @@ export function enhanceCodeBlocks(container) {
     wrap.appendChild(header);
     wrap.appendChild(pre);
 
-    if (code) {
-      code.innerHTML = highlightHtml(code.textContent, lang);
-      code.classList.add("hljs");
-    }
+    if (code) highlightElement(code, code.textContent, lang);
 
     setupCodeScrollbar(wrap, pre);
   }
