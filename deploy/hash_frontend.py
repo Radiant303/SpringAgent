@@ -15,6 +15,9 @@ from urllib.parse import unquote, urlsplit, urlunsplit
 
 from rcssmin import cssmin
 from rjsmin import jsmin
+from tree_sitter import Parser
+
+from spring_agent.toolsets.syntax_validation import _JS_LANGUAGE
 
 HTML_SUFFIXES = {".html", ".htm"}
 TEXT_SUFFIXES = HTML_SUFFIXES | {".css", ".js", ".mjs", ".cjs"}
@@ -74,7 +77,9 @@ def minify_source(path: PurePosixPath, text: str) -> str:
     if suffix == ".css":
         return cast(str, cssmin(text))
     if suffix in {".js", ".mjs", ".cjs"}:
-        return cast(str, jsmin(text))
+        minified = cast(str, jsmin(text))
+        validate_javascript_minification(path, text, minified)
+        return minified
     return text
 
 
@@ -209,6 +214,33 @@ def render(asset: Asset, assets: dict[PurePosixPath, Asset], prefix: str) -> byt
 def update_digest(digest, value: bytes) -> None:
     digest.update(len(value).to_bytes(8, "big"))
     digest.update(value)
+
+
+def javascript_fingerprint(path: PurePosixPath, source: str) -> str:
+    encoded = source.encode("utf-8")
+    tree = Parser(_JS_LANGUAGE).parse(encoded)
+    if tree.root_node.has_error:
+        raise ValueError(f"JavaScript 语法校验失败：{path}")
+    digest = hashlib.sha256()
+
+    def visit(node) -> None:
+        if node.type == "comment":
+            return
+        update_digest(digest, b"start:" + node.type.encode("utf-8"))
+        if node.child_count == 0:
+            update_digest(digest, encoded[node.start_byte:node.end_byte])
+        else:
+            for child in node.children:
+                visit(child)
+        update_digest(digest, b"end:" + node.type.encode("utf-8"))
+
+    visit(tree.root_node)
+    return digest.hexdigest()
+
+
+def validate_javascript_minification(path: PurePosixPath, source: str, minified: str) -> None:
+    if javascript_fingerprint(path, source) != javascript_fingerprint(path, minified):
+        raise ValueError(f"JavaScript 压缩改变了程序结构：{path}")
 
 
 def components_for(

@@ -53,7 +53,7 @@ function renderRecords(tbodyId, list, withUser) {
       ? ["", "", "", "", "", "num", "num", "num", "num", "num", ""]
       : ["", "", "", "num", "num", "num", "num", "num", ""];
     tr.className = "";
-    tr.innerHTML = cols.map((cls) => `<td${cls ? ` class="${cls}"` : ""}></td>`).join("");
+    tr.innerHTML = cols.map((cls) => `<td${cls ? ' class="' + cls + '"' : ""}></td>`).join("");
     let i = 0;
     const time = tr.cells[i++];
     time.textContent = fmtTime(r.createdAt);

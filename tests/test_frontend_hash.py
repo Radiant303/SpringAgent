@@ -2,9 +2,11 @@
 
 import hashlib
 import re
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
-from deploy.hash_frontend import build_frontend
+import pytest
+
+from deploy.hash_frontend import build_frontend, minify_source
 
 
 def write_asset(root: Path, relative: str, content: str | bytes) -> None:
@@ -163,3 +165,19 @@ body { color: red; }
     for path in (javascript_path, css_path, vendor_path):
         digest = hashlib.sha256(path.read_bytes()).hexdigest()[:8]
         assert f".{digest}." in path.name
+
+
+def test_usage_records_minification_keeps_valid_cell_markup() -> None:
+    source = Path("frontend/js/pages/admin/usageRecords.js").read_text(encoding="utf-8")
+
+    minified = minify_source(PurePosixPath("js/pages/admin/usageRecords.js"), source)
+
+    assert "class=" in minified
+    assert re.search(r'cls\s*\?\s*`class=', minified) is None
+
+
+def test_minification_guard_rejects_nested_template_corruption() -> None:
+    source = 'const html = `<td${cls ? ` class="${cls}"` : ""}></td>`;'
+
+    with pytest.raises(ValueError, match="压缩改变了程序结构"):
+        minify_source(PurePosixPath("js/nested.js"), source)
