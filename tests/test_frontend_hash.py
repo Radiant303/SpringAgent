@@ -62,7 +62,7 @@ def test_hash_build_rewrites_references_and_tracks_dependencies(tmp_path: Path) 
     assert (css_path.parent / font_url.split("#", 1)[0]).resolve().is_file()
     dependency_path = only_file(output, "dep.*.js")
     assert dependency_path.name in js_path.read_text(encoding="utf-8")
-    dependency_hash = hashlib.sha256((source / "js/dep.js").read_bytes()).hexdigest()[:8]
+    dependency_hash = hashlib.sha256(dependency_path.read_bytes()).hexdigest()[:8]
     assert dependency_path.name == f"dep.{dependency_hash}.js"
 
     write_asset(source, "js/dep.js", "export const value = 2;\n")
@@ -123,3 +123,43 @@ def test_dynamic_imports_keep_original_aliases(tmp_path: Path) -> None:
     assert only_file(output, "prism-a.min.*.js").is_file()
     assert only_file(output, "a.*.svg").is_file()
     assert hashed == 3
+
+
+def test_minifies_before_hashing_and_preserves_vendor_files(tmp_path: Path) -> None:
+    source = tmp_path / "frontend"
+    output = tmp_path / "built"
+    write_asset(source, "index.html", "<!-- keep --><div> A B </div>")
+    write_asset(source, "js/app.js", """
+// build comment
+export function add(left, right) {
+  const message = "a // b";
+  return left + right;
+}
+""")
+    write_asset(source, "css/app.css", """
+/* build comment */
+:root { --gap: 8px; }
+body { color: red; }
+""")
+    vendor_source = "/*! third-party license */\nwindow.Vendor = true;\n"
+    write_asset(source, "vendor/keep.js", vendor_source)
+
+    build_frontend(source, output)
+
+    javascript_path = only_file(output, "app.*.js")
+    css_path = only_file(output, "app.*.css")
+    vendor_path = only_file(output, "keep.*.js")
+    javascript = javascript_path.read_text(encoding="utf-8")
+    css = css_path.read_text(encoding="utf-8")
+    assert "build comment" not in javascript
+    assert "left+right" in javascript
+    assert '"a // b"' in javascript
+    assert "\n" not in javascript
+    assert "build comment" not in css
+    assert "body{color:red}" in css
+    assert "\n" not in css
+    assert vendor_path.read_text(encoding="utf-8") == vendor_source
+    assert (output / "index.html").read_text(encoding="utf-8") == "<!-- keep --><div> A B </div>"
+    for path in (javascript_path, css_path, vendor_path):
+        digest = hashlib.sha256(path.read_bytes()).hexdigest()[:8]
+        assert f".{digest}." in path.name

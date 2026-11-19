@@ -1,4 +1,4 @@
-"""为前端静态资源生成内容哈希文件名并改写资源引用。"""
+"""压缩前端资源、生成内容哈希文件名并改写资源引用。"""
 
 from __future__ import annotations
 
@@ -10,7 +10,11 @@ import re
 import shutil
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
+from typing import cast
 from urllib.parse import unquote, urlsplit, urlunsplit
+
+from rcssmin import cssmin
+from rjsmin import jsmin
 
 HTML_SUFFIXES = {".html", ".htm"}
 TEXT_SUFFIXES = HTML_SUFFIXES | {".css", ".js", ".mjs", ".cjs"}
@@ -61,6 +65,17 @@ def normalize_prefix(prefix: str) -> str:
 
 def is_html(path: PurePosixPath) -> bool:
     return path.suffix.lower() in HTML_SUFFIXES
+
+
+def minify_source(path: PurePosixPath, text: str) -> str:
+    if path.parts[0] == "vendor":
+        return text
+    suffix = path.suffix.lower()
+    if suffix == ".css":
+        return cast(str, cssmin(text))
+    if suffix in {".js", ".mjs", ".cjs"}:
+        return cast(str, jsmin(text))
+    return text
 
 
 def local_path(
@@ -311,6 +326,9 @@ def build_frontend(
         relative = PurePosixPath(path.relative_to(source).as_posix())
         content = path.read_bytes()
         text = content.decode("utf-8") if relative.suffix.lower() in TEXT_SUFFIXES else None
+        if text is not None:
+            text = minify_source(relative, text)
+            content = text.encode("utf-8")
         assets[relative] = Asset(relative, content, text, [], relative if is_html(relative) else None)
 
     aliases = set()
