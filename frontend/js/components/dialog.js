@@ -173,6 +173,8 @@ export function dialog(opts) {
       const focusTarget = firstInput.closest(".ui-select")?.querySelector(".ui-select-btn") || firstInput;
       focusTarget.focus();
       if (focusTarget === firstInput && firstInput.value) firstInput.select?.();
+    } else if (window.matchMedia("(pointer: coarse)").matches) {
+      box.focus();
     } else {
       okBtn.focus();
     }
