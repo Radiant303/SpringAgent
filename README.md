@@ -192,7 +192,7 @@ server {
 }
 
 server {
-    listen 443 ssl;
+    listen 443 ssl http2;
     server_name agent.example.com;
 
     ssl_certificate     /etc/letsencrypt/live/agent.example.com/fullchain.pem;
