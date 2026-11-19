@@ -38,7 +38,9 @@ COPY spring_agent ./spring_agent
 COPY alembic ./alembic
 COPY alembic.ini ./
 COPY config.toml.example ./config.toml
-COPY frontend ./frontend
+COPY frontend ./frontend-source
+COPY deploy/hash_frontend.py ./deploy/hash_frontend.py
+RUN python deploy/hash_frontend.py frontend-source frontend && rm -rf frontend-source
 COPY deploy/engine_entrypoint.py /app/entrypoint.py
 COPY deploy/start.py /app/start.py
 EXPOSE 15900 16900

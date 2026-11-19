@@ -13,7 +13,7 @@ spring:
       static-locations: file:../frontend/
       cache:
         cachecontrol:
-          max-age: 0
+          no-cache: true
   servlet:
     multipart:
       # 单文件 100MB
