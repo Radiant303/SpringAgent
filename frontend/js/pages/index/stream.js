@@ -337,7 +337,9 @@ export function onSessionEvent(sid, event, seq) {
       refreshSessionList();
     }
   }
-  hidePending();
+  if (["text_delta", "thinking_delta", "tool_started"].includes(event.kind)) {
+    hidePending();
+  }
   switch (event.kind) {
     case "text_delta": {
       settleFinishedTools();
