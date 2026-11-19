@@ -117,6 +117,7 @@ font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-s
 | 行内代码 | 16px | 26px | 400 | 行内，`padding: 2px 6px` | — | 行内代码、变量名 |
 | 代码块 | 14px | 22px | 400 | `16px 0` | `--markdown-code-font-size`, `--markdown-code-line-height` | 多行代码块 |
 
+- 聊天消息区通过 `#messages` 将 `--markdown-body-line-height` 设为 30px，用户气泡与 AI 正文共用该行高；其他 Markdown 文档仍使用 26px，代码块行高不受影响。
 - **为什么 H4 之后不再继续变小**：在 16px 正文语境下，若 H6 继续缩小至 12px 或 10px，会低于正文的可读性阈值，看起来像脚注而非标题。现代文档系统让 H4–H6 停在正文加粗这一档，主要依靠加粗与垂直段落间距区分层级。
 - 首个子元素清除上边距（`> *:first-child { margin-top: 0 }`），末尾子元素清除下边距（`> *:last-child { margin-bottom: 0 }`）。
 

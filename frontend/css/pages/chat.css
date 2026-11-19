@@ -573,6 +573,7 @@
 }
 
 #messages {
+  --markdown-body-line-height: 30px;
   flex: 1;
   overflow-y: auto;
   /* 滚动条槽位常驻：折叠/展开改变内容高度时正文列宽不变，避免重新换行 */
@@ -644,7 +645,7 @@
 .msg {
   flex-shrink: 0;
   word-break: break-word;
-  line-height: 1.7;
+  line-height: var(--markdown-body-line-height, 30px);
 }
 
 .msg-skeleton {
@@ -694,7 +695,7 @@
 }
 .msg.assistant .answer {
   font-size: var(--fs-md, 16px);
-  line-height: 1.75;
+  line-height: var(--markdown-body-line-height, 30px);
 }
 
 .stream-fade-char {
