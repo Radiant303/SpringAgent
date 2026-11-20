@@ -96,7 +96,7 @@ export async function send() {
     if (state.sessionId === sessionId || (isDraft && !state.sessionId && state.workId === workId)) {
       discardEmptyTurn();
       addSystem("❌ " + e.message, true);
-    } else UI.toast("发送失败：" + e.message, { type: "error" });
+    } else UI.toast("消息发送失败", { type: "error", description: e.message });
     refreshSessionList();
   } finally {
     if (isDraft) draftSending = false;

@@ -34,11 +34,11 @@ async function acSendCode(btn) {
   try {
     const data = await api("/api/account/send-code", { method: "POST" });
     acCountdown(btn, (data && data.resendAfterSeconds) || 60);
-    UI.toast("验证码已发送，请查收邮件");
+    UI.toast("验证码已发送", { description: acEmail });
   } catch (err) {
     btn.disabled = false;
     btn.textContent = "获取验证码";
-    UI.toast(err.message, { type: "error" });
+    UI.toast("验证码发送失败", { type: "error", description: err.message });
   }
 }
 
@@ -49,17 +49,17 @@ async function acSendBindCode(btn, email) {
   try {
     const data = await api("/api/account/send-bind-code", { method: "POST", body: { email } });
     acCountdown(btn, (data && data.resendAfterSeconds) || 60);
-    UI.toast("验证码已发送，请查收邮件");
+    UI.toast("验证码已发送", { description: email });
   } catch (err) {
     btn.disabled = false;
     btn.textContent = "获取验证码";
-    UI.toast(err.message, { type: "error" });
+    UI.toast("验证码发送失败", { type: "error", description: err.message });
   }
 }
 
 export function openChangePassword() {
   if (acMailOn && !acEmail) {
-    UI.toast("请先绑定邮箱后再修改密码", { type: "error" });
+    UI.toast("无法修改密码", { type: "error", description: "请先绑定邮箱，再通过验证码修改密码" });
     return;
   }
   if (acMailOn) {
@@ -123,7 +123,7 @@ export function openBindEmailDialog(isChange) {
           onClick: (btn, _input, inputs) => {
             const email = inputs.email.value.trim();
             if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-              UI.toast("请输入正确的邮箱地址", { type: "error" });
+              UI.toast("邮箱地址无效", { type: "error", description: "请检查格式，例如 name@example.com" });
               inputs.email.focus();
               return;
             }

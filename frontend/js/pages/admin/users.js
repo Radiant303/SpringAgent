@@ -38,8 +38,8 @@ export async function loadUsers(p = page) {
     page = p;
     pageUsers = result?.list || [];
     UI.renderPager("user-pager", { page, size, total: result?.total || 0 }, {
-      onPage: (np) => loadUsers(np).catch((e) => UI.toast(e.message, { type: "error" })),
-      onSize: (ns) => { size = ns; loadUsers(1).catch((e) => UI.toast(e.message, { type: "error" })); },
+      onPage: (np) => loadUsers(np).catch((e) => UI.toast("用户列表加载失败", { type: "error", description: e.message })),
+      onSize: (ns) => { size = ns; loadUsers(1).catch((e) => UI.toast("用户列表加载失败", { type: "error", description: e.message })); },
     });
     renderUsers();
     loadUserOptions();
@@ -208,7 +208,7 @@ export async function onUserAction(btn) {
         }),
       });
       if (v === null) return;
-      done = v.trim() === "" ? "已恢复跟随全局" : "单工作区配额已更新";
+      done = v.trim() === "" ? "单工作区配额已跟随全局" : "单工作区配额已更新";
     } else if (act === "points") {
       const limits = await loadResourceLimits();
       const v = await UI.dialog({
@@ -227,11 +227,11 @@ export async function onUserAction(btn) {
         submit: (f) => post("points", { delta: pointsValue(f.delta, limits, { signed: true, nonzero: true }), reason: f.reason.trim() }),
       });
       if (!v) return;
-      done = "调账完成";
+      done = "积分调账完成";
     }
-    if (done) UI.toast(done);
+    if (done) UI.toast(done, { description: name });
     await loadUsers();
   } catch (e) {
-    UI.toast(e.message, { type: "error" });
+    UI.toast("用户操作失败", { type: "error", description: e.message });
   }
 }

@@ -31,7 +31,7 @@ async function saveWith(saveId, fn) {
     const saved = await fn();
     if (saved !== false) UI.toast("设置已保存");
   } catch (e) {
-    UI.toast(e.message, { type: "error" });
+    UI.toast("设置保存失败", { type: "error", description: e.message });
   } finally {
     if ($(saveId)) $(saveId).disabled = false;
   }
@@ -107,7 +107,7 @@ function tryCommitMailDomainInput() {
   try {
     commitMailDomainInput();
   } catch (e) {
-    UI.toast(e.message, { type: "error" });
+    UI.toast("邮箱后缀无效", { type: "error", description: e.message });
   }
 }
 
@@ -163,11 +163,11 @@ async function sendMailDisableCode(btn) {
   try {
     const data = await api("/api/admin/settings/mail/send-disable-code", { method: "POST" });
     mailDisableCountdown(btn, (data && data.resendAfterSeconds) || 60);
-    UI.toast("验证码已发送，请查收邮件");
+    UI.toast("验证码已发送", { description: ownerEmail || "请查收邮件" });
   } catch (e) {
     btn.disabled = false;
     btn.textContent = "获取验证码";
-    UI.toast(e.message, { type: "error" });
+    UI.toast("验证码发送失败", { type: "error", description: e.message });
   }
 }
 
@@ -227,7 +227,7 @@ export async function loadRegistration() {
 export async function saveRegistration() {
   if (getRole() !== "owner" || registrationBusy) return;
   if (!registrationReady) {
-    UI.toast("设置尚未加载完成，请重新进入页面", { type: "error" });
+    UI.toast("暂时无法保存设置", { type: "error", description: "设置尚未加载完成，请重新进入页面" });
     return;
   }
   if (mailDomainComposing) return;
@@ -235,7 +235,7 @@ export async function saveRegistration() {
   try {
     emailDomains = commitMailDomainInput();
   } catch (e) {
-    UI.toast(e.message, { type: "error" });
+    UI.toast("邮箱后缀无效", { type: "error", description: e.message });
     $("mail-domain-input").focus();
     return;
   }

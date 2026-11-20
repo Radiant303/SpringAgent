@@ -36,8 +36,8 @@ export async function loadLedger(p = page) {
     if (result && !result.list.length && p > 1) return;
     page = p;
     UI.renderPager("ledger-pager", { page, size, total: result?.total || 0 }, {
-      onPage: (np) => loadLedger(np).catch((e) => UI.toast(e.message, { type: "error" })),
-      onSize: (ns) => { size = ns; loadLedger(1).catch((e) => UI.toast(e.message, { type: "error" })); },
+      onPage: (np) => loadLedger(np).catch((e) => UI.toast("积分流水加载失败", { type: "error", description: e.message })),
+      onSize: (ns) => { size = ns; loadLedger(1).catch((e) => UI.toast("积分流水加载失败", { type: "error", description: e.message })); },
     });
     const nameOf = Object.fromEntries(users.map((u) => [u.user_id, u.username]));
     UI.renderRows("ledger-tbody", result?.list || [], (tr, r) => {

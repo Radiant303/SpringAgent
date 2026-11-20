@@ -107,10 +107,10 @@ export function init() {
       const btn = e.target.closest("button[data-act]");
       if (btn) onRedeemAction(btn);
     });
-    if ($("usage-query")) $("usage-query").onclick = () => loadUsage(1).catch((e) => UI.toast(e.message, { type: "error" }));
-    if ($("usage-records-query")) $("usage-records-query").onclick = () => loadUsageRecords(1).catch((e) => UI.toast(e.message, { type: "error" }));
-    if ($("ledger-query")) $("ledger-query").onclick = () => loadLedger(1).catch((e) => UI.toast(e.message, { type: "error" }));
-    $("redeem-status")?.addEventListener("change", () => loadRedeemCodes(1).catch((e) => UI.toast(e.message, { type: "error" })));
+    if ($("usage-query")) $("usage-query").onclick = () => loadUsage(1).catch((e) => UI.toast("用量统计加载失败", { type: "error", description: e.message }));
+    if ($("usage-records-query")) $("usage-records-query").onclick = () => loadUsageRecords(1).catch((e) => UI.toast("使用日志加载失败", { type: "error", description: e.message }));
+    if ($("ledger-query")) $("ledger-query").onclick = () => loadLedger(1).catch((e) => UI.toast("积分流水加载失败", { type: "error", description: e.message }));
+    $("redeem-status")?.addEventListener("change", () => loadRedeemCodes(1).catch((e) => UI.toast("兑换码加载失败", { type: "error", description: e.message })));
 
     if (role === "owner") {
       $("model-form")?.addEventListener("submit", onModelFormSubmit);
@@ -124,7 +124,7 @@ export function init() {
       bindSearchSettings();
       bindStorageSettings();
       bindFailureEvents();
-      if ($("redeem-open-gen")) $("redeem-open-gen").onclick = () => openRedeemGen().catch((e) => UI.toast(e.message, { type: "error" }));
+      if ($("redeem-open-gen")) $("redeem-open-gen").onclick = () => openRedeemGen().catch((e) => UI.toast("兑换码生成失败", { type: "error", description: e.message }));
 
       // 模型配置页（默认/子代理模型 + Provider 两级管理）
       bindModelConfig();
@@ -137,7 +137,7 @@ export function init() {
 
   // 用户侧兑换（账单与用量页，所有角色可用）
   if ($("user-redeem-btn")) $("user-redeem-btn").onclick = onUserRedeem;
-  if ($("my-usage-query")) $("my-usage-query").onclick = () => loadMyUsage(1).catch((e) => UI.toast(e.message, { type: "error" }));
+  if ($("my-usage-query")) $("my-usage-query").onclick = () => loadMyUsage(1).catch((e) => UI.toast("使用日志加载失败", { type: "error", description: e.message }));
   $("user-redeem-input")?.addEventListener("keydown", (e) => {
     if (e.key === "Enter") onUserRedeem();
   });

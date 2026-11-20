@@ -56,7 +56,10 @@ const eventStatusLabel = (event) => isModelSettlement(event) && event.status ===
 const statusLocked = (event) => ["RETRYING", "SUCCEEDED"].includes(event.status);
 const statusLockMessage = (event) => event.status === "SUCCEEDED" ? "事件已重试成功，不可人工修改" : "事件正在自动重试，请稍后刷新再操作";
 const isOwnerPage = () => getRole() === "owner" && document.querySelector('.admin-page[data-page="failure-events"]')?.classList.contains("active");
-const reportError = (error) => UI.toast(error?.message || "请求失败，请重试", { type: "error" });
+const reportError = (error) => UI.toast("操作失败", {
+  type: "error",
+  description: error?.message || "请求失败，请稍后重试",
+});
 
 function pointsLabel(event) {
   if (event.pointsReference === true) return "参考积分";

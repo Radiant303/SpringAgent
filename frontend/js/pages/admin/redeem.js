@@ -39,8 +39,8 @@ export async function loadRedeemCodes(p = page) {
     if (result && !result.list.length && p > 1) return;
     page = p;
     UI.renderPager("redeem-pager", { page, size, total: result?.total || 0 }, {
-      onPage: (np) => loadRedeemCodes(np).catch((e) => UI.toast(e.message, { type: "error" })),
-      onSize: (ns) => { size = ns; loadRedeemCodes(1).catch((e) => UI.toast(e.message, { type: "error" })); },
+      onPage: (np) => loadRedeemCodes(np).catch((e) => UI.toast("兑换码加载失败", { type: "error", description: e.message })),
+      onSize: (ns) => { size = ns; loadRedeemCodes(1).catch((e) => UI.toast("兑换码加载失败", { type: "error", description: e.message })); },
     });
     const rows = result?.list || [];
     const nameOf = Object.fromEntries(users.map((u) => [u.user_id, u.username]));
@@ -117,7 +117,7 @@ export async function openRedeemGen() {
     },
   });
   if (v === null) return;
-  UI.toast(`已生成 ${v.count} 个兑换码`);
+  UI.toast("兑换码已生成", { description: `共 ${v.count} 个` });
   await loadRedeemCodes();
 }
 
@@ -139,6 +139,6 @@ export async function onRedeemAction(btn) {
       await loadRedeemCodes();
     }
   } catch (err) {
-    UI.toast(err.message, { type: "error" });
+    UI.toast("兑换码操作失败", { type: "error", description: err.message });
   }
 }

@@ -97,18 +97,18 @@ export async function onUserRedeem() {
   const input = $("user-redeem-input");
   const code = input?.value.trim();
   if (!code) {
-    UI.toast("请输入兑换码", { type: "error" });
+    UI.toast("无法兑换", { type: "error", description: "请输入兑换码" });
     return;
   }
   const btn = $("user-redeem-btn");
   if (btn) btn.disabled = true;
   try {
     const granted = await api("/api/billing/redeem", { method: "POST", body: { code } });
-    UI.toast("兑换成功：" + grantedPartsText(granted));
+    UI.toast("兑换成功", { description: grantedPartsText(granted) });
     if (input) input.value = "";
     await loadMyPoints();
   } catch (err) {
-    UI.toast(err.message, { type: "error" });
+    UI.toast("兑换失败", { type: "error", description: err.message });
   } finally {
     if (btn) btn.disabled = false;
   }

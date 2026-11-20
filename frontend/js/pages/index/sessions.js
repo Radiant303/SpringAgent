@@ -165,7 +165,7 @@ export function subscribeStream(sid, refreshStatus = false) {
       }
       refreshSessionList();
     })
-    .catch((e) => { if (isViewCurrent(view)) UI.toast(e.message, { type: "error" }); });
+    .catch((e) => { if (isViewCurrent(view)) UI.toast("会话加载失败", { type: "error", description: e.message }); });
 }
 
 /** 原地续上当前会话 */
@@ -421,7 +421,7 @@ export function switchSession(sid) {
   if (state.deletedSessions.has(sid)) return;
   if (sid === state.sessionId && state.sessionReady) return;
   if (!state.connected) {
-    UI.toast("请先重新连接", { type: "error" });
+    UI.toast("无法打开会话", { type: "error", description: "连接已断开，请重新连接后重试" });
     return;
   }
   if (loadingView?.sid === sid && isViewCurrent(loadingView)) return loadingView.task;

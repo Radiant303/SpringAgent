@@ -68,7 +68,10 @@ function enqueueRequest(type, params) {
     updateAttention(sid);
     refreshSessionList();
     if (sid === state.sessionId && state.sessionReady) drainPendingFor(sid);
-    else UI.toast(`会话「${sessionLabel(sid)}」${type === "approval" ? "需要审批" : "有问题等你回答"}`);
+    else UI.toast(type === "approval" ? "会话需要审批" : "会话等待回答", {
+      type: "warning",
+      description: sessionLabel(sid),
+    });
   });
 }
 

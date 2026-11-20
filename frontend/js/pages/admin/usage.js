@@ -41,8 +41,8 @@ export async function loadUsage(p = page) {
     if (result && !result.list.length && p > 1) return;
     page = p;
     UI.renderPager("usage-pager", { page, size, total: result?.total || 0 }, {
-      onPage: (np) => loadUsage(np).catch((e) => UI.toast(e.message, { type: "error" })),
-      onSize: (ns) => { size = ns; loadUsage(1).catch((e) => UI.toast(e.message, { type: "error" })); },
+      onPage: (np) => loadUsage(np).catch((e) => UI.toast("用量统计加载失败", { type: "error", description: e.message })),
+      onSize: (ns) => { size = ns; loadUsage(1).catch((e) => UI.toast("用量统计加载失败", { type: "error", description: e.message })); },
     });
     UI.renderRows("usage-tbody", result?.list || [], (tr, r) => {
       tr.className = "";

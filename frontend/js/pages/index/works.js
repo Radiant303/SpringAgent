@@ -146,7 +146,7 @@ export async function deleteWork(work) {
     },
   });
   if (!ok) return;
-  UI.toast(`项目「${work.name}」已删除`);
+  UI.toast("项目已删除", { description: work.name });
   await loadWorks();
   if (state.workId) {
     await openWorkSession();

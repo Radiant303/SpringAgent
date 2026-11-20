@@ -113,7 +113,7 @@ async function selectDocument(type, focus = false) {
   } catch (error) {
     if (currentGeneration === generation) {
       showMessage("知识文档加载失败，请重试。");
-      UI.toast(error.message, { type: "error" });
+      UI.toast("知识文档加载失败", { type: "error", description: error.message });
     }
   } finally {
     finishLoad(currentGeneration);

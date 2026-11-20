@@ -222,9 +222,9 @@ async function onMcDefaultChange() {
     // 本地同步默认标记，避免二级页徽章与开关状态滞后
     for (const m of modelConfig.models) m.is_default = m.id === modelId;
     if (currentProvider) renderAddedList();
-    UI.toast("默认模型已切换");
+    UI.toast("默认模型已切换", { description: modelId });
   } catch (err) {
-    UI.toast(err.message, { type: "error" });
+    UI.toast("默认模型切换失败", { type: "error", description: err.message });
     await refreshConfig();
   }
 }
@@ -263,9 +263,11 @@ async function onMcSubagentChange(name) {
     });
     if (!modelConfig.subagentModels) modelConfig.subagentModels = {};
     modelConfig.subagentModels[name] = sel.value;
-    UI.toast("已保存");
+    UI.toast("子代理模型已保存", {
+      description: `${name === "searcher" ? "搜索代理" : "审查代理"}：${sel.value || "继承主模型"}`,
+    });
   } catch (err) {
-    UI.toast(err.message, { type: "error" });
+    UI.toast("子代理模型保存失败", { type: "error", description: err.message });
     await refreshConfig();
   }
 }
@@ -332,8 +334,8 @@ async function openProviderDialog(p) {
       }
       const baseUrl = v.baseUrl.trim() || p?.base_url || "";
       if (baseUrl.startsWith("https://api.stepfun.com") && v.type !== "anthropic") {
-        const message = "阶跃星辰模型请选择anthropic类型";
-        UI.toast(message, { type: "error" });
+        const message = "阶跃星辰模型请选择 Anthropic 类型";
+        UI.toast("Provider 类型不匹配", { type: "error", description: message });
         return { name: "type", message };
       }
       return null;
@@ -344,7 +346,7 @@ async function openProviderDialog(p) {
     }),
   });
   if (!r) return;
-  UI.toast("Provider 已保存");
+  UI.toast(p ? "Provider 已保存" : "Provider 已添加", { description: r.name.trim() });
   availableCache.delete(p ? p.name : r.name.trim());
   await refreshConfig();
 }
@@ -358,7 +360,7 @@ async function deleteProvider(name) {
     submit: () => api(`/api/admin/model-config/providers/${encodeURIComponent(name)}/delete`, { method: "POST" }),
   });
   if (!ok) return;
-  UI.toast("Provider 已删除");
+  UI.toast("Provider 已删除", { description: name });
   availableCache.delete(name);
   await refreshConfig();
 }
@@ -547,10 +549,10 @@ async function toggleEnabled(m, sw) {
   try {
     await api("/api/admin/model-config/models", { method: "POST", body: modelBody(m, { enabled: sw.checked }) });
     m.enabled = sw.checked;
-    UI.toast(sw.checked ? "已启用" : "已停用");
+    UI.toast(sw.checked ? "模型已启用" : "模型已停用", { description: m.model });
   } catch (err) {
     sw.checked = !sw.checked;
-    UI.toast(err.message, { type: "error" });
+    UI.toast("模型状态更新失败", { type: "error", description: `${m.model}：${err.message}` });
   }
 }
 
@@ -558,10 +560,17 @@ async function testModel(m, btn) {
   setBtnLoading(btn, true);
   try {
     const r = await api("/api/admin/model-config/models/test", { method: "POST", body: { modelId: m.id } });
-    if (r && r.ok) UI.toast(`模型 ${m.model} 测试通过，延迟 ${r.latency_ms} ms`);
-    else UI.toast(`测试失败：${(r && r.error) || "未知错误"}`, { type: "error", duration: 6000 });
+    if (r && r.ok) {
+      UI.toast("模型测试通过", { description: `${m.model} · 延迟 ${r.latency_ms} ms` });
+    } else {
+      UI.toast("模型测试失败", {
+        type: "error",
+        description: `${m.model} · ${(r && r.error) || "未知错误"}`,
+        duration: 6000,
+      });
+    }
   } catch (err) {
-    UI.toast(err.message, { type: "error" });
+    UI.toast("模型测试失败", { type: "error", description: `${m.model}：${err.message}` });
   } finally {
     setBtnLoading(btn, false);
   }
@@ -576,13 +585,13 @@ async function deleteModel(m) {
     submit: () => api("/api/admin/model-config/models/delete", { method: "POST", body: { modelId: m.id } }),
   });
   if (!ok) return;
-  UI.toast("模型已删除");
+  UI.toast("模型已删除", { description: m.model });
   await refreshConfig();
 }
 
 function openAddModel({ model, displayName = "" }) {
   if (providerModels().some((m) => m.model === model)) {
-    UI.toast(`模型 ${model} 已配置`, { type: "error" });
+    UI.toast("模型已配置", { type: "warning", description: `${model} 已在当前 Provider 中` });
     return;
   }
   openModelDialog({
@@ -593,7 +602,7 @@ function openAddModel({ model, displayName = "" }) {
     model,
     displayName,
     onSaved: async () => {
-      UI.toast("模型已添加");
+      UI.toast("模型已添加", { description: model });
       await refreshConfig();
     },
   });
@@ -608,7 +617,7 @@ function openEditModel(m) {
     model: m.model,
     existing: m,
     onSaved: async () => {
-      UI.toast("模型已保存");
+      UI.toast("模型已保存", { description: m.model });
       await refreshConfig();
     },
   });

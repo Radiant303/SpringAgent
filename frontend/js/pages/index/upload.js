@@ -69,7 +69,7 @@ export async function deleteAttachment(fileId, node = null) {
   } catch (e) {
     const att = pendingAtts.get(fileId);
     if (!att || state.deletedSessions.has(att.sessionId)) return;
-    UI.toast(e.message || "移除失败", { type: "error" });
+    UI.toast("附件移除失败", { type: "error", description: e.message || "请稍后重试" });
     if (!node && att && editorEl()) {
       const chip = editorChipNode(att, { onRemove: () => deleteAttachment(att.id, chip) });
       insertNodeAtCaret(chip);
@@ -96,17 +96,26 @@ export async function uploadFiles(files) {
   }
   const images = files.filter(isImageFile);
   if (images.length < files.length) {
-    UI.toast(`已跳过 ${files.length - images.length} 个非图片文件`, { type: "error" });
+    UI.toast("已跳过非图片文件", {
+      type: "warning",
+      description: `${files.length - images.length} 个文件未上传`,
+    });
   }
   if (!images.length) return;
   files = images;
   const free = MAX_ATTACHMENTS - pendingAtts.size;
   if (free <= 0) {
-    UI.toast(`图片最多 ${MAX_ATTACHMENTS} 张，请先移除部分图片`, { type: "error" });
+    UI.toast("无法添加图片", {
+      type: "warning",
+      description: `最多添加 ${MAX_ATTACHMENTS} 张，请先移除部分图片`,
+    });
     return;
   }
   if (files.length > free) {
-    UI.toast(`图片最多 ${MAX_ATTACHMENTS} 张，已忽略超出的 ${files.length - free} 张`, { type: "error" });
+    UI.toast("已忽略超出上限的图片", {
+      type: "warning",
+      description: `最多添加 ${MAX_ATTACHMENTS} 张，已忽略 ${files.length - free} 张`,
+    });
     files = files.slice(0, free);
   }
   const oversized = files.filter((file) => file.size > MAX_FILE_BYTES);
@@ -114,7 +123,10 @@ export async function uploadFiles(files) {
     files = files.filter((file) => file.size <= MAX_FILE_BYTES);
     const names = oversized.slice(0, 3).map((file) => file.name).join("、");
     const suffix = oversized.length > 3 ? ` 等 ${oversized.length} 个文件` : "";
-    UI.toast(`${names}${suffix} 超过 100 MB，已跳过`, { type: "error" });
+    UI.toast("已跳过超大文件", {
+      type: "warning",
+      description: `${names}${suffix} 超过 100 MB`,
+    });
   }
   if (!files.length) return;
   const workId = state.workId;
@@ -150,11 +162,14 @@ export async function uploadFiles(files) {
       insertNodeAtCaret(chip);
     }
     if (failed.length) {
-      UI.toast(`${failed.length} 个文件上传失败：${failed[0].message}`, { type: "error" });
+      UI.toast("部分文件上传失败", {
+        type: "error",
+        description: `${failed.length} 个文件未上传：${failed[0].message}`,
+      });
     }
     updateInputState();
   } catch (e) {
-    UI.toast(e.message || "上传失败", { type: "error" });
+    UI.toast("图片上传失败", { type: "error", description: e.message || "请稍后重试" });
   } finally {
     delete btn.dataset.uploading;
     btn.title = "上传图片";

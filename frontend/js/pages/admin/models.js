@@ -113,7 +113,7 @@ export async function onModelFormSubmit(e) {
     UI.toast("资费卡已保存");
     await loadModels();
   } catch (err) {
-    UI.toast(err.message, { type: "error" });
+    UI.toast("资费卡保存失败", { type: "error", description: err.message });
   } finally {
     button.disabled = false;
   }
@@ -139,6 +139,6 @@ export async function onModelAction(btn) {
       await loadModels();
     }
   } catch (err) {
-    UI.toast(err.message, { type: "error" });
+    UI.toast("资费卡删除失败", { type: "error", description: err.message });
   }
 }

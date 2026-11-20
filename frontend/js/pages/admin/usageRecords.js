@@ -92,10 +92,10 @@ export async function loadUsageRecords(p = adminPage) {
       if (result && !result.list.length && p > 1) return;
       adminPage = p;
       UI.renderPager("usage-records-pager", { page: p, size: adminSize, total: result?.total || 0 }, {
-        onPage: (np) => loadUsageRecords(np).catch((e) => UI.toast(e.message, { type: "error" })),
+        onPage: (np) => loadUsageRecords(np).catch((e) => UI.toast("使用日志加载失败", { type: "error", description: e.message })),
         onSize: (ns) => {
           adminSize = ns;
-          loadUsageRecords(1).catch((e) => UI.toast(e.message, { type: "error" }));
+          loadUsageRecords(1).catch((e) => UI.toast("使用日志加载失败", { type: "error", description: e.message }));
         },
       });
       renderRecords("usage-records-tbody", result?.list || [], true);
@@ -119,10 +119,10 @@ export async function loadMyUsage(p = myPage) {
       if (result && !result.list.length && p > 1) return;
       myPage = p;
       UI.renderPager("my-usage-pager", { page: p, size: mySize, total: result?.total || 0 }, {
-        onPage: (np) => loadMyUsage(np).catch((e) => UI.toast(e.message, { type: "error" })),
+        onPage: (np) => loadMyUsage(np).catch((e) => UI.toast("使用日志加载失败", { type: "error", description: e.message })),
         onSize: (ns) => {
           mySize = ns;
-          loadMyUsage(1).catch((e) => UI.toast(e.message, { type: "error" }));
+          loadMyUsage(1).catch((e) => UI.toast("使用日志加载失败", { type: "error", description: e.message }));
         },
       });
       renderRecords("my-usage-tbody", result?.list || [], false);

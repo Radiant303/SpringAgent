@@ -2,7 +2,7 @@
  * UI 门面模块（统一对外接口）
  */
 
-import { dialog, confirm, prompt, toast } from "./dialog.js";
+import { dialog, confirm, prompt, toast, dismissToast, dismissAllToasts } from "./dialog.js";
 import {
   saveSkeleton, showSkeleton, clearSkeleton,
   tableSkeleton, emptyRow, loadTable, renderRows, settleSkeletons
@@ -11,7 +11,7 @@ import { enhance, enhanceSelect, enhanceDate, openPopover, closePopover } from "
 import { renderPager } from "./pager.js";
 
 export const UI = {
-  dialog, confirm, prompt, toast,
+  dialog, confirm, prompt, toast, dismissToast, dismissAllToasts,
   saveSkeleton, showSkeleton, clearSkeleton,
   tableSkeleton, emptyRow, loadTable, renderRows, settleSkeletons,
   enhance, enhanceSelect, enhanceDate, openPopover, closePopover,
@@ -23,7 +23,7 @@ if (typeof window !== "undefined") {
 }
 
 export {
-  dialog, confirm, prompt, toast,
+  dialog, confirm, prompt, toast, dismissToast, dismissAllToasts,
   saveSkeleton, showSkeleton, clearSkeleton,
   tableSkeleton, emptyRow, loadTable, renderRows, settleSkeletons,
   enhance, enhanceSelect, enhanceDate, openPopover, closePopover,

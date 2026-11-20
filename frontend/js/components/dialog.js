@@ -212,18 +212,201 @@ export function prompt(opts) {
   }).then((r) => (r === null ? null : r.value));
 }
 
-export function toast(message, opts = {}) {
-  let host = document.querySelector(".ui-toasts");
-  if (!host) {
-    host = h("div", "ui-toasts");
-    host.setAttribute("role", "status");
-    host.setAttribute("aria-live", "polite");
-    document.body.appendChild(host);
-  }
-  const item = h("div", "ui-toast" + (opts.type === "error" ? " error" : ""), message);
-  host.appendChild(item);
-  setTimeout(() => {
-    item.classList.add("leaving");
-    setTimeout(() => item.remove(), 200);
-  }, opts.duration || 2400);
+const TOAST_VISIBLE_COUNT = 3;
+const TOAST_GAP = 14;
+const TOAST_DURATION = 5000;
+const TOAST_UNMOUNT_DELAY = 200;
+const TOAST_TYPES = new Set(["default", "success", "error", "warning", "info", "loading"]);
+const TOAST_ICONS = {
+  success: '<circle cx="12" cy="12" r="9"/><path d="M8.5 12.2l2.4 2.4 4.6-4.9"/>',
+  error: '<circle cx="12" cy="12" r="9"/><path d="M9.2 9.2l5.6 5.6M14.8 9.2l-5.6 5.6"/>',
+  warning: '<path d="M10.5 3.9L2.9 17.1a1.7 1.7 0 001.5 2.6h15.2a1.7 1.7 0 001.5-2.6L13.5 3.9a1.7 1.7 0 00-3 0z"/><path d="M12 9v4.2M12 16.4v.2"/>',
+  info: '<circle cx="12" cy="12" r="9"/><path d="M12 11.2v4.6M12 7.8v.2"/>',
+  loading: '<path d="M12 3a9 9 0 019 9"/>',
+};
+
+let toastHost = null;
+let toastExpanded = false;
+const toastRecords = [];
+
+function getToastHost() {
+  if (toastHost?.isConnected) return toastHost;
+  toastHost = h("ol", "ui-toasts");
+  toastHost.setAttribute("aria-label", "通知");
+  toastHost.setAttribute("aria-live", "polite");
+  toastHost.setAttribute("aria-relevant", "additions text");
+  toastHost.setAttribute("aria-atomic", "false");
+
+  const collapseIfIdle = () => requestAnimationFrame(() => {
+    if (!toastHost.matches(":hover") && !toastHost.contains(document.activeElement)) {
+      setToastExpanded(false);
+    }
+  });
+  toastHost.addEventListener("mouseenter", () => setToastExpanded(true));
+  toastHost.addEventListener("mouseleave", collapseIfIdle);
+  toastHost.addEventListener("focusin", () => setToastExpanded(true));
+  toastHost.addEventListener("focusout", collapseIfIdle);
+  toastHost.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape") return;
+    const item = event.target.closest(".ui-toast");
+    const record = toastRecords.find((entry) => entry.el === item);
+    if (!record) return;
+    event.preventDefault();
+    event.stopPropagation();
+    dismissToast(record.id);
+  });
+  document.body.appendChild(toastHost);
+  return toastHost;
 }
+
+function syncToasts() {
+  if (!toastHost) return;
+  let offset = 0;
+  toastRecords.forEach((record, index) => {
+    record.offset = offset;
+    const item = record.el;
+    item.style.setProperty("--toasts-before", index);
+    item.style.setProperty("--z-index", toastRecords.length - index);
+    item.style.setProperty("--offset", `${offset}px`);
+    item.style.setProperty("--initial-height", `${record.height}px`);
+    const visible = toastExpanded || index < TOAST_VISIBLE_COUNT;
+    item.dataset.front = String(index === 0);
+    item.dataset.expanded = String(toastExpanded);
+    item.dataset.visible = String(visible);
+    item.tabIndex = visible ? 0 : -1;
+    const close = item.querySelector(".ui-toast-close");
+    if (close) close.tabIndex = visible ? 0 : -1;
+    offset += record.height + TOAST_GAP;
+  });
+  toastHost.style.setProperty("--front-toast-height", `${toastRecords[0]?.height || 0}px`);
+}
+
+function measureToast(record) {
+  const previous = record.el.style.height;
+  record.el.style.height = "auto";
+  record.height = record.el.getBoundingClientRect().height;
+  record.el.style.height = previous;
+}
+
+function pauseToasts() {
+  for (const record of toastRecords) {
+    if (record.timer === null) continue;
+    clearTimeout(record.timer);
+    record.timer = null;
+    record.remaining = Math.max(0, record.remaining - (Date.now() - record.startedAt));
+  }
+}
+
+function resumeToast(record) {
+  if (record.timer !== null || !Number.isFinite(record.remaining)) return;
+  record.startedAt = Date.now();
+  record.timer = setTimeout(() => dismissToast(record.id), record.remaining);
+}
+
+function resumeToasts() {
+  for (const record of toastRecords) resumeToast(record);
+}
+
+function setToastExpanded(value) {
+  if (toastExpanded === value) return;
+  toastExpanded = value;
+  syncToasts();
+  if (value) pauseToasts();
+  else if (!document.hidden) resumeToasts();
+}
+
+export function dismissToast(id) {
+  const index = toastRecords.findIndex((record) => record.id === id);
+  if (index === -1) return;
+  const [record] = toastRecords.splice(index, 1);
+  record.observer?.disconnect();
+  clearTimeout(record.timer);
+  record.timer = null;
+  record.el.style.setProperty("--offset", `${record.offset}px`);
+  record.el.dataset.removed = "true";
+  record.el.tabIndex = -1;
+  const close = record.el.querySelector(".ui-toast-close");
+  if (close) close.tabIndex = -1;
+  if (!toastRecords.length) toastExpanded = false;
+  syncToasts();
+  setTimeout(() => {
+    record.el.remove();
+    syncToasts();
+  }, TOAST_UNMOUNT_DELAY);
+}
+
+export function dismissAllToasts() {
+  for (const record of [...toastRecords]) dismissToast(record.id);
+}
+
+export function toast(message, opts = {}) {
+  const type = TOAST_TYPES.has(opts.type) ? opts.type : "success";
+  const duration = opts.duration ?? (type === "loading" ? Infinity : TOAST_DURATION);
+  const record = {
+    id: ++seq,
+    remaining: duration,
+    timer: null,
+    startedAt: 0,
+    height: 0,
+    offset: 0,
+    el: null,
+    observer: null,
+  };
+  const item = h("li", "ui-toast");
+  item.tabIndex = 0;
+  item.dataset.type = type;
+  item.dataset.mounted = "false";
+  item.dataset.removed = "false";
+  item.dataset.front = "false";
+  item.dataset.expanded = "false";
+  item.dataset.visible = "true";
+  item.setAttribute("role", type === "error" ? "alert" : "status");
+  item.setAttribute("aria-atomic", "true");
+  record.el = item;
+
+  if (type !== "loading") {
+    const close = h("button", "ui-toast-close");
+    close.type = "button";
+    close.setAttribute("aria-label", "关闭通知");
+    close.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>';
+    close.addEventListener("click", () => dismissToast(record.id));
+    item.appendChild(close);
+  }
+
+  if (TOAST_ICONS[type]) {
+    const icon = h("span", "ui-toast-icon");
+    icon.setAttribute("aria-hidden", "true");
+    icon.innerHTML = `<svg viewBox="0 0 24 24">${TOAST_ICONS[type]}</svg>`;
+    item.appendChild(icon);
+  }
+
+  const content = h("div", "ui-toast-content");
+  content.appendChild(h("div", "ui-toast-title", message));
+  if (opts.description) content.appendChild(h("div", "ui-toast-description", opts.description));
+  item.appendChild(content);
+
+  const host = getToastHost();
+  host.appendChild(item);
+  toastRecords.unshift(record);
+  measureToast(record);
+  syncToasts();
+
+  if (typeof ResizeObserver === "function") {
+    record.observer = new ResizeObserver(() => {
+      measureToast(record);
+      syncToasts();
+    });
+    record.observer.observe(content);
+  }
+
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => { item.dataset.mounted = "true"; });
+  });
+  if (!toastExpanded && !document.hidden) resumeToast(record);
+  return record.id;
+}
+
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) pauseToasts();
+  else if (!toastExpanded) resumeToasts();
+});

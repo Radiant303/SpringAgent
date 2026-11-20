@@ -88,7 +88,7 @@ export function switchPage(page) {
   if (loader) {
     Promise.resolve().then(loader).catch((e) => {
       if (section) UI.settleSkeletons(section);
-      UI.toast(e.message, { type: "error" });
+      UI.toast("页面加载失败", { type: "error", description: e.message });
     }).finally(() => finishLoadingBar(loading));
   } else {
     finishLoadingBar(loading);
