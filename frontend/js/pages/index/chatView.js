@@ -4,6 +4,7 @@
 
 import { $, el, icon } from "../../utils/dom.js";
 import { setMarkdown } from "../../utils/markdown.js";
+import { enhanceMarkdownLinks } from "../../components/linkPreview.js";
 import { relPath, splitPath } from "../../utils/format.js";
 import { hlLang, highlightLine } from "../../utils/highlight.js";
 import { state, closeWork, maybeScroll } from "./state.js";
@@ -170,7 +171,10 @@ export function systemNode(text, isError = false) {
 export function answerNode(text) {
   const wrap = el("div", "msg assistant");
   const answer = el("div", "answer markdown-body");
-  if (text) setMarkdown(answer, text);
+  if (text) {
+    setMarkdown(answer, text);
+    enhanceMarkdownLinks(answer);
+  }
   wrap.appendChild(answer);
   return wrap;
 }

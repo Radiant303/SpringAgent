@@ -6,6 +6,7 @@ import { $, icon } from "../../utils/dom.js";
 import { getToken, getValidToken, getRole, goLogin, logout, refreshAccessToken, WS_BASE, USER_KEY, ROLE_LABELS } from "../../api/auth.js";
 import { rpc } from "../../api/rpc.js";
 import { UI } from "../../components/ui.js";
+import { initLinkPreview } from "../../components/linkPreview.js";
 import { state, runs, resetFlow, smoothScrollToBottom, updateStick, interruptAutoScroll, setViewLoading } from "./state.js";
 import { addSystem } from "./chatView.js";
 import { loadWorks, createWork } from "./works.js";
@@ -330,6 +331,7 @@ export function bind() {
   syncInputMode();
 
   const msgBox = $("messages");
+  initLinkPreview(msgBox);
   if (msgBox) {
     new MutationObserver(syncEmpty).observe(msgBox, { childList: true });
     msgBox.addEventListener("scroll", updateStick);

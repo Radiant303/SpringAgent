@@ -698,6 +698,192 @@
   line-height: var(--markdown-body-line-height, 30px);
 }
 
+#messages .markdown-body a {
+  color: var(--text, rgba(0, 0, 0, 0.9));
+  text-decoration-line: underline;
+  text-decoration-style: dotted;
+  text-decoration-thickness: 1px;
+  text-decoration-color: #929292;
+  text-underline-offset: 4px;
+  transition: text-decoration-color 0.15s ease;
+}
+
+#messages .markdown-body a:hover { text-decoration-color: #3a3a3a; }
+
+#messages .markdown-body a:focus-visible {
+  outline: 2px solid rgba(66, 108, 196, 0.32);
+  outline-offset: 3px;
+  border-radius: 3px;
+}
+
+#messages .markdown-body .link-arrow {
+  display: inline-block;
+  width: 1em;
+  height: 1em;
+  margin-left: 2px;
+  vertical-align: calc(0.5cap - 0.5em);
+}
+
+.link-preview {
+  position: fixed;
+  z-index: 1000;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: max-content;
+  max-width: min(420px, calc(100vw - 24px));
+  height: 44px;
+  padding: 0 8px 0 14px;
+  font-size: 14px;
+  background: var(--bg, #ffffff);
+  border: 1px solid rgba(0, 0, 0, 0.09);
+  border-radius: 25px;
+  corner-shape: superellipse(1.5);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.045), 0 8px 20px -2px rgba(0, 0, 0, 0.08);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: translateY(4px) scale(0.95);
+  transform-origin: 50% 100%;
+  will-change: opacity, transform;
+  transition: opacity 0.11s cubic-bezier(0.4, 0, 1, 1), transform 0.11s cubic-bezier(0.4, 0, 1, 1), visibility 0s linear 0.11s;
+}
+
+@supports (corner-shape: superellipse(1.5)) {
+  .link-preview { border-radius: 31px; }
+}
+
+.link-preview.is-below {
+  transform: translateY(-4px) scale(0.95);
+  transform-origin: 50% 0;
+}
+
+.link-preview::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 100%;
+  height: 12px;
+}
+
+.link-preview.is-below::after {
+  top: auto;
+  bottom: 100%;
+}
+
+.link-preview.visible {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transform: translateY(0) scale(1);
+  transition: opacity 0.15s cubic-bezier(0.16, 1, 0.3, 1), transform 0.15s cubic-bezier(0.16, 1, 0.3, 1), visibility 0s linear 0s;
+}
+
+.preview-main {
+  display: flex;
+  align-items: center;
+  flex: 1 1 auto;
+  min-width: 0;
+  color: #242424;
+  text-decoration: none;
+}
+
+.preview-main:focus-visible {
+  outline: 2px solid rgba(66, 108, 196, 0.32);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+.preview-icon {
+  position: relative;
+  flex: 0 0 17.76px;
+  width: 17.76px;
+  height: 17.76px;
+  margin-right: 10px;
+  border-radius: 50%;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  background: #f2f2ef;
+  color: #8c8c8c;
+  --corner-shape: round;
+}
+
+.preview-icon .fallback-icon {
+  width: 11px;
+  height: 11px;
+  transition: opacity 0.2s ease;
+}
+
+.preview-icon img {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  background: var(--bg, #ffffff);
+  opacity: 0;
+  transition: opacity 0.22s ease-out;
+}
+
+.preview-icon img.loaded { opacity: 1; }
+
+.preview-url {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13.3px;
+  line-height: 22px;
+  text-decoration-line: underline;
+  text-decoration-style: dotted;
+  text-decoration-thickness: 1px;
+  text-decoration-color: #929292;
+  text-underline-offset: 4px;
+  transition: text-decoration-color 0.15s ease;
+}
+
+.preview-main:hover .preview-url { text-decoration-color: #3a3a3a; }
+
+.preview-main .link-arrow {
+  flex: 0 0 15px;
+  width: 15px;
+  height: 15px;
+  margin-left: 6px;
+  color: #242424;
+  transform: translateY(-2px);
+}
+
+.link-preview .link-copy {
+  position: relative;
+  flex: 0 0 30px;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+}
+
+.link-preview .link-copy:focus-visible {
+  outline: 2px solid rgba(66, 108, 196, 0.32);
+  outline-offset: 1px;
+}
+
+.link-preview .link-copy .icon {
+  width: 18px;
+  height: 18px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #messages .markdown-body a,
+  .link-preview,
+  .preview-icon img,
+  .preview-url {
+    transition: none;
+  }
+}
+
 .stream-fade-char {
   animation: stream-fade-char 250ms linear both;
 }

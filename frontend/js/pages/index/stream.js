@@ -6,6 +6,7 @@ import { $, el, hidePending, appendKeepingBottom, icon, revealStreamText } from 
 import { apiFetch } from "../../api/client.js";
 import { rpc } from "../../api/rpc.js";
 import { setMarkdown } from "../../utils/markdown.js";
+import { enhanceMarkdownLinks } from "../../components/linkPreview.js";
 import { createAdaptiveRenderer } from "../../utils/adaptiveRender.js";
 import { SproutManager } from "../../components/sprout.js";
 import {
@@ -63,6 +64,7 @@ const pumps = new Map();
 /** 回答正文的自适应节流渲染：流式期间也带完整代码卡片与高亮 */
 const answerRenderer = createAdaptiveRenderer((a) => {
   setMarkdown(a.answer, a.text, true);
+  enhanceMarkdownLinks(a.answer);
   revealStreamText(a.answer);
   maybeScroll();
 });
