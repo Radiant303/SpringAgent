@@ -71,6 +71,12 @@ def register_default_instructions(
         "</plan_reporting>")
 
     @agent.instructions
+    async def link_format() -> str:
+        return ("<link_format>"
+        "Format web links as [link text](url), for example [Flutter official source](https://github.com/flutter/flutter). Never add an outer pair of parentheses or another wrapper around the Markdown link: ([link text](url)) is invalid. Sentence punctuation may follow the link naturally without adding extra brackets."
+        "</link_format>")
+
+    @agent.instructions
     async def knowledge_filesystem() -> str:
         return ("<knowledge_system>"
         "The knowledge base is the current user's personal material. Use it to understand and maintain the user's confirmed learning records."
