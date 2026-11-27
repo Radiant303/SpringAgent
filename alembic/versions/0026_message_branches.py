@@ -23,6 +23,9 @@ _DEFAULTS = {
 
 
 def upgrade() -> None:
+    timestamp_default = sa.text(
+        "CURRENT_TIMESTAMP(6)" if op.get_bind().dialect.name == "mysql" else "CURRENT_TIMESTAMP",
+    )
     op.create_table(
         "message_nodes",
         sa.Column("id", sa.CHAR(36), nullable=False),
@@ -36,7 +39,7 @@ def upgrade() -> None:
         sa.Column("legacy_end_id", sa.BigInteger(), nullable=True),
         sa.Column("legacy_target_id", sa.BigInteger(), nullable=True),
         sa.Column("created_at", MicrosecondDateTime(), nullable=False,
-                  server_default=sa.text("CURRENT_TIMESTAMP")),
+                  server_default=timestamp_default),
         sa.ForeignKeyConstraint(["session_id"], ["sessions.id"]),
         sa.PrimaryKeyConstraint("id"),
     )

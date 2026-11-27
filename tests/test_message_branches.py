@@ -1,10 +1,13 @@
 """消息分支与重试输入回归测试。"""
 
 import asyncio
+import importlib.util
 import os
 from contextlib import asynccontextmanager
 from pathlib import Path
+from unittest.mock import MagicMock
 
+import pytest
 from pydantic_ai import Agent, ModelRequest, RequestUsage, TextPart, UserPromptPart
 from pydantic_ai.models.test import TestModel
 
@@ -131,3 +134,34 @@ def test_conversation_limits_default_and_clamp(monkeypatch) -> None:
         "message_edit_limit": "0", "answer_retry_limit": "99",
     }))
     assert conversation_limits() == {"message_edit_limit": 0, "answer_retry_limit": 6}
+
+
+@pytest.mark.parametrize(
+    ("dialect", "expected"), [("mysql", "CURRENT_TIMESTAMP(6)"), ("sqlite", "CURRENT_TIMESTAMP")],
+)
+def test_branch_migration_matches_datetime_precision(
+    monkeypatch: pytest.MonkeyPatch, dialect: str, expected: str,
+) -> None:
+    path = Path(__file__).resolve().parents[1] / "alembic/versions/0026_message_branches.py"
+    spec = importlib.util.spec_from_file_location("migration_0026_test", path)
+    migration = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(migration)
+    bind = MagicMock()
+    bind.dialect.name = dialect
+    bind.execute.return_value.scalars.return_value = []
+    create_table = MagicMock()
+    batch = MagicMock()
+    batch_context = MagicMock()
+    batch_context.__enter__.return_value = batch
+    monkeypatch.setattr(migration.op, "get_bind", lambda: bind)
+    monkeypatch.setattr(migration.op, "create_table", create_table)
+    monkeypatch.setattr(migration.op, "create_index", MagicMock())
+    monkeypatch.setattr(migration.op, "add_column", MagicMock())
+    monkeypatch.setattr(migration.op, "batch_alter_table", lambda *args, **kwargs: batch_context)
+    monkeypatch.setattr(migration.op, "bulk_insert", MagicMock())
+
+    migration.upgrade()
+
+    columns = create_table.call_args.args[1:]
+    created_at = next(column for column in columns if getattr(column, "name", None) == "created_at")
+    assert created_at.server_default.arg.text == expected
