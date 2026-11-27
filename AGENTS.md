@@ -158,12 +158,12 @@ docker buildx imagetools inspect ghcr.io/radiant303/springagent:X.Y.Z
 ## 重发同一个 tag
 
 ```bash
-git tag -d vX.Y.Z
-git push origin :refs/tags/vX.Y.Z
-# 修复并提交后重新打 tag
-git tag -a vX.Y.Z -m "vX.Y.Z"
-git push origin vX.Y.Z
+# 修复并提交后，直接把 tag 移到新提交
+git tag -fa vX.Y.Z -m "vX.Y.Z" <commit>
+git push --force origin vX.Y.Z
 ```
+
+> 不要先删除远端 tag。删除操作可能异步删除对应 Release，与随后重建 tag 形成竞态；强制移动 tag 会保留 Release，由流水线更新标题和说明。
 
 ## 手动兜底
 
