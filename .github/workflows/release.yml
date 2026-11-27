@@ -195,7 +195,7 @@ jobs:
         run: |
           set -euo pipefail
           release_title=$(tr -d '\r\n' < release-title.txt)
-          args=(--title "$release_title" --notes-file release-notes.md)
+          args=(--title "$release_title" --notes-file release-notes.md --draft=false)
           if [ "$PRERELEASE" = "true" ]; then
             args+=(--prerelease)
           fi
