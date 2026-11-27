@@ -3,6 +3,7 @@ name: CI
 on:
   push:
     branches: [master]
+    tags: ["v*"]
   pull_request:
     branches: [master]
   workflow_dispatch:
@@ -165,3 +166,12 @@ jobs:
               ET.parse(path)
               print(f'Validated {path}')
           PY
+
+  release:
+    name: Release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [python-tests, gateway-tests, frontend-checks]
+    uses: ./.github/workflows/release.yml
+    permissions:
+      contents: write
+      packages: write
