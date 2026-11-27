@@ -2095,21 +2095,34 @@ pre.tool-result.error { background: var(--diff-del-bg, rgba(192, 57, 43, 0.07));
 .message-tool:hover:not(:disabled) { background: var(--icon-hover-bg, rgba(0, 0, 0, 0.03)); color: var(--text-dim); }
 .message-tool:disabled { cursor: default; opacity: 0.35; }
 .message-tool .icon { width: 20px; height: 20px; }
+.message-tool[data-action="retry"] .icon { width: 19px; height: 19px; }
+.message-tool[data-action="copy"] svg { stroke-width: 1.75; }
 .branch-pager { display: inline-flex; align-items: center; gap: 1px; margin-left: 5px; }
-.message-tools.assistant > .branch-pager { margin: 0 16px 0 0; }
+.message-tools.assistant > .branch-pager { margin: 0 10px 0 0; }
+.branch-pager .message-tool { width: 18px; }
+.branch-pager .message-tool .icon { width: 14px; height: 14px; }
+.branch-pager .message-tool svg { stroke-width: 2; }
 .branch-version {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 40px;
+  min-width: 32px;
   height: 28px;
-  padding: 0 2px;
+  padding: 0 1px;
   color: var(--text-dim, rgba(0, 0, 0, 0.6));
-  font-size: 13px;
+  font-family: "Segoe UI", -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: 14px;
   font-weight: 500;
-  line-height: 1;
+  line-height: 14px;
+  letter-spacing: 0;
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  user-select: none;
+  transform: translateY(-1.5px);
 }
+.version-number { display: inline-block; height: 14px; line-height: 14px; }
+.version-slash { display: inline-flex; align-items: center; width: 6px; height: 12px; margin: 0 3px; }
+.version-slash svg { display: block; width: 6px; height: 12px; }
 @media (hover: hover) {
   .message-tools.user { opacity: 0; pointer-events: none; }
   .user-entry:is(:hover, :focus-within) .message-tools.user { opacity: 1; pointer-events: auto; }

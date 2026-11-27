@@ -22,11 +22,21 @@ function toolButton(name, iconName, label, disabled = false) {
   return button;
 }
 
+const VERSION_SLASH = '<svg viewBox="0 0 6 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M5 1 1 11"/></svg>';
+
 function versionPager(info, disabled) {
   const pager = el("div", "branch-pager");
   const previous = toolButton("previous", "prev", "上一版本", disabled || !info.previousBranchId);
   const next = toolButton("next", "next", "下一版本", disabled || !info.nextBranchId);
-  const label = el("span", "branch-version", `${info.version} / ${info.versionCount}`);
+  const label = el("span", "branch-version");
+  const slash = el("span", "version-slash");
+  slash.setAttribute("aria-hidden", "true");
+  slash.innerHTML = VERSION_SLASH;
+  label.append(
+    el("span", "version-number", String(info.version)),
+    slash,
+    el("span", "version-number", String(info.versionCount)),
+  );
   label.setAttribute("aria-label", `第 ${info.version} 个版本，共 ${info.versionCount} 个版本`);
   pager.append(previous, label, next);
   return pager;
@@ -43,7 +53,7 @@ export function branchToolbar(info, options) {
     nextBranchId: info.nextAnswerBranchId,
   } : info;
   const tools = el("div", `message-tools ${kind}`);
-  const copy = toolButton("copy", "copy", "复制", false);
+  const copy = toolButton("copy", "copyRounded", "复制", false);
   copy.onclick = (event) => {
     event.stopPropagation();
     navigator.clipboard.writeText(text).catch(() => UI.toast("复制失败", { type: "error" }));
