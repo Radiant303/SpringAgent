@@ -12,7 +12,7 @@ import com.spring.gateway.workspace.mapper.MessageMapper;
 import com.spring.gateway.workspace.mapper.MessageNodeMapper;
 import com.spring.gateway.workspace.mapper.SessionMapper;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
-import org.apache.ibatis.session.Configuration;
+import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -54,7 +54,7 @@ class MessageBranchServiceTests {
 
     @BeforeEach
     void setup() {
-        Configuration configuration = new Configuration();
+        MybatisConfiguration configuration = new MybatisConfiguration();
         for (Class<?> type : List.of(Session.class, Message.class, MessageNode.class)) {
             TableInfoHelper.initTableInfo(new MapperBuilderAssistant(configuration, type.getSimpleName()), type);
         }

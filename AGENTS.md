@@ -131,6 +131,7 @@ tag 去掉 `v` 后必须与 `pyproject.toml` 的 `version` 完全一致，`CHANG
 
 ## 流水线行为
 
+- `ci`：调用完整 CI，Python、网关和前端测试全部通过后才进入发布；任一失败都不会构建或推送镜像。
 - `prepare`：校验版本号与 CHANGELOG。
 - `build`：`linux/amd64` 与 `linux/arm64` 由原生 runner 并行构建，按 digest 推送。
 - `merge`：合成多架构 manifest，打版本 tag；正式版额外更新 `latest`，预发布不动 `latest`。
