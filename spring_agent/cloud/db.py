@@ -119,6 +119,7 @@ class SessionRow(Base):
     work_id: Mapped[str] = mapped_column(CHAR(36), ForeignKey("works.id"), nullable=False)
     title: Mapped[str | None] = mapped_column(String(128), nullable=True)
     current_segment: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    active_node_id: Mapped[str | None] = mapped_column(CHAR(36), nullable=True)
     status: Mapped[str] = mapped_column(String(16), nullable=False, default=STATUS_ACTIVE)
     created_at: Mapped[datetime.datetime] = mapped_column(
         MicrosecondDateTime, nullable=False, default=utc_now,
@@ -128,16 +129,46 @@ class SessionRow(Base):
     )
 
 
+class MessageNodeRow(Base):
+    """会话回答变体节点。"""
+
+    __tablename__ = "message_nodes"
+    __table_args__ = (
+        Index("ix_message_nodes_session", "session_id", "created_at"),
+        Index("ix_message_nodes_group", "session_id", "group_id", "version"),
+        Index("ix_message_nodes_legacy_target", "session_id", "legacy_target_id"),
+    )
+
+    id: Mapped[str] = mapped_column(CHAR(36), primary_key=True)
+    session_id: Mapped[str] = mapped_column(CHAR(36), ForeignKey("sessions.id"), nullable=False)
+    parent_id: Mapped[str | None] = mapped_column(CHAR(36), nullable=True)
+    group_id: Mapped[str] = mapped_column(CHAR(36), nullable=False)
+    kind: Mapped[str] = mapped_column(String(16), nullable=False)
+    version: Mapped[int] = mapped_column(Integer, nullable=False)
+    segment_no: Mapped[int] = mapped_column(Integer, nullable=False)
+    legacy_anchor_id: Mapped[int | None] = mapped_column(_BigInt, nullable=True)
+    legacy_end_id: Mapped[int | None] = mapped_column(_BigInt, nullable=True)
+    legacy_target_id: Mapped[int | None] = mapped_column(_BigInt, nullable=True)
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        MicrosecondDateTime, nullable=False, default=utc_now,
+    )
+
+
 class MessageRow(Base):
     __tablename__ = "messages"
     __table_args__ = (
         Index("ix_messages_session_segment", "session_id", "segment_no", "id"),
         Index("ix_messages_session_id", "session_id", "id"),
+        Index("ix_messages_session_node", "session_id", "node_id", "id"),
     )
 
     id: Mapped[int] = mapped_column(_BigInt, primary_key=True, autoincrement=True)
     session_id: Mapped[str] = mapped_column(CHAR(36), ForeignKey("sessions.id"), nullable=False)
     segment_no: Mapped[int] = mapped_column(Integer, nullable=False)
+    node_id: Mapped[str | None] = mapped_column(
+        CHAR(36), ForeignKey("message_nodes.id", name="fk_messages_node"), nullable=True,
+    )
+    legacy_id: Mapped[int | None] = mapped_column(_BigInt, nullable=True)
     # 单条消息的 JSON 序列化对象
     payload: Mapped[dict] = mapped_column(JSON, nullable=False)
     created_at: Mapped[datetime.datetime] = mapped_column(

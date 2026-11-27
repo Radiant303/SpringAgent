@@ -61,6 +61,8 @@ class InternalStoreControllerWireTest {
     private WorkService workService;
     @MockitoBean
     private PageMappingService pageMappingService;
+    @MockitoBean
+    private com.spring.gateway.workspace.service.impl.MessageBranchService messageBranchService;
 
     @TestConfiguration
     static class WireTestConfig {

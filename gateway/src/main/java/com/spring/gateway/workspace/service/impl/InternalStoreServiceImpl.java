@@ -6,8 +6,10 @@ import com.spring.gateway.workspace.dto.InternalAppendResult;
 import com.spring.gateway.workspace.dto.InternalMessage;
 import com.spring.gateway.workspace.dto.InternalMessagePage;
 import com.spring.gateway.workspace.entity.Message;
+import com.spring.gateway.workspace.entity.MessageNode;
 import com.spring.gateway.workspace.entity.Session;
 import com.spring.gateway.workspace.mapper.MessageMapper;
+import com.spring.gateway.workspace.mapper.MessageNodeMapper;
 import com.spring.gateway.workspace.mapper.SessionMapper;
 import com.spring.gateway.workspace.service.InternalStoreService;
 import com.spring.gateway.workspace.service.WorkService;
@@ -17,11 +19,14 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ObjectNode;
 
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * sessions / messages 两表的读写服务，供内部接口调用。
@@ -33,10 +38,16 @@ import java.util.List;
 @RequiredArgsConstructor
 public class InternalStoreServiceImpl implements InternalStoreService {
 
+    private static final String STORED_MARKER = "_springAgentStored";
+    private static final String NODE_MARKER = "_springAgentNodeId";
+    private static final String LEGACY_MARKER = "_springAgentLegacyId";
+
     private final SessionMapper sessionMapper;
     private final MessageMapper messageMapper;
     private final WorkService workService;
     private final ObjectMapper objectMapper;
+    private final MessageBranchService messageBranchService;
+    private final MessageNodeMapper messageNodeMapper;
 
     @Value("${app.data-root}")
     private String dataRoot;
@@ -99,7 +110,7 @@ public class InternalStoreServiceImpl implements InternalStoreService {
      * 查询会话消息（按 segment_no, id 升序）与当前段号
      *
      * @param sessionId 会话 ID
-     * @param segmentNo 只取该段；null 表示全部段
+     * @param segmentNo 只取该段；null 表示当前分支的模型上下文
      * @return 当前段号 + 消息列表；会话行不存在时当前段号为 0、消息为空
      */
     public InternalMessagePage getMessages(String sessionId, Integer segmentNo) {
@@ -107,10 +118,14 @@ public class InternalStoreServiceImpl implements InternalStoreService {
         if (row == null) {
             return new InternalMessagePage(0, List.of());
         }
-        List<Message> rows = selectMessages(sessionId, segmentNo);
+        List<Message> rows = segmentNo == null
+                ? messageBranchService.modelMessages(row) : selectMessages(sessionId, segmentNo);
         List<InternalMessage> messages = new ArrayList<>(rows.size());
         for (Message item : rows) {
-            messages.add(new InternalMessage(item.getSegmentNo(), readPayload(item.getPayload())));
+            Long legacyId = item.getNodeId() == null && item.getLegacyId() == null
+                    ? item.getId() : item.getLegacyId();
+            messages.add(new InternalMessage(
+                    item.getSegmentNo(), readPayload(item.getPayload()), item.getId(), item.getNodeId(), legacyId));
         }
         return new InternalMessagePage(row.getCurrentSegment(), messages);
     }
@@ -133,19 +148,64 @@ public class InternalStoreServiceImpl implements InternalStoreService {
         if (row == null || !Session.STATUS_ACTIVE.equals(row.getStatus())) {
             throw new BizException(404, "会话不存在: " + sessionId);
         }
-        int segmentNo = newSegment ? row.getCurrentSegment() + 1 : row.getCurrentSegment();
+        MessageNode active = row.getActiveNodeId() == null ? null
+                : messageNodeMapper.selectOne(new LambdaQueryWrapper<MessageNode>()
+                        .eq(MessageNode::getId, row.getActiveNodeId())
+                        .eq(MessageNode::getSessionId, sessionId));
+        if (row.getActiveNodeId() != null && active == null) {
+            throw new BizException(500, "当前消息分支无效");
+        }
+        int segmentNo = newSegment ? row.getCurrentSegment() + 1
+                : active == null ? row.getCurrentSegment() : active.getSegmentNo();
         List<Message> rows = new ArrayList<>(messages.size());
+        Map<String, MessageNode> knownNodes = new HashMap<>();
+        if (active != null) {
+            knownNodes.put(active.getId(), active);
+        }
         for (JsonNode message : messages) {
+            if (!(message instanceof ObjectNode)) {
+                throw new BizException(400, "消息 payload 必须是对象");
+            }
+            ObjectNode payload = ((ObjectNode) message).deepCopy();
+            ObjectNode metadata = payload.path("metadata").isObject()
+                    ? (ObjectNode) payload.path("metadata") : null;
+            String nodeId = active == null ? null : active.getId();
+            long legacyId = 0L;
+            if (metadata != null && metadata.path(STORED_MARKER).asBoolean(false)) {
+                String storedNodeId = metadata.path(NODE_MARKER).asText("");
+                nodeId = storedNodeId.isEmpty() ? null : storedNodeId;
+                legacyId = metadata.path(LEGACY_MARKER).asLong(0L);
+            }
+            if (metadata != null) {
+                metadata.remove(List.of(STORED_MARKER, NODE_MARKER, LEGACY_MARKER));
+            }
+            if (nodeId != null && !knownNodes.containsKey(nodeId)) {
+                MessageNode storedNode = messageNodeMapper.selectOne(new LambdaQueryWrapper<MessageNode>()
+                        .eq(MessageNode::getId, nodeId)
+                        .eq(MessageNode::getSessionId, sessionId));
+                if (storedNode == null) {
+                    throw new BizException(400, "消息分支归属无效");
+                }
+                knownNodes.put(nodeId, storedNode);
+            }
             Message item = new Message();
             item.setSessionId(sessionId);
             item.setSegmentNo(segmentNo);
-            item.setPayload(objectMapper.writeValueAsString(message));
+            item.setNodeId(nodeId);
+            item.setLegacyId(nodeId == null && legacyId > 0 ? legacyId : null);
+            item.setPayload(objectMapper.writeValueAsString(payload));
             rows.add(item);
         }
         if (!rows.isEmpty()) {
             messageMapper.insert(rows, 500);
         }
-        row.setCurrentSegment(segmentNo);
+        if (active != null) {
+            active.setSegmentNo(segmentNo);
+            messageNodeMapper.updateById(active);
+        }
+        if (newSegment) {
+            row.setCurrentSegment(segmentNo);
+        }
         row.setUpdatedAt(LocalDateTime.now(ZoneOffset.UTC));
         if (title != null && row.getTitle() == null) {
             row.setTitle(title);

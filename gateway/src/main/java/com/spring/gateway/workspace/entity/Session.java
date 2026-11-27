@@ -36,8 +36,11 @@ public class Session {
     /** 会话标题。 */
     private String title;
 
-    /** 当前历史段号。 */
+    /** 最新历史段号。 */
     private Integer currentSegment;
+
+    /** 当前选中的回答变体节点 ID。 */
+    private String activeNodeId;
 
     /** 会话状态。 */
     private String status;

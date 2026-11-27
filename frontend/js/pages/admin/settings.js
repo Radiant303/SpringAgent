@@ -421,6 +421,28 @@ export async function savePlatform() {
   });
 }
 
+/* ================= 对话设置 ================= */
+
+export async function loadConversation() {
+  const data = await withSkeleton("conversation", "conversation-save", () => api("/api/admin/settings"));
+  if ($("message-edit-limit")) $("message-edit-limit").value = data?.messageEditLimit ?? 6;
+  if ($("answer-retry-limit")) $("answer-retry-limit").value = data?.answerRetryLimit ?? 6;
+}
+
+export async function saveConversation() {
+  await saveWith("conversation-save", async () => {
+    const messageEditLimit = parseInteger($("message-edit-limit").value, { min: 0, max: 6 });
+    const answerRetryLimit = parseInteger($("answer-retry-limit").value, { min: 0, max: 6 });
+    if (messageEditLimit === null || answerRetryLimit === null) {
+      throw new Error("修改次数和重新生成次数须为 0～6 的整数");
+    }
+    await api("/api/admin/settings/conversation-limits", {
+      method: "POST",
+      body: { messageEditLimit, answerRetryLimit },
+    });
+  });
+}
+
 /* ================= 社群设置 ================= */
 
 export async function loadCommunity() {

@@ -22,6 +22,7 @@ export const PAGE_TITLES = {
   registration: "注册设置",
   storage: "存储设置",
   platform: "平台设置",
+  conversation: "对话设置",
   billing: "计费设置",
   community: "社群设置",
   search: "搜索服务",
@@ -31,7 +32,7 @@ export const PAGE_TITLES = {
 export const pageLoaders = {};
 
 /** 仅站长的页面 */
-const OWNER_PAGES = new Set(["model-config", "registration", "storage", "platform", "billing", "community", "search", "failure-events"]);
+const OWNER_PAGES = new Set(["model-config", "registration", "storage", "platform", "conversation", "billing", "community", "search", "failure-events"]);
 /** 站长/管理员的页面 */
 const STAFF_PAGES = new Set(["users", "usage", "usage-records", "ledger", "models", "redeem"]);
 

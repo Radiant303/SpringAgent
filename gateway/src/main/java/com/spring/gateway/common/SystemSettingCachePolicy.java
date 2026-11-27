@@ -31,6 +31,7 @@ public final class SystemSettingCachePolicy {
             "storage.reconcile_cron",
             "platform.domain",
             "platform.https",
+            "message_edit_limit", "answer_retry_limit",
             "search.local.enabled",
             "search.local.provider",
             "search.native.points",

@@ -5,6 +5,7 @@ import com.spring.gateway.common.RequiresOwner;
 import com.spring.gateway.common.Result;
 import com.spring.gateway.settings.dto.AdminBillingEstRequest;
 import com.spring.gateway.settings.dto.AdminCommunityLinkRequest;
+import com.spring.gateway.settings.dto.AdminConversationLimitsRequest;
 import com.spring.gateway.settings.dto.AdminMailSettingsRequest;
 import com.spring.gateway.settings.dto.AdminPlatformSettingsRequest;
 import com.spring.gateway.settings.dto.AdminRegistrationRequest;
@@ -135,6 +136,19 @@ public class AdminSettingsController {
     @PostMapping("/platform")
     public Result<Void> setPlatform(@Valid @RequestBody AdminPlatformSettingsRequest req) {
         systemSettingAdminService.setPlatform(req);
+        return Result.ok(null);
+    }
+
+    /**
+     * 设置消息修改与回答重试上限。
+     *
+     * @param req 次数上限
+     * @return 空数据返回体
+     */
+    @RequiresOwner(message = "仅站长可修改系统设置")
+    @PostMapping("/conversation-limits")
+    public Result<Void> setConversationLimits(@Valid @RequestBody AdminConversationLimitsRequest req) {
+        systemSettingAdminService.setConversationLimits(req);
         return Result.ok(null);
     }
 

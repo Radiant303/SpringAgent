@@ -104,6 +104,22 @@ class SessionControlTests {
     }
 
     @Test
+    void authorizedBranchActionsArePassedToDispatch() throws Exception {
+        var browser = browser();
+        when(engineClient.sessionControlToken("session-1", 123L, "browser-id")).thenReturn("control-token");
+
+        relay.handleTextMessage(browser, new TextMessage("{\"id\":1,\"method\":\"turn/edit\","
+                + "\"params\":{\"sessionId\":\"session-1\",\"branchId\":\"node-1\",\"input\":\"edited\"}}"));
+        relay.handleTextMessage(browser, new TextMessage("{\"id\":2,\"method\":\"turn/regenerate\","
+                + "\"params\":{\"sessionId\":\"session-1\",\"branchId\":\"node-2\"}}"));
+
+        verify(dispatch).dispatchBranch(123L, "session-1", "edit", "node-1", "edited", "control-token");
+        verify(dispatch).dispatchBranch(123L, "session-1", "retry", "node-2", "", "control-token");
+        assertEquals(2, responses.size());
+        assertTrue(responses.stream().allMatch(response -> response.contains("\"result\"")));
+    }
+
+    @Test
     void controlCheckFailureDoesNotFallBackToEngineOrDispatch() throws Exception {
         var browser = browser();
         var upstream = mock(WebSocketSession.class);

@@ -166,6 +166,7 @@ export const ICONS = {
   check: '<path d="M5 12.25l4.5 4.5L19 7.25"/>',
   planCheck: '<circle cx="12" cy="12" r="10.875" stroke-width="2.25"/><path d="M7.125 12.6L10.65 16.125L17.025 8.85" stroke-width="2.25"/>',
   copy: '<rect x="8" y="8" width="12" height="12" rx="2.5"/><path d="M16 8V6.5A2.5 2.5 0 0 0 13.5 4h-7A2.5 2.5 0 0 0 4 6.5v7A2.5 2.5 0 0 0 6.5 16H8"/>',
+  retry: '<path d="M20 7v5h-5"/><path d="M19 12a7 7 0 1 0-1.7 4.6"/><path d="M20 12l-3-3-3 3"/>',
   tick: '<path d="M5 12.25l4.5 4.5L19 7.25"/>',
   prev: '<path d="M15 6l-6 6 6 6"/>',
   next: '<path d="M9 6l6 6-6 6"/>',

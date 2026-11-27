@@ -63,21 +63,38 @@ class SystemSettingServiceUnitTests {
 
     @Test
     void whitelistIsExactAndImmutable() {
-        assertEquals(20, SystemSettingCachePolicy.PUBLIC_KEYS.size());
+        assertEquals(22, SystemSettingCachePolicy.PUBLIC_KEYS.size());
         assertEquals(Set.of("registration_open", "registration_initial_points", "mail.register_enabled",
                 "mail.register_domains", "work_max_bytes", "billing.est_cache_read_tokens", "billing.est_input_tokens",
                 "billing.est_output_tokens", "mail.resend_interval_seconds", "mail.code_ttl_seconds", "community_link",
-                "storage.type", "storage.reconcile_cron", "platform.domain", "platform.https", "search.local.enabled",
+                "storage.type", "storage.reconcile_cron", "platform.domain", "platform.https", "message_edit_limit",
+                "answer_retry_limit", "search.local.enabled",
                 "search.local.provider", "search.native.points", "search.providers.tavily.points",
                 "search.providers.exa.points"), SystemSettingCachePolicy.PUBLIC_KEYS);
         assertEquals(Set.of("mail.username", "mail.auth_code", "storage.oss.endpoint", "storage.oss.bucket",
                 "storage.oss.access_key_id", "storage.oss.access_key_secret", "search.providers.tavily.api_key",
                 "search.providers.exa.api_key"), SystemSettingCachePolicy.SENSITIVE_KEYS);
-        assertEquals(28, SystemSettingCachePolicy.CACHEABLE_KEYS.size());
+        assertEquals(30, SystemSettingCachePolicy.CACHEABLE_KEYS.size());
         assertFalse(SystemSettingCachePolicy.CACHEABLE_KEYS.contains("default_model"));
         assertFalse(SystemSettingCachePolicy.CACHEABLE_KEYS.contains("subagents.searcher"));
         assertThrows(UnsupportedOperationException.class,
                 () -> SystemSettingCachePolicy.CACHEABLE_KEYS.add("future.setting"));
+    }
+
+    @Test
+    void conversationLimitsAcceptZeroAndSixAndRejectOtherValues() {
+        for (String value : List.of("0", "6")) {
+            service.set(SystemSetting.KEY_MESSAGE_EDIT_LIMIT, value);
+            service.set(SystemSetting.KEY_ANSWER_RETRY_LIMIT, value);
+        }
+        for (String value : List.of("-1", "7", "1.5", "x")) {
+            assertThrows(com.spring.gateway.common.BizException.class,
+                    () -> service.set(SystemSetting.KEY_MESSAGE_EDIT_LIMIT, value));
+            assertThrows(com.spring.gateway.common.BizException.class,
+                    () -> service.set(SystemSetting.KEY_ANSWER_RETRY_LIMIT, value));
+        }
+        verify(mapper, times(4)).upsert(any());
+        verify(cache, times(4)).invalidate();
     }
 
     @Test

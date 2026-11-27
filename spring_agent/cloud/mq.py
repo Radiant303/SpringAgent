@@ -145,7 +145,10 @@ class TurnDispatcher:
                 })
             else:
                 try:
-                    handle.start_turn(text, turn_id=turn_id, user_id=user_id)
+                    handle.start_turn(
+                        text, turn_id=turn_id, user_id=user_id,
+                        action=payload.get("action", "normal"), branch_id=payload.get("branchId"),
+                    )
                 except JsonRpcError as e:
                     await self.publish_lifecycle({
                         "turnId": turn_id, "sessionId": session_id, "userId": user_id,

@@ -141,6 +141,8 @@ class AgentSession:
         *,
         turn_id: str | None = None,
         user_id: int | None = None,
+        action: str = "normal",
+        branch_id: str | None = None,
     ) -> None:
         if user_id != self._user_id or self._deps.user_id != self._user_id \
                 or self._deps.file_access != self._file_access \
@@ -165,6 +167,12 @@ class AgentSession:
                 self._deps.billing = BillingContext(self._billing_service, user_id,
                                                     self.session_id, turn_id)
             self._cancel_token = CancellationToken()
+            prepare = getattr(self._store, "prepare_turn", None)
+            if callable(prepare):
+                text = await self._in_thread(prepare, text, action=action, branch_id=branch_id)
+                self._pending_input = text
+                self._history = await self._in_thread(self._store.load_messages)
+                self._history_loaded = True
             if not self._history_loaded:
                 await self._ensure_history()
             # 愈合旧版本取消轮留下的中断尾（悬挂工具调用），否则本轮直接 UserError
@@ -243,6 +251,18 @@ class AgentSession:
                 if not self._history_loaded:
                     self._history = await self._in_thread(self._store.load_messages)
                     self._history_loaded = True
+
+    async def select_branch(self, branch_id: str) -> None:
+        """切换消息分支。"""
+        if self._busy:
+            raise RuntimeError("运行中不能切换消息版本")
+        select = getattr(self._store, "select_branch", None)
+        if not callable(select):
+            raise RuntimeError("当前存储不支持消息分支")
+        async with self._history_lock:
+            await self._in_thread(select, branch_id)
+            self._history = []
+            self._history_loaded = False
 
     def set_model(self, model_name: str, effort: str | None = None) -> None:
         if self._busy:

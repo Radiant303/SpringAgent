@@ -7,6 +7,7 @@ import com.spring.gateway.identity.service.MailCodeService;
 import com.spring.gateway.identity.service.UserProfileService;
 import com.spring.gateway.settings.dto.AdminBillingEstRequest;
 import com.spring.gateway.settings.dto.AdminCommunityLinkRequest;
+import com.spring.gateway.settings.dto.AdminConversationLimitsRequest;
 import com.spring.gateway.settings.dto.AdminMailSettingsRequest;
 import com.spring.gateway.settings.dto.AdminPlatformSettingsRequest;
 import com.spring.gateway.settings.dto.AdminRegistrationRequest;
@@ -78,6 +79,8 @@ public class SystemSettingAdminServiceImpl implements SystemSettingAdminService 
         data.put("communityLink", stringValue(values, SystemSetting.KEY_COMMUNITY_LINK, ""));
         data.put("platformDomain", stringValue(values, SystemSetting.KEY_PLATFORM_DOMAIN, ""));
         data.put("platformHttps", boolValue(values, SystemSetting.KEY_PLATFORM_HTTPS, false));
+        data.put("messageEditLimit", longValue(values, SystemSetting.KEY_MESSAGE_EDIT_LIMIT, 6L));
+        data.put("answerRetryLimit", longValue(values, SystemSetting.KEY_ANSWER_RETRY_LIMIT, 6L));
         data.put("storageType", stringValue(values, SystemSetting.KEY_STORAGE_TYPE, "local"));
         data.put("storageReconcileCron", stringValue(
                 values, SystemSetting.KEY_STORAGE_RECONCILE_CRON, SystemSettingService.DEFAULT_RECONCILE_CRON));
@@ -203,6 +206,13 @@ public class SystemSettingAdminServiceImpl implements SystemSettingAdminService 
         }
         systemSettingWriter.set(SystemSetting.KEY_PLATFORM_DOMAIN, domain);
         systemSettingWriter.set(SystemSetting.KEY_PLATFORM_HTTPS, String.valueOf(req.https()));
+    }
+
+    @Override
+    @Transactional
+    public void setConversationLimits(AdminConversationLimitsRequest req) {
+        systemSettingWriter.set(SystemSetting.KEY_MESSAGE_EDIT_LIMIT, String.valueOf(req.messageEditLimit()));
+        systemSettingWriter.set(SystemSetting.KEY_ANSWER_RETRY_LIMIT, String.valueOf(req.answerRetryLimit()));
     }
 
     @Override

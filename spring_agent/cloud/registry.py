@@ -67,6 +67,7 @@ class CloudSessionHandle:
         self._parked_requests: list[ApprovalRequest | QuestionRequest] = []
         self._tasks: set[asyncio.Task] = set()
         self._turn_pending = False
+        self._branch_selecting = False
         self._cancel_pending = False
         self._pending_finishes = 0
         self._users = 0
@@ -131,10 +132,11 @@ class CloudSessionHandle:
 
     @property
     def busy(self) -> bool:
-        return self.session.busy or self._turn_pending
+        return self.session.busy or self._turn_pending or self._branch_selecting
 
     def start_turn(
         self, text: str, *, turn_id: str | None = None, user_id: int | None = None,
+        action: str = "normal", branch_id: str | None = None,
     ) -> None:
         if self._closed:
             raise JsonRpcError(SESSION_NOT_FOUND, "会话已释放，请重新选择会话")
@@ -145,7 +147,19 @@ class CloudSessionHandle:
         self._turn_pending = True
         self._pending_finishes += 1
         self._cancel_pending = False
-        self._track(asyncio.create_task(self._run(text, turn_id=turn_id, user_id=user_id)))
+        self._track(asyncio.create_task(self._run(
+            text, turn_id=turn_id, user_id=user_id, action=action, branch_id=branch_id,
+        )))
+
+    async def select_branch(self, branch_id: str) -> None:
+        if self.busy:
+            raise JsonRpcError(BUSY, "运行中不能切换消息版本")
+        self._branch_selecting = True
+        try:
+            await self.session.select_branch(branch_id)
+        finally:
+            self._branch_selecting = False
+            self.touch()
 
     def cancel_turn(self) -> None:
         self.touch()
@@ -153,7 +167,10 @@ class CloudSessionHandle:
             self._cancel_pending = True
         self.session.cancel()
 
-    async def _run(self, text: str, *, turn_id: str | None = None, user_id: int | None = None) -> None:
+    async def _run(
+        self, text: str, *, turn_id: str | None = None, user_id: int | None = None,
+        action: str = "normal", branch_id: str | None = None,
+    ) -> None:
         try:
             if self._cancel_pending:
                 event = TurnFinished(cancelled=True, turn_id=turn_id, user_id=user_id)
@@ -163,7 +180,9 @@ class CloudSessionHandle:
                 finally:
                     self._pending_finishes = max(0, self._pending_finishes - 1)
                 return
-            await self.session.run_turn(text, turn_id=turn_id, user_id=user_id)
+            await self.session.run_turn(
+                text, turn_id=turn_id, user_id=user_id, action=action, branch_id=branch_id,
+            )
         except Exception:
             self._pending_finishes = max(0, self._pending_finishes - 1)
             logger.exception("会话 {} 的轮次异常", self.session_id)

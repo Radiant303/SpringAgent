@@ -23,6 +23,7 @@ import {
   loadPlatform, savePlatform,
   loadBilling, saveBilling,
   loadCommunity, saveCommunity,
+  loadConversation, saveConversation,
   loadSearch, saveSearch, bindSearchSettings,
 } from "./admin/settings.js";
 
@@ -41,6 +42,7 @@ registerPageLoader("redeem", () => ensureUsers().then(() => loadRedeemCodes()));
 registerPageLoader("registration", () => loadRegistration());
 registerPageLoader("storage", () => loadStorage());
 registerPageLoader("platform", () => loadPlatform());
+registerPageLoader("conversation", () => loadConversation());
 registerPageLoader("billing", () => loadBilling());
 registerPageLoader("community", () => loadCommunity());
 registerPageLoader("search", loadSearch);
@@ -118,6 +120,7 @@ export function init() {
       if ($("registration-save")) $("registration-save").onclick = saveRegistration;
       if ($("storage-save")) $("storage-save").onclick = saveStorage;
       if ($("platform-save")) $("platform-save").onclick = savePlatform;
+      if ($("conversation-save")) $("conversation-save").onclick = saveConversation;
       if ($("billing-save")) $("billing-save").onclick = saveBilling;
       if ($("community-save")) $("community-save").onclick = saveCommunity;
       if ($("search-save")) $("search-save").onclick = saveSearch;

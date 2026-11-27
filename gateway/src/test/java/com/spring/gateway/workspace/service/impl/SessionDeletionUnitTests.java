@@ -38,12 +38,13 @@ class SessionDeletionUnitTests {
     WorkMapper works = mock(WorkMapper.class);
     SessionMapper sessions = mock(SessionMapper.class);
     MessageMapper messages = mock(MessageMapper.class);
+    MessageNodeMapper nodes = mock(MessageNodeMapper.class);
     EngineClient engine = mock(EngineClient.class);
     FileStorageService files = mock(FileStorageService.class);
     UserStorageService storage = mock(UserStorageService.class);
     SessionStreamControl streams = mock(SessionStreamControl.class);
     SessionService service = new SessionServiceImpl(sessions, mock(InternalStoreService.class), mock(WorkService.class),
-            users, works, messages, files, storage, engine, streams);
+            users, works, messages, nodes, files, storage, engine, streams);
     Session session;
     User user;
     Work work;

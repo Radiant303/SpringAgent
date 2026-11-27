@@ -7,7 +7,8 @@ import { setMarkdown } from "../../utils/markdown.js";
 import { enhanceMarkdownLinks } from "../../components/linkPreview.js";
 import { relPath, splitPath } from "../../utils/format.js";
 import { hlLang, highlightLine } from "../../utils/highlight.js";
-import { state, closeWork, maybeScroll } from "./state.js";
+import { state, closeWork, maybeScroll, isBusy } from "./state.js";
+import { branchToolbar } from "./branches.js";
 
 /* ================= 基础消息节点 ================= */
 
@@ -34,7 +35,8 @@ export function attachChipNode(att) {
   return chip;
 }
 
-export function userNode(text) {
+export function userNode(text, branch = null) {
+  const entry = el("div", "user-entry");
   const wrap = el("div", "msg user");
   const body = el("div", "msg-text");
   let offset = 0;
@@ -45,7 +47,15 @@ export function userNode(text) {
   }
   body.appendChild(document.createTextNode((text || "").slice(offset)));
   wrap.appendChild(body);
-  return wrap;
+  entry.appendChild(wrap);
+  const tools = branchToolbar(branch, {
+    kind: "user",
+    text,
+    editLimit: state.messageEditLimit,
+    busy: isBusy(state.sessionId),
+  });
+  if (tools) entry.appendChild(tools);
+  return entry;
 }
 
 /* 附件 chip 浮动预览 */

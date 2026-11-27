@@ -4,7 +4,6 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.spring.gateway.common.UnknownSessionException;
 import com.spring.gateway.workspace.entity.Message;
 import com.spring.gateway.workspace.entity.Session;
-import com.spring.gateway.workspace.mapper.MessageMapper;
 import com.spring.gateway.workspace.mapper.SessionMapper;
 import com.spring.gateway.workspace.service.SessionHistoryService;
 import org.springframework.stereotype.Service;
@@ -51,14 +50,14 @@ public class SessionHistoryServiceImpl implements SessionHistoryService {
     private static final Set<String> AUTO_SOURCES = Set.of("file_monitor");
 
     private final SessionMapper sessionMapper;
-    private final MessageMapper messageMapper;
     private final ObjectMapper objectMapper;
+    private final MessageBranchService messageBranchService;
 
-    public SessionHistoryServiceImpl(SessionMapper sessionMapper, MessageMapper messageMapper,
-                                     ObjectMapper objectMapper) {
+    public SessionHistoryServiceImpl(SessionMapper sessionMapper, ObjectMapper objectMapper,
+                                     MessageBranchService messageBranchService) {
         this.sessionMapper = sessionMapper;
-        this.messageMapper = messageMapper;
         this.objectMapper = objectMapper;
+        this.messageBranchService = messageBranchService;
     }
 
     /**
@@ -90,20 +89,21 @@ public class SessionHistoryServiceImpl implements SessionHistoryService {
         if (cursor != null && limit == null) {
             throw new IllegalArgumentException("history cursor requires a limit");
         }
+        MessageBranchService.BranchContext branchContext = messageBranchService.context(row);
         if (limit == null) {
-            List<Message> rows = messageMapper.selectList(new LambdaQueryWrapper<Message>()
-                    .eq(Message::getSessionId, sessionId)
-                    .orderByAsc(Message::getSegmentNo)
-                    .orderByAsc(Message::getId));
-            List<List<JsonNode>> segments = dedupSegments(loadSegments(row, rows));
+            List<Message> rows = messageBranchService.allMessages(row);
+            List<List<JsonNode>> segments = dedupSegments(loadSegments(branchContext.segmentNo(), rows));
             int total = count(segments);
-            return buildResult(objectMapper,
+            ObjectNode result = buildResult(objectMapper,
                     new HistoryPage(total == 0 ? List.of() : segments, total == 0 ? null : 0, null, null, false));
+            messageBranchService.decorateHistory(result, branchContext);
+            return result;
         }
         long anchor;
         long boundary;
         if (cursor == null) {
-            anchor = latestId(sessionId);
+            Long latest = messageBranchService.latestId(row);
+            anchor = latest == null ? -1L : latest;
             boundary = "backward".equals(direction) ? anchor + 1 : 0;
         } else {
             CursorPosition position = decodeCursor(objectMapper, cursor, sessionId);
@@ -113,16 +113,17 @@ public class SessionHistoryServiceImpl implements SessionHistoryService {
                 throw new IllegalArgumentException("history cursor offset is out of range");
             }
         }
-        RowFetcher fetcher = rowFetcher(sessionId);
+        RowFetcher fetcher = rowFetcher(sessionId, branchContext);
         HistoryPage page = "backward".equals(direction)
                 ? backwardPage(fetcher, objectMapper, sessionId, anchor, boundary, limit)
                 : forwardPage(fetcher, objectMapper, sessionId, anchor, boundary, limit);
-        return buildResult(objectMapper, page);
+        ObjectNode result = buildResult(objectMapper, page);
+        messageBranchService.decorateHistory(result, branchContext);
+        return result;
     }
 
     /** 把 messages 行按 (segment_no, id) 装入段列表：段数 = current_segment + 1（含空段） */
-    private List<List<JsonNode>> loadSegments(Session row, List<Message> rows) {
-        int currentSegment = row.getCurrentSegment() == null ? 0 : row.getCurrentSegment();
+    private List<List<JsonNode>> loadSegments(int currentSegment, List<Message> rows) {
         List<List<JsonNode>> segments = new ArrayList<>(currentSegment + 1);
         for (int i = 0; i <= currentSegment; i++) {
             segments.add(new ArrayList<>());
@@ -133,17 +134,9 @@ public class SessionHistoryServiceImpl implements SessionHistoryService {
                 // 数据越界（库被绕过写入时）：跳过而不是越界崩溃
                 continue;
             }
-            segments.get(segmentNo).add(readPayload(objectMapper, item.getPayload()));
+            segments.get(segmentNo).add(messageBranchService.historyPayload(item));
         }
         return segments;
-    }
-
-    private static JsonNode readPayload(ObjectMapper objectMapper, String payload) {
-        try {
-            return objectMapper.readTree(payload);
-        } catch (Exception e) {
-            throw new IllegalArgumentException("message payload is not valid json");
-        }
     }
 
     // ---- 分页核心：流式批量取数，不依赖 DB 连接的纯逻辑 ----
@@ -418,13 +411,25 @@ public class SessionHistoryServiceImpl implements SessionHistoryService {
     private static boolean overlaps(List<? extends Object> acc, int tailSize, List<? extends Object> seg,
                                     int segStart, int k) {
         for (int i = 0; i < k; i++) {
-            Object left = acc.get(acc.size() - tailSize + i);
-            Object right = seg.get(segStart + i);
+            Object left = comparablePayload(acc.get(acc.size() - tailSize + i));
+            Object right = comparablePayload(seg.get(segStart + i));
             if (!left.equals(right)) {
                 return false;
             }
         }
         return true;
+    }
+
+    private static Object comparablePayload(Object value) {
+        if (!(value instanceof ObjectNode payload)) {
+            return value;
+        }
+        ObjectNode copy = payload.deepCopy();
+        if (copy.path("metadata").isObject()) {
+            ((ObjectNode) copy.path("metadata")).remove(List.of(
+                    MessageBranchService.INTERNAL_ROW_ID, MessageBranchService.INTERNAL_NODE_ID));
+        }
+        return copy;
     }
 
     /**
@@ -469,21 +474,16 @@ public class SessionHistoryServiceImpl implements SessionHistoryService {
         return new CursorPosition(values[0], values[1]);
     }
 
-    private long latestId(String sessionId) {
-        Long latest = messageMapper.selectLatestId(sessionId);
-        return latest == null ? -1L : latest;
-    }
-
-    private RowFetcher rowFetcher(String sessionId) {
+    private RowFetcher rowFetcher(String sessionId, MessageBranchService.BranchContext branchContext) {
         return new RowFetcher() {
             @Override
             public List<Row> fetchBackward(long before, long anchor, int limit) {
-                return toRows(messageMapper.selectHistoryBackward(sessionId, before, anchor, limit));
+                return toRows(messageBranchService.backward(branchContext, sessionId, before, anchor, limit));
             }
 
             @Override
             public List<Row> fetchForward(long fromId, long anchor, int limit) {
-                return toRows(messageMapper.selectHistoryForward(sessionId, fromId, anchor, limit));
+                return toRows(messageBranchService.forward(branchContext, sessionId, fromId, anchor, limit));
             }
         };
     }
@@ -491,7 +491,7 @@ public class SessionHistoryServiceImpl implements SessionHistoryService {
     private List<Row> toRows(List<Message> messages) {
         List<Row> rows = new ArrayList<>(messages.size());
         for (Message item : messages) {
-            rows.add(new Row(item.getId(), item.getSegmentNo(), readPayload(objectMapper, item.getPayload())));
+            rows.add(new Row(item.getId(), item.getSegmentNo(), messageBranchService.historyPayload(item)));
         }
         return rows;
     }

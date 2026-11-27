@@ -83,6 +83,12 @@ public class SystemSetting {
     /** 设置键：平台对外访问是否使用 https（"true"/"false"）。 */
     public static final String KEY_PLATFORM_HTTPS = "platform.https";
 
+    /** 单条消息的修改次数上限。 */
+    public static final String KEY_MESSAGE_EDIT_LIMIT = "message_edit_limit";
+
+    /** 同一问题的回答重试次数上限。 */
+    public static final String KEY_ANSWER_RETRY_LIMIT = "answer_retry_limit";
+
     /** 设置键，主键（值由代码固定，手动赋值）。 */
     @TableId(type = IdType.INPUT)
     private String settingKey;

@@ -14,14 +14,14 @@ from fastapi import WebSocket, WebSocketDisconnect
 from spring_agent.cloud import gateway_store
 from spring_agent.cloud.gateway_store import GatewaySessionStore, find_active_session, list_sessions_for_user
 from spring_agent.cloud.registry import CloudSessionHandle, get_registry
-from spring_agent.cloud.web_schema import ModelsListResult, WebInitializeResult, _model_infos
+from spring_agent.cloud.web_schema import ModelsListResult, WebInitializeResult, _model_infos, conversation_limits
 from spring_agent.core.config.model import setting as model_setting
 from spring_agent.core.config.settings import config
 from spring_agent.core.log import logger
 from spring_agent.core.rpc.connection import JsonRpcConnection, JsonRpcError
 from spring_agent.core.rpc.schema import (
-    AttachParams, SessionListResult, SessionParams, SessionResult, SessionSummary,
-    SetModelParams, TurnStartParams, WorkspaceParams,
+    AttachParams, BranchSelectParams, BranchTurnParams, SessionListResult, SessionParams,
+    SessionResult, SessionSummary, SetModelParams, TurnStartParams, WorkspaceParams,
 )
 from spring_agent.core.rpc.server import BUSY, PROTOCOL_VERSION, SESSION_NOT_FOUND, AppServer
 
@@ -69,7 +69,10 @@ class CloudAppServer(AppServer):
             "session/status": (SessionParams, self._session_status),
             "session/set_model": (SetModelParams, self._session_set_model),
             "turn/start": (TurnStartParams, self._turn_start),
+            "turn/edit": (BranchTurnParams, self._turn_edit),
+            "turn/regenerate": (BranchTurnParams, self._turn_retry),
             "turn/cancel": (SessionParams, self._turn_cancel),
+            "session/select_branch": (BranchSelectParams, self._session_select_branch),
             "models/list": (None, self._models_list),
             "session/new": (WorkspaceParams, self._session_new),
             "session/resume_last": (WorkspaceParams, self._session_resume_last),
@@ -208,6 +211,7 @@ class CloudAppServer(AppServer):
             server_name="springagent", protocol_version=PROTOCOL_VERSION,
             workspace=work.workspace_path, models=_model_infos(values),
             default_model=model_setting.default_model(values),
+            **conversation_limits(),
         )
 
     async def _session_new(self, p: WorkspaceParams) -> SessionResult:
@@ -275,7 +279,7 @@ class CloudAppServer(AppServer):
         if handle is not None and handle.file_access != access:
             raise JsonRpcError(SESSION_NOT_FOUND, f"未知会话: {p.session_id}")
         if handle is None:
-            store = await asyncio.to_thread(GatewaySessionStore.open, p.session_id)
+            store = await asyncio.to_thread(GatewaySessionStore.open, p.session_id, self._user_id)
             if store is None:
                 raise JsonRpcError(SESSION_NOT_FOUND, f"未知会话: {p.session_id}")
             handle = await registry.get_or_create(
@@ -312,6 +316,34 @@ class CloudAppServer(AppServer):
         handle = registry.get(p.session_id)
         assert handle is not None
         handle.start_turn(p.input, turn_id=f"ws-{uuid.uuid4().hex[:24]}", user_id=self._user_id)
+
+    async def _turn_edit(self, p: BranchTurnParams) -> None:
+        await self._branch_start(p, "edit")
+
+    async def _turn_retry(self, p: BranchTurnParams) -> None:
+        await self._branch_start(p, "retry")
+
+    async def _branch_start(self, p: BranchTurnParams, action: str) -> None:
+        self._require(p.session_id)
+        registry = get_registry()
+        assert registry is not None
+        handle = registry.get(p.session_id)
+        assert handle is not None
+        handle.start_turn(
+            p.input, turn_id=f"ws-{uuid.uuid4().hex[:24]}", user_id=self._user_id,
+            action=action, branch_id=p.branch_id,
+        )
+
+    async def _session_select_branch(self, p: BranchSelectParams) -> None:
+        self._require(p.session_id)
+        registry = get_registry()
+        assert registry is not None
+        handle = registry.get(p.session_id)
+        assert handle is not None
+        try:
+            await handle.select_branch(p.branch_id)
+        except ValueError as e:
+            raise JsonRpcError(-32602, str(e)) from e
 
     async def _session_status(self, p: SessionParams) -> SessionResult:
         self._require(p.session_id)

@@ -49,6 +49,7 @@ import {
 import { updateInputState } from "./input.js";
 import { refreshSessionList } from "./sessions.js";
 import { notifyStorageChanged } from "../../utils/storage.js";
+import { clearMessages, loadHistory } from "./history.js";
 
 export const USAGE_RING_LEN = 56.5;
 
@@ -467,7 +468,7 @@ export function onSessionEvent(sid, event, seq) {
   }
 }
 
-export function finishTurn(event) {
+export async function finishTurn(event) {
   hideCompactionStatus();
   const groups = new Set();
   for (const card of state.tools.values()) {
@@ -487,11 +488,24 @@ export function finishTurn(event) {
   discardEmptyTurn();
   state.currentTurn = null;
   updateLatestPet();
-  if (event.cancelled) addSystem("已中断，可继续输入");
-  else if (event.error) addSystem("❌ 运行出错：" + event.error, true);
-  releaseBusy(state.sessionId);
+  const sessionId = state.sessionId;
+  const generation = state.viewGeneration;
+  const notice = event.cancelled ? "已中断，可继续输入"
+    : event.error ? "运行出错：" + event.error : "";
+  releaseBusy(sessionId);
   updateInputState();
   notifyStorageChanged();
   setTimeout(refreshPoints, 1500);
   refreshSessionList();
+  clearMessages();
+  try {
+    await Promise.all([loadHistory(undefined, generation), loadPlan(generation)]);
+  } catch (error) {
+    if (state.sessionId === sessionId && state.viewGeneration === generation) {
+      addSystem("历史加载失败：" + error.message, true);
+    }
+  }
+  if (notice && state.sessionId === sessionId && state.viewGeneration === generation) {
+    addSystem(notice, !!event.error);
+  }
 }

@@ -102,6 +102,10 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/></svg>
           平台设置
         </div>
+        <div class="nav-item" data-page="conversation">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z"/><path d="M8 9h8M8 13h5"/></svg>
+          对话设置
+        </div>
         <div class="nav-item" data-page="registration">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6M22 11h-6"/></svg>
           注册设置
@@ -880,6 +884,38 @@
         <div class="settings-actions">
           <button id="platform-save" class="wide-btn primary">保存设置</button>
           <span id="platform-tip" class="settings-tip"></span>
+        </div>
+      </section>
+
+      <!-- 对话设置 -->
+      <section class="admin-page" data-page="conversation">
+        <h1 class="page-title">对话设置</h1>
+
+        <div class="section-caption">消息分支</div>
+        <div class="card group-card" data-slot="card">
+          <div class="row">
+            <span class="row-text">
+              <label for="message-edit-limit" class="row-label">单条消息修改次数</label>
+            </span>
+            <span class="row-control">
+              <input type="number" id="message-edit-limit" min="0" max="6" step="1" class="settings-number">
+              <span class="unit">次</span>
+            </span>
+          </div>
+          <div class="row">
+            <span class="row-text">
+              <label for="answer-retry-limit" class="row-label">同一问题重新生成次数</label>
+            </span>
+            <span class="row-control">
+              <input type="number" id="answer-retry-limit" min="0" max="6" step="1" class="settings-number">
+              <span class="unit">次</span>
+            </span>
+          </div>
+        </div>
+        <div class="settings-hint">可设置 0～6 次，默认 6 次。设为 0 时隐藏对应操作按钮。</div>
+        <div class="settings-actions">
+          <button id="conversation-save" class="wide-btn primary">保存设置</button>
+          <span id="conversation-tip" class="settings-tip"></span>
         </div>
       </section>
 

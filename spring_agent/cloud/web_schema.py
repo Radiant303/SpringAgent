@@ -31,6 +31,22 @@ class WebInitializeResult(InitializeResult):
     workspace: str
     models: list[ModelInfo]
     default_model: str = Field(validation_alias="defaultModel", serialization_alias="defaultModel")
+    message_edit_limit: int = Field(serialization_alias="messageEditLimit")
+    answer_retry_limit: int = Field(serialization_alias="answerRetryLimit")
+
+
+def conversation_limits() -> dict[str, int]:
+    from spring_agent.core.config.platform import platform_settings
+
+    values = platform_settings().snapshot()
+    result = {}
+    for key in ("message_edit_limit", "answer_retry_limit"):
+        try:
+            value = int(values.get(key, "6"))
+        except ValueError:
+            value = 6
+        result[key] = max(0, min(6, value))
+    return result
 
 
 def _model_infos(values: dict | None = None) -> list[ModelInfo]:

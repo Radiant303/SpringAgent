@@ -8,7 +8,8 @@ import { api } from "../../api/client.js";
 import { rpc } from "../../api/rpc.js";
 import { UI } from "../../components/ui.js";
 import { SproutManager } from "../../components/sprout.js";
-import { state, AUTO_SOURCES, resetFlow, createAssistantTurnNode, updateLatestPet, setStickToBottom } from "./state.js";
+import { state, AUTO_SOURCES, resetFlow, createAssistantTurnNode, updateLatestPet, setStickToBottom, isBusy } from "./state.js";
+import { branchInfo, branchToolbar } from "./branches.js";
 import {
   userNode,
   systemNode,
@@ -56,6 +57,8 @@ export function renderHistory(segments, prepend = false) {
   const frag = document.createDocumentFragment();
   let currentTurn = null;
   let group = null;
+  let turnText = "";
+  let turnBranch = null;
 
   const turnFor = () => {
     if (!currentTurn) {
@@ -82,8 +85,19 @@ export function renderHistory(segments, prepend = false) {
 
   const endTurn = () => {
     endGroup();
-    if (currentTurn) foldTurnProcess(currentTurn.content);
+    if (currentTurn) {
+      foldTurnProcess(currentTurn.content);
+      const tools = branchToolbar(turnBranch, {
+        kind: "assistant",
+        text: turnText,
+        retryLimit: state.answerRetryLimit,
+        busy: isBusy(state.sessionId),
+      });
+      if (tools) currentTurn.content.appendChild(tools);
+    }
     currentTurn = null;
+    turnText = "";
+    turnBranch = null;
   };
 
   const appendAnswer = (node) => {
@@ -119,12 +133,13 @@ export function renderHistory(segments, prepend = false) {
       if (msg.kind === "request") {
         for (const part of msg.parts || []) {
           if (part.part_kind === "user-prompt" && typeof part.content === "string") {
-            if (!AUTO_SOURCES.has(source)) appendRoot(userNode(part.content));
+            if (!AUTO_SOURCES.has(source)) appendRoot(userNode(part.content, branchInfo(msg)));
           } else if (part.part_kind === "tool-return" || part.part_kind === "retry-prompt") {
             renderTool(part);
           }
         }
       } else if (msg.kind === "response") {
+        turnBranch = branchInfo(msg) || turnBranch;
         let text = "";
         let thinking = "";
         const flushThinking = () => {
@@ -139,6 +154,7 @@ export function renderHistory(segments, prepend = false) {
           if (part.part_kind === "text") {
             flushThinking();
             text += part.content || "";
+            turnText += part.content || "";
           } else if (part.part_kind === "thinking") {
             flushText();
             thinking += part.content || "";

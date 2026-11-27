@@ -9,6 +9,8 @@
 - GET  /internal/sessions/{id}/messages           消息（段内按 id 升序；segmentNo 参数限定单段）
 - POST /internal/sessions/{id}/messages           追加（newSegment 控制开新段；段自增、title IS NULL
                                                    时写入、updated_at 推进在服务端单事务内完成）
+- POST /internal/sessions/{id}/branch/prepare     准备普通、编辑或重试分支
+- POST /internal/sessions/{id}/branch/select      切换当前分支
 - GET  /internal/works/{workId}                   work 详情（含派生 workspacePath 与生效上限 workMaxBytes）
 - POST /internal/works/default                    ensure-default（幂等，返回默认 work）
 """
@@ -19,7 +21,7 @@ import datetime
 import re
 import threading
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 import httpx
 from pydantic_ai import ModelMessage, ModelRequest, UserPromptPart
@@ -37,6 +39,16 @@ def _dump_message(message: ModelMessage) -> dict:
 
 def _load_message(payload: dict) -> ModelMessage:
     return ModelMessagesTypeAdapter.validate_python([payload])[0]
+
+
+def _load_stored_message(item: dict) -> ModelMessage:
+    message = _load_message(item["payload"])
+    return replace(message, metadata={
+        **(message.metadata or {}),
+        "_springAgentStored": True,
+        "_springAgentNodeId": item.get("nodeId") or "",
+        "_springAgentLegacyId": item.get("legacyId") or 0,
+    })
 
 
 def _parse_utc(value: str) -> datetime.datetime:
@@ -160,8 +172,9 @@ class GatewaySessionRow:
 class GatewaySessionStore:
     """会话存储实现：所有读写操作经内部 HTTP API 完成。"""
 
-    def __init__(self, session_id: str) -> None:
+    def __init__(self, session_id: str, user_id: int | None = None) -> None:
         self._session_id = session_id
+        self._user_id = user_id
 
     @property
     def session_id(self) -> str:
@@ -185,16 +198,16 @@ class GatewaySessionStore:
             "workId": work_id,
         })
         response.raise_for_status()
-        return cls(session_id)
+        return cls(session_id, user_id)
 
     @classmethod
-    def open(cls, session_id: str) -> GatewaySessionStore | None:
+    def open(cls, session_id: str, user_id: int | None = None) -> GatewaySessionStore | None:
         """打开已存在的会话；sessions 行不存在（如已物理删除）时返回 None。"""
         response = _get_client().get(f"/internal/sessions/{session_id}")
         if response.status_code == 404:
             return None
         response.raise_for_status()
-        return cls(session_id)
+        return cls(session_id, user_id)
 
     def append(self, messages: list[ModelMessage]) -> None:
         """每轮结束（含异常终止）后调用，追加到当前段。"""
@@ -220,23 +233,44 @@ class GatewaySessionStore:
             raise ValueError(f"会话不存在: {self._session_id}")
         response.raise_for_status()
 
-    def _current_segment(self) -> int:
-        response = _get_client().get(f"/internal/sessions/{self._session_id}")
-        if response.status_code == 404:
-            raise ValueError(f"会话不存在: {self._session_id}")
-        response.raise_for_status()
-        return int(response.json().get("currentSegment", 0))
+    def prepare_turn(self, text: str, *, action: str = "normal", branch_id: str | None = None) -> str:
+        """准备本轮分支并返回实际输入。"""
+        if self._user_id is None:
+            raise ValueError("会话缺少用户归属")
+        response = _get_client().post(
+            f"/internal/sessions/{self._session_id}/branch/prepare",
+            json={"userId": self._user_id, "action": action, "branchId": branch_id, "input": text},
+        )
+        if not response.is_success:
+            try:
+                detail = response.json().get("message") or response.json().get("detail")
+            except Exception:
+                detail = None
+            raise ValueError(detail or f"消息分支准备失败（{response.status_code}）")
+        return response.json()["input"]
+
+    def select_branch(self, branch_id: str) -> None:
+        """切换当前分支。"""
+        if self._user_id is None:
+            raise ValueError("会话缺少用户归属")
+        response = _get_client().post(
+            f"/internal/sessions/{self._session_id}/branch/select",
+            json={"userId": self._user_id, "branchId": branch_id},
+        )
+        if not response.is_success:
+            try:
+                detail = response.json().get("message") or response.json().get("detail")
+            except Exception:
+                detail = None
+            raise ValueError(detail or f"消息分支切换失败（{response.status_code}）")
 
     def load_messages(self) -> list[ModelMessage]:
-        """发给模型的当前历史：current_segment 段（rewrite 后的新基线）。"""
-        response = _get_client().get(
-            f"/internal/sessions/{self._session_id}/messages",
-            params={"segmentNo": self._current_segment()},
-        )
+        """发给模型的当前分支历史。"""
+        response = _get_client().get(f"/internal/sessions/{self._session_id}/messages")
         if response.status_code == 404:
             return []
         response.raise_for_status()
-        return [_load_message(item["payload"]) for item in response.json()["messages"]]
+        return [_load_stored_message(item) for item in response.json()["messages"]]
 
 
 # ---- 按 user_id 的会话查询 ----

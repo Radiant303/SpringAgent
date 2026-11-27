@@ -36,7 +36,8 @@ class TurnDispatchServiceUnitTests {
             OperationsCallback<?> callback = call.getArgument(0);
             return callback.doInRabbit(rabbit);
         }).when(rabbit).invoke(any(OperationsCallback.class));
-        TurnDispatchService service = new TurnDispatchServiceImpl(rabbit, ids);
+        TurnDispatchService service = new TurnDispatchServiceImpl(
+                rabbit, ids, mock(com.spring.gateway.workspace.service.impl.MessageBranchService.class));
         assertEquals(42L, service.dispatch(7L, "session-1", "hello", "token-a"));
         service.cancel(7L, "session-1", "token-b");
         var payload = org.mockito.ArgumentCaptor.forClass(Map.class);

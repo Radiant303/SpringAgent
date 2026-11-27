@@ -30,6 +30,15 @@ class TurnStartParams(_WireModel):
     input: str
 
 
+class BranchTurnParams(SessionParams):
+    branch_id: str = Field(validation_alias="branchId", serialization_alias="branchId", min_length=1, max_length=64)
+    input: str = ""
+
+
+class BranchSelectParams(SessionParams):
+    branch_id: str = Field(validation_alias="branchId", serialization_alias="branchId", min_length=1, max_length=64)
+
+
 class SetModelParams(_WireModel):
     session_id: str = Field(validation_alias="sessionId", serialization_alias="sessionId")
     model: str

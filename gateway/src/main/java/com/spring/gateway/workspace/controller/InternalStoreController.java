@@ -3,6 +3,9 @@ package com.spring.gateway.workspace.controller;
 import com.spring.gateway.common.BizException;
 import com.spring.gateway.workspace.dto.InternalAppendMessagesRequest;
 import com.spring.gateway.workspace.dto.InternalAppendResult;
+import com.spring.gateway.workspace.dto.InternalBranchPrepareRequest;
+import com.spring.gateway.workspace.dto.InternalBranchResult;
+import com.spring.gateway.workspace.dto.InternalBranchSelectRequest;
 import com.spring.gateway.workspace.dto.InternalCreateSessionRequest;
 import com.spring.gateway.workspace.dto.InternalEnsureDefaultWorkRequest;
 import com.spring.gateway.workspace.dto.InternalMessagePage;
@@ -13,6 +16,7 @@ import com.spring.gateway.workspace.entity.Work;
 import com.spring.gateway.workspace.service.InternalStoreService;
 import com.spring.gateway.workspace.service.PageMappingService;
 import com.spring.gateway.workspace.service.WorkService;
+import com.spring.gateway.workspace.service.impl.MessageBranchService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -24,6 +28,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * 内部接口。
@@ -39,6 +44,7 @@ public class InternalStoreController {
     private final InternalStoreService internalStoreService;
     private final WorkService workService;
     private final PageMappingService pageMappingService;
+    private final MessageBranchService messageBranchService;
 
     /**
      * 新建会话
@@ -106,6 +112,33 @@ public class InternalStoreController {
                                                @Valid @RequestBody InternalAppendMessagesRequest request) {
         return internalStoreService.appendMessages(
                 sessionId, Boolean.TRUE.equals(request.newSegment()), request.title(), request.messages());
+    }
+
+    /**
+     * 准备回答变体。
+     *
+     * @param sessionId 会话 ID
+     * @param request 操作与目标节点
+     * @return 新节点与实际输入
+     */
+    @PostMapping("/sessions/{sessionId}/branch/prepare")
+    public InternalBranchResult prepareBranch(@PathVariable String sessionId,
+                                              @Valid @RequestBody InternalBranchPrepareRequest request) {
+        return messageBranchService.prepare(sessionId, request.userId(), request.action(), request.branchId(), request.input());
+    }
+
+    /**
+     * 切换回答变体。
+     *
+     * @param sessionId 会话 ID
+     * @param request 用户与目标节点
+     * @return 空对象
+     */
+    @PostMapping("/sessions/{sessionId}/branch/select")
+    public Map<String, Object> selectBranch(@PathVariable String sessionId,
+                                            @Valid @RequestBody InternalBranchSelectRequest request) {
+        messageBranchService.select(sessionId, request.userId(), request.branchId());
+        return Map.of();
     }
 
     /**

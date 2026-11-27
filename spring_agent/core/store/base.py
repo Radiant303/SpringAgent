@@ -18,5 +18,5 @@ class SessionStore(Protocol):
         ...
 
     def load_messages(self) -> list[ModelMessage]:
-        """发给模型的当前历史：最新一段（压缩后的新基线）。"""
+        """发给模型的当前历史：当前分支最新一段。"""
         ...

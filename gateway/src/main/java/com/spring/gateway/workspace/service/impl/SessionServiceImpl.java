@@ -5,9 +5,11 @@ import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.spring.gateway.common.BizException;
 import com.spring.gateway.workspace.dto.SessionSummary;
 import com.spring.gateway.workspace.entity.Message;
+import com.spring.gateway.workspace.entity.MessageNode;
 import com.spring.gateway.workspace.entity.Session;
 import com.spring.gateway.workspace.entity.Work;
 import com.spring.gateway.workspace.mapper.MessageMapper;
+import com.spring.gateway.workspace.mapper.MessageNodeMapper;
 import com.spring.gateway.workspace.mapper.SessionMapper;
 import com.spring.gateway.identity.mapper.UserMapper;
 import com.spring.gateway.workspace.mapper.WorkMapper;
@@ -50,6 +52,7 @@ public class SessionServiceImpl implements SessionService {
     private final UserMapper userMapper;
     private final WorkMapper workMapper;
     private final MessageMapper messageMapper;
+    private final MessageNodeMapper messageNodeMapper;
     private final FileStorageService fileStorageService;
     private final UserStorageService userStorageService;
     private final EngineClient engineClient;
@@ -166,6 +169,7 @@ public class SessionServiceImpl implements SessionService {
         userStorageService.deleteSessionDirectory(userId, work.getId(), sessionId);
         fileStorageService.deleteBySession(userId, work.getId(), sessionId);
         messageMapper.delete(new LambdaQueryWrapper<Message>().eq(Message::getSessionId, sessionId));
+        messageNodeMapper.delete(new LambdaQueryWrapper<MessageNode>().eq(MessageNode::getSessionId, sessionId));
         sessionMapper.update(new LambdaUpdateWrapper<Session>()
                 .eq(Session::getId, sessionId)
                 .set(Session::getStatus, Session.STATUS_DELETED)

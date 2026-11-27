@@ -164,6 +164,22 @@ class SessionHistoryServiceTests {
     }
 
     @Test
+    @DisplayName("跨段去重：忽略分页内部行标记")
+    void dedupIgnoresInternalRowMarkers() {
+        var first = (tools.jackson.databind.node.ObjectNode) user("相同消息");
+        var second = (tools.jackson.databind.node.ObjectNode) user("相同消息");
+        first.putObject("metadata").put("_springAgentRowId", 1);
+        second.putObject("metadata").put("_springAgentRowId", 2);
+
+        List<List<JsonNode>> result = SessionHistoryServiceImpl.dedupSegments(
+                List.of(List.of(first), List.of(second, user("下一条"))));
+
+        assertEquals(1, result.get(0).size());
+        assertEquals(1, result.get(1).size());
+        assertEquals("下一条", result.get(1).getFirst().path("parts").get(0).path("content").asText());
+    }
+
+    @Test
     @DisplayName("跨段去重：命中起始点取 s+k 最大者")
     void dedupTakesLargestOverlap() {
         List<List<JsonNode>> result = SessionHistoryServiceImpl.dedupSegments(

@@ -27,6 +27,12 @@ public class Message {
     /** 消息所属的历史段号。 */
     private Integer segmentNo;
 
+    /** 所属回答变体节点 ID。 */
+    private String nodeId;
+
+    /** 旧消息在压缩前的原始主键。 */
+    private Long legacyId;
+
     /** 消息内容，JSON 原文。 */
     private String payload;
 

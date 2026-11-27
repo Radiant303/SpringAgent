@@ -3,10 +3,12 @@ package com.spring.gateway.workspace.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.spring.gateway.common.BizException;
 import com.spring.gateway.workspace.entity.Message;
+import com.spring.gateway.workspace.entity.MessageNode;
 import com.spring.gateway.workspace.entity.Session;
 import com.spring.gateway.identity.entity.User;
 import com.spring.gateway.workspace.entity.Work;
 import com.spring.gateway.workspace.mapper.MessageMapper;
+import com.spring.gateway.workspace.mapper.MessageNodeMapper;
 import com.spring.gateway.workspace.mapper.SessionMapper;
 import com.spring.gateway.identity.mapper.UserMapper;
 import com.spring.gateway.workspace.mapper.WorkMapper;
@@ -48,6 +50,7 @@ public class WorkServiceImpl implements WorkService {
     private final WorkMapper workMapper;
     private final SessionMapper sessionMapper;
     private final MessageMapper messageMapper;
+    private final MessageNodeMapper messageNodeMapper;
     private final UserMapper userMapper;
     private final EngineClient engineClient;
     private final SystemSettingService systemSettingService;
@@ -179,6 +182,7 @@ public class WorkServiceImpl implements WorkService {
         fileStorageService.deleteByWork(workId);
         for (Session session : sessions) {
             messageMapper.delete(new LambdaQueryWrapper<Message>().eq(Message::getSessionId, session.getId()));
+            messageNodeMapper.delete(new LambdaQueryWrapper<MessageNode>().eq(MessageNode::getSessionId, session.getId()));
         }
         sessionMapper.delete(new LambdaQueryWrapper<Session>().eq(Session::getWorkId, workId));
         pageMappingService.deleteByWorkId(workId);

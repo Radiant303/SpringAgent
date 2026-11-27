@@ -37,7 +37,7 @@ class SessionServiceUnitTests {
     private final SessionServiceImpl sessionService = new SessionServiceImpl(
             sessionMapper, mock(InternalStoreService.class), mock(WorkService.class),
             mock(UserMapper.class), mock(WorkMapper.class), mock(MessageMapper.class),
-            mock(FileStorageService.class), mock(UserStorageService.class), engineClient,
+            mock(com.spring.gateway.workspace.mapper.MessageNodeMapper.class), mock(FileStorageService.class), mock(UserStorageService.class), engineClient,
             mock(SessionStreamControl.class));
 
     @Test

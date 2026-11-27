@@ -4,12 +4,14 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.spring.gateway.identity.service.AuthSessionService;
 import com.spring.gateway.common.SnowflakeIdGenerator;
 import com.spring.gateway.workspace.entity.Message;
+import com.spring.gateway.workspace.entity.MessageNode;
 import com.spring.gateway.billing.entity.PointsLedger;
 import com.spring.gateway.workspace.entity.Session;
 import com.spring.gateway.billing.entity.UsageRecord;
 import com.spring.gateway.identity.entity.User;
 import com.spring.gateway.workspace.entity.Work;
 import com.spring.gateway.workspace.mapper.MessageMapper;
+import com.spring.gateway.workspace.mapper.MessageNodeMapper;
 import com.spring.gateway.billing.mapper.PointsLedgerMapper;
 import com.spring.gateway.workspace.mapper.SessionMapper;
 import com.spring.gateway.billing.mapper.UsageRecordMapper;
@@ -75,6 +77,8 @@ class WorkDeletionTests {
     @Autowired
     private MessageMapper messageMapper;
     @Autowired
+    private MessageNodeMapper messageNodeMapper;
+    @Autowired
     private UsageRecordMapper usageRecordMapper;
     @Autowired
     private PointsLedgerMapper ledgerMapper;
@@ -85,7 +89,7 @@ class WorkDeletionTests {
     @MockitoBean
     private EngineClient engineClient;
 
-    private record Fixture(User user, Work work, Session session, Message message) {
+    private record Fixture(User user, Work work, Session session, Message message, MessageNode node) {
     }
 
     private User createUser() {
@@ -121,13 +125,23 @@ class WorkDeletionTests {
         session.setCreatedAt(now);
         session.setUpdatedAt(now);
         sessionMapper.insert(session);
+        MessageNode node = new MessageNode();
+        node.setId(UUID.randomUUID().toString());
+        node.setSessionId(session.getId());
+        node.setGroupId(UUID.randomUUID().toString());
+        node.setKind(MessageNode.KIND_NORMAL);
+        node.setVersion(1);
+        node.setSegmentNo(0);
+        node.setCreatedAt(now);
+        messageNodeMapper.insert(node);
         Message message = new Message();
         message.setSessionId(session.getId());
         message.setSegmentNo(0);
+        message.setNodeId(node.getId());
         message.setPayload("{}");
         message.setCreatedAt(now);
         messageMapper.insert(message);
-        return new Fixture(user, work, session, message);
+        return new Fixture(user, work, session, message, node);
     }
 
     @Autowired private ModelProviderMapper providerMapper;
@@ -206,6 +220,7 @@ class WorkDeletionTests {
         assertNull(workMapper.selectById(f.work().getId()));
         assertNull(sessionMapper.selectById(f.session().getId()));
         assertNull(messageMapper.selectById(f.message().getId()));
+        assertNull(messageNodeMapper.selectById(f.node().getId()));
         UsageRecord preserved = usageRecordMapper.selectById(original.getId());
         assertNotNull(preserved);
         assertEquals(f.session().getId(), preserved.getSessionId());

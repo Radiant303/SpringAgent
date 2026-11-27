@@ -80,6 +80,8 @@ public class EngineRelayHandler extends TextWebSocketHandler {
             "stream/subscribe", this::handleStreamSubscribe,
             "stream/unsubscribe", this::handleStreamUnsubscribe,
             "turn/start", this::handleTurnStart,
+            "turn/edit", this::handleTurnEdit,
+            "turn/regenerate", this::handleTurnRegenerate,
             "turn/cancel", this::handleTurnCancel);
 
     /**
@@ -339,6 +341,47 @@ public class EngineRelayHandler extends TextWebSocketHandler {
         return dispatchViaMq(session, idNode, "turn/start", () -> {
             long turnId = turnDispatchService.dispatch(userId, sessionId, input, controlToken);
             log.info("turn 已派发 MQ: turnId={} sessionId={} userId={}", turnId, sessionId, userId);
+        });
+    }
+
+    /** turn/edit：从目标问题的父节点创建编辑分支。 */
+    private boolean handleTurnEdit(WebSocketSession session, JsonNode idNode, JsonNode params,
+                                   Long userId) throws IOException {
+        return dispatchBranch(session, idNode, params, userId, "edit");
+    }
+
+    /** turn/regenerate：从目标问题的父节点创建重试分支。 */
+    private boolean handleTurnRegenerate(WebSocketSession session, JsonNode idNode, JsonNode params,
+                                         Long userId) throws IOException {
+        return dispatchBranch(session, idNode, params, userId, "retry");
+    }
+
+    private boolean dispatchBranch(WebSocketSession session, JsonNode idNode, JsonNode params,
+                                   Long userId, String action) throws IOException {
+        String sessionId = requireSessionId(session, idNode, params);
+        if (sessionId == null) {
+            return true;
+        }
+        String controlToken = requireControl(session, idNode, sessionId, userId);
+        if (controlToken == null) {
+            return true;
+        }
+        JsonNode branchNode = params.get("branchId");
+        if (branchNode == null || !branchNode.isTextual() || branchNode.asText().isBlank()) {
+            sendRpcError(session, idNode, INVALID_PARAMS, "缺少 branchId");
+            return true;
+        }
+        JsonNode inputNode = params.get("input");
+        if (inputNode != null && !inputNode.isNull() && !inputNode.isTextual()) {
+            sendRpcError(session, idNode, INVALID_PARAMS, "input 必须是字符串");
+            return true;
+        }
+        String input = inputNode == null || inputNode.isNull() ? "" : inputNode.asText();
+        String branchId = branchNode.asText();
+        return dispatchViaMq(session, idNode, "turn/" + action, () -> {
+            long turnId = turnDispatchService.dispatchBranch(
+                    userId, sessionId, action, branchId, input, controlToken);
+            log.info("分支 turn 已派发 MQ: turnId={} sessionId={} action={}", turnId, sessionId, action);
         });
     }
 

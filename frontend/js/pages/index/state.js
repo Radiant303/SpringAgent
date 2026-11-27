@@ -45,6 +45,8 @@ export function applyServerBusy(sid, busy) {
 export const state = {
   workspace: null,
   models: [],
+  messageEditLimit: 6,
+  answerRetryLimit: 6,
   model: null,
   effort: null,
   modelChanging: false,

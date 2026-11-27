@@ -101,6 +101,8 @@ export async function connectAndSetup() {
   if (rpc.ws !== socket) return;
   state.workspace = info.workspace;
   state.models = info.models || [];
+  state.messageEditLimit = Number.isInteger(info.messageEditLimit) ? info.messageEditLimit : 6;
+  state.answerRetryLimit = Number.isInteger(info.answerRetryLimit) ? info.answerRetryLimit : 6;
   if (!state.models.some((m) => m.id === state.model)) {
     state.model = info.defaultModel || null;
     state.effort = null;

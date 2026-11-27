@@ -13,7 +13,8 @@ import com.spring.gateway.workspace.entity.Session;
  * @param workId         所属 work ID
  * @param title          会话标题，取首条用户消息的截断文本
  * @param workspacePath  派生的工作区目录路径
- * @param currentSegment 当前段号
+ * @param currentSegment 最新段号
+ * @param activeNodeId   当前回答变体节点 ID
  * @param status         状态：active / deleted
  * @param createdAt      创建时间
  * @param updatedAt      更新时间
@@ -25,6 +26,7 @@ public record InternalSessionSummary(
         String title,
         String workspacePath,
         Integer currentSegment,
+        String activeNodeId,
         String status,
         String createdAt,
         String updatedAt
@@ -45,6 +47,7 @@ public record InternalSessionSummary(
                 row.getTitle(),
                 workspacePath,
                 row.getCurrentSegment(),
+                row.getActiveNodeId(),
                 row.getStatus(),
                 TimeFormat.isoUtc(row.getCreatedAt()),
                 TimeFormat.isoUtc(row.getUpdatedAt()));

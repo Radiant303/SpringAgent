@@ -2,6 +2,7 @@ package com.spring.gateway.settings.service;
 
 import com.spring.gateway.settings.dto.AdminBillingEstRequest;
 import com.spring.gateway.settings.dto.AdminCommunityLinkRequest;
+import com.spring.gateway.settings.dto.AdminConversationLimitsRequest;
 import com.spring.gateway.settings.dto.AdminMailSettingsRequest;
 import com.spring.gateway.settings.dto.AdminPlatformSettingsRequest;
 import com.spring.gateway.settings.dto.AdminRegistrationRequest;
@@ -33,6 +34,8 @@ public interface SystemSettingAdminService {
     void setCommunityLink(AdminCommunityLinkRequest req);
 
     void setPlatform(AdminPlatformSettingsRequest req);
+
+    void setConversationLimits(AdminConversationLimitsRequest req);
 
     void setStorage(AdminStorageSettingsRequest req);
 

@@ -4,6 +4,7 @@ import com.spring.gateway.common.BizException;
 import com.spring.gateway.common.SnowflakeIdGenerator;
 import com.spring.gateway.config.RabbitConfig;
 import com.spring.gateway.messaging.service.TurnDispatchService;
+import com.spring.gateway.workspace.service.impl.MessageBranchService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
@@ -14,7 +15,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * turn 派发：把拦下的 turn/start、turn/cancel 转为 MQ 消息。
+ * turn 操作派发。
  *
  * @author hanbing
  * @since 2026-10-02
@@ -32,6 +33,7 @@ public class TurnDispatchServiceImpl implements TurnDispatchService {
 
     private final RabbitTemplate rabbitTemplate;
     private final SnowflakeIdGenerator idGenerator;
+    private final MessageBranchService messageBranchService;
 
     /**
      * 派发一轮对话。
@@ -44,6 +46,36 @@ public class TurnDispatchServiceImpl implements TurnDispatchService {
      * @throws BizException 输入超长（400）
      */
     public long dispatch(long userId, String sessionId, String input, String controlToken) {
+        return publishTurn(userId, sessionId, input, controlToken,
+                MessageBranchService.ACTION_NORMAL, null);
+    }
+
+    /**
+     * 派发消息编辑或回答重试。
+     *
+     * @param userId 用户 ID
+     * @param sessionId 会话 ID
+     * @param action 操作类型
+     * @param branchId 目标分支 ID
+     * @param input 编辑后的输入
+     * @param controlToken 会话控制令牌
+     * @return 轮次 ID
+     */
+    public long dispatchBranch(long userId, String sessionId, String action, String branchId,
+                               String input, String controlToken) {
+        if (!MessageBranchService.ACTION_EDIT.equals(action)
+                && !MessageBranchService.ACTION_RETRY.equals(action)) {
+            throw new BizException(400, "不支持的消息操作");
+        }
+        if (MessageBranchService.ACTION_EDIT.equals(action) && (input == null || input.isBlank())) {
+            throw new BizException(400, "消息内容不能为空");
+        }
+        messageBranchService.validateAction(sessionId, userId, action, branchId);
+        return publishTurn(userId, sessionId, input, controlToken, action, branchId);
+    }
+
+    private long publishTurn(long userId, String sessionId, String input, String controlToken,
+                             String action, String branchId) {
         if (input != null && input.length() > MAX_INPUT_CHARS) {
             throw new BizException(400, "输入内容过长（最多 " + MAX_INPUT_CHARS + " 字符）");
         }
@@ -54,6 +86,8 @@ public class TurnDispatchServiceImpl implements TurnDispatchService {
         message.put("userId", userId);
         message.put("controlToken", controlToken);
         message.put("input", input);
+        message.put("action", action);
+        message.put("branchId", branchId);
         message.put("enqueuedAt", Instant.now().toString());
         publish(RabbitConfig.QUEUE_DISPATCH, message);
         return turnId;

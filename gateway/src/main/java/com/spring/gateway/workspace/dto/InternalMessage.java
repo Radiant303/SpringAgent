@@ -9,6 +9,12 @@ import tools.jackson.databind.JsonNode;
  * @since 2026-10-03
  * @param segmentNo 段号
  * @param payload   消息 JSON 原文
+ * @param id        消息主键
+ * @param nodeId    回答变体节点 ID
+ * @param legacyId  旧消息原始主键
  */
-public record InternalMessage(Integer segmentNo, JsonNode payload) {
+public record InternalMessage(Integer segmentNo, JsonNode payload, Long id, String nodeId, Long legacyId) {
+    public InternalMessage(Integer segmentNo, JsonNode payload) {
+        this(segmentNo, payload, null, null, null);
+    }
 }

@@ -359,6 +359,17 @@ public class SystemSettingServiceImpl implements SystemSettingService, SystemSet
      * @param value 设置值
      */
     public void set(String key, String value) {
+        if (SystemSetting.KEY_MESSAGE_EDIT_LIMIT.equals(key)
+                || SystemSetting.KEY_ANSWER_RETRY_LIMIT.equals(key)) {
+            try {
+                int limit = Integer.parseInt(value);
+                if (limit < 0 || limit > 6) {
+                    throw new BizException(400, "对话操作上限必须是 0～6 的整数");
+                }
+            } catch (NumberFormatException e) {
+                throw new BizException(400, "对话操作上限必须是 0～6 的整数");
+            }
+        }
         if (SystemSetting.KEY_WORK_MAX_BYTES.equals(key)
                 || SystemSetting.KEY_BILLING_EST_CACHE_READ_TOKENS.equals(key)
                 || SystemSetting.KEY_BILLING_EST_INPUT_TOKENS.equals(key)
