@@ -73,7 +73,7 @@ public class MessageBranchService {
     public void validateAction(String sessionId, Long userId, String action, String branchId) {
         Session session = ownedSession(sessionId, userId, false);
         Target target = resolveTarget(session, branchId);
-        checkLimit(sessionId, target.groupId(), action);
+        checkLimit(sessionId, target, action);
         if (ACTION_RETRY.equals(action)) {
             promptOf(target);
         }
@@ -95,6 +95,13 @@ public class MessageBranchService {
         Session session = ownedSession(sessionId, userId, true);
         if (ACTION_NORMAL.equals(action)) {
             MessageNode active = activeNode(session);
+            if (branchId != null && !branchId.isBlank()) {
+                Target selected = resolveTarget(session, branchId);
+                if (selected.originalPending()) {
+                    insertNode(selected.node());
+                }
+                active = selected.node();
+            }
             MessageNode node = newNode(session, active, UUID.randomUUID().toString(), ACTION_NORMAL);
             if (active == null) {
                 node.setSegmentNo(session.getCurrentSegment());
@@ -120,20 +127,29 @@ public class MessageBranchService {
                     ? "输入内容过长（最多 64000 字符）" : "消息内容不能为空");
         }
         Target target = resolveTarget(session, branchId);
-        checkLimit(sessionId, target.groupId(), action);
+        checkLimit(sessionId, target, action);
         String effectiveInput = ACTION_RETRY.equals(action) ? promptOf(target) : input;
         if (target.originalPending()) {
             insertNode(target.node());
         }
         MessageNode parent = target.parent();
-        MessageNode node = newNode(session, parent, target.groupId(), action);
+        String groupId = ACTION_EDIT.equals(action)
+                ? target.groupId() : UUID.randomUUID().toString();
+        MessageNode node = newNode(session, parent, groupId, action);
+        if (ACTION_EDIT.equals(action)) {
+            node.setAnswerGroupId(node.getId());
+        } else {
+            node.setAnswerGroupId(target.node().getAnswerGroupId() == null
+                    ? target.node().getGroupId() : target.node().getAnswerGroupId());
+        }
         node.setSegmentNo(parent == null ? target.node().getSegmentNo() : parent.getSegmentNo());
         if (parent == null) {
             node.setLegacyAnchorId(target.node().getLegacyAnchorId());
             node.setLegacyEndId(target.node().getLegacyAnchorId());
             node.setLegacyTargetId(target.node().getLegacyTargetId());
         }
-        node.setVersion(nodeMapper.maxVersion(sessionId, target.groupId()) + 1);
+        node.setVersion(ACTION_EDIT.equals(action)
+                ? nodeMapper.maxVersion(sessionId, target.groupId()) + 1 : 1);
         insertNode(node);
         activate(session, node);
         return new InternalBranchResult(node.getId(), effectiveInput);
@@ -457,6 +473,7 @@ public class MessageBranchService {
         node.setSessionId(session.getId());
         node.setParentId(parent == null ? null : parent.getId());
         node.setGroupId(groupId);
+        node.setAnswerGroupId(groupId);
         node.setKind(kind);
         node.setCreatedAt(LocalDateTime.now(ZoneOffset.UTC));
         return node;
@@ -472,12 +489,19 @@ public class MessageBranchService {
         sessionMapper.updateById(session);
     }
 
-    private void checkLimit(String sessionId, String groupId, String action) {
+    private void checkLimit(String sessionId, Target target, String action) {
         int limit = ACTION_EDIT.equals(action) ? editLimit() : retryLimit();
-        long used = nodeMapper.selectCount(new LambdaQueryWrapper<MessageNode>()
+        LambdaQueryWrapper<MessageNode> query = new LambdaQueryWrapper<MessageNode>()
                 .eq(MessageNode::getSessionId, sessionId)
-                .eq(MessageNode::getGroupId, groupId)
-                .eq(MessageNode::getKind, action));
+                .eq(MessageNode::getKind, action);
+        if (ACTION_EDIT.equals(action)) {
+            query.eq(MessageNode::getGroupId, target.groupId());
+        } else {
+            String answerGroupId = target.node().getAnswerGroupId() == null
+                    ? target.node().getGroupId() : target.node().getAnswerGroupId();
+            query.eq(MessageNode::getAnswerGroupId, answerGroupId);
+        }
+        long used = nodeMapper.selectCount(query);
         if (used >= limit) {
             String label = ACTION_EDIT.equals(action) ? "修改" : "重新生成";
             throw new BizException(400, label + "次数已达上限（" + limit + " 次）");
@@ -545,7 +569,7 @@ public class MessageBranchService {
         return value;
     }
 
-    private static boolean isUserPrompt(JsonNode payload) {
+    static boolean isUserPrompt(JsonNode payload) {
         String source = payload.path("metadata").path("source").asText("");
         if (!"request".equals(payload.path("kind").asText()) || AUTO_SOURCES.contains(source)) {
             return false;

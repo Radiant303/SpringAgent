@@ -23,7 +23,7 @@ import {
   foldTurnProcess,
 } from "./chatView.js";
 
-export function clearMessages(loading = false) {
+export function clearMessages(loading = false, preservePlan = false) {
   const box = $("messages");
   if (box) box.textContent = "";
   if (loading) UI.showSkeleton("messages");
@@ -35,7 +35,7 @@ export function clearMessages(loading = false) {
   state.historyCursor = null;
   state.historyHasMore = false;
   const planDock = $("plan-dock");
-  if (planDock) planDock.classList.add("hidden");
+  if (planDock && !preservePlan) planDock.classList.add("hidden");
 }
 
 export function renderHistory(segments, prepend = false) {
@@ -185,24 +185,86 @@ export function renderHistory(segments, prepend = false) {
   updateLatestPet();
 }
 
+function latestLeaf(nodes, branchId) {
+  const children = new Map();
+  for (const node of nodes) {
+    if (!node.parentId) continue;
+    if (!children.has(node.parentId)) children.set(node.parentId, []);
+    children.get(node.parentId).push(node);
+  }
+  for (const items of children.values()) {
+    items.sort((a, b) => String(a.createdAt || "").localeCompare(String(b.createdAt || "")) || a.branchId.localeCompare(b.branchId));
+  }
+  let current = branchId;
+  const visited = new Set([current]);
+  while (children.get(current)?.length) {
+    const next = children.get(current).at(-1).branchId;
+    if (visited.has(next)) break;
+    current = next;
+    visited.add(current);
+  }
+  return current;
+}
+
+export function renderNodePath(branchId = null) {
+  const nodes = state.messageNodes;
+  if (!Array.isArray(nodes)) return false;
+  if (!nodes.length) {
+    clearMessages();
+    return true;
+  }
+  const byId = new Map(nodes.map((node) => [node.branchId, node]));
+  const selected = branchId || state.branchSelections.get(state.sessionId) || state.activeNodeId || nodes.at(-1).branchId;
+  const leaf = latestLeaf(nodes, byId.has(selected) ? selected : nodes.at(-1).branchId);
+  const path = [];
+  const visited = new Set();
+  let current = leaf;
+  while (current && byId.has(current) && !visited.has(current)) {
+    const node = byId.get(current);
+    path.push(node);
+    visited.add(current);
+    current = node.parentId;
+  }
+  path.reverse();
+  const contents = [];
+  for (const node of path) {
+    for (const message of node.messages || []) {
+      contents.push({
+        ...message,
+        metadata: { ...(message.metadata || {}), springAgent: { ...node, messages: undefined } },
+      });
+    }
+  }
+  state.activeNodeId = leaf;
+  state.branchSelections.set(state.sessionId, leaf);
+  clearMessages(false, true);
+  renderHistory([contents]);
+  return true;
+}
+
 export async function loadHistory(cursor, generation, signal) {
   const sid = state.sessionId;
   const workId = state.workId;
   const socket = rpc.ws;
   const isCurrent = () => state.sessionId === sid && state.workId === workId && rpc.ws === socket && state.connected
     && (generation === undefined || generation === state.viewGeneration);
-  const params = new URLSearchParams({ limit: "30", direction: "backward" });
-  if (cursor) params.set("cursor", cursor);
   let page;
   try {
-    page = await api(`/api/sessions/${encodeURIComponent(sid)}/history?${params}`, { signal });
+    page = await api(`/api/sessions/${encodeURIComponent(sid)}/history`, { signal });
   } finally {
     if (!cursor && isCurrent()) UI.clearSkeleton("messages");
   }
   if (!isCurrent()) return;
-  state.historyCursor = page.previousCursor || null;
-  state.historyHasMore = !!page.hasMore;
-  renderHistory(page.segments || [], !!cursor);
+  state.historyCursor = null;
+  state.historyHasMore = false;
+  if (Array.isArray(page.nodes)) {
+    state.messageNodes = page.nodes;
+    state.activeNodeId = page.activeNodeId || page.nodes.at(-1)?.branchId || null;
+    state.branchSelections.set(sid, state.activeNodeId);
+    renderNodePath(state.activeNodeId);
+  } else {
+    renderHistory(page.segments || [], false);
+  }
   updateLoadMore();
 }
 

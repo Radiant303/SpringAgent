@@ -65,8 +65,11 @@ export const state = {
   thinking: null,       // 当前流式思考区 {el, body}
   active: null,         // 当前展开的那一项（思考区或工具卡片），渐进式收起用
   tools: new Map(),     // tool_call_id -> 卡片引用
-  historyCursor: null,  // 继续向回翻页的 previousCursor
+  historyCursor: null,
   historyHasMore: false,
+  messageNodes: [],
+  activeNodeId: null,
+  branchSelections: new Map(),
   currentTurn: null,    // 当前助手回合容器 {el, content, petBox, canvas, pet}
   lastSeq: {},          // sessionId -> 事件流去重游标（已收到的最大条目 ID）
 };

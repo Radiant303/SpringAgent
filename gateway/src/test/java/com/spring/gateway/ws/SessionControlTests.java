@@ -120,6 +120,18 @@ class SessionControlTests {
     }
 
     @Test
+    void normalTurnCanSelectParentBranch() throws Exception {
+        var browser = browser();
+        when(engineClient.sessionControlToken("session-1", 123L, "browser-id")).thenReturn("control-token");
+
+        relay.handleTextMessage(browser, new TextMessage("{\"id\":1,\"method\":\"turn/start\","
+                + "\"params\":{\"sessionId\":\"session-1\",\"branchId\":\"node-1\",\"input\":\"next\"}}"));
+
+        verify(dispatch).dispatchAt(123L, "session-1", "next", "node-1", "control-token");
+        assertTrue(mapper.readTree(responses.getFirst()).has("result"));
+    }
+
+    @Test
     void controlCheckFailureDoesNotFallBackToEngineOrDispatch() throws Exception {
         var browser = browser();
         var upstream = mock(WebSocketSession.class);

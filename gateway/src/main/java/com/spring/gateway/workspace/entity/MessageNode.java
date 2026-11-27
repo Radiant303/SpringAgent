@@ -31,8 +31,11 @@ public class MessageNode {
     /** 父节点 ID；根节点为 null。 */
     private String parentId;
 
-    /** 同一问题的版本组 ID。 */
+    /** 同一消息的编辑版本组 ID。 */
     private String groupId;
+
+    /** 同一消息内容的回答版本组 ID。 */
+    private String answerGroupId;
 
     /** 节点类型：normal / edit / retry / legacy。 */
     private String kind;

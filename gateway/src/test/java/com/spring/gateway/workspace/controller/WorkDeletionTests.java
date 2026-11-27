@@ -129,6 +129,7 @@ class WorkDeletionTests {
         node.setId(UUID.randomUUID().toString());
         node.setSessionId(session.getId());
         node.setGroupId(UUID.randomUUID().toString());
+        node.setAnswerGroupId(node.getGroupId());
         node.setKind(MessageNode.KIND_NORMAL);
         node.setVersion(1);
         node.setSegmentNo(0);

@@ -89,6 +89,21 @@ class MessageBranchServiceTests {
     }
 
     @Test
+    void normalTurnUsesSelectedParentBranch() {
+        MessageNode selected = node("selected", null, "group", "normal", 1);
+        selected.setSegmentNo(2);
+        when(nodes.selectOne(any())).thenReturn(selected);
+
+        InternalBranchResult result = service.prepare("s1", 7L, "normal", "selected", "next");
+
+        ArgumentCaptor<MessageNode> inserted = ArgumentCaptor.forClass(MessageNode.class);
+        verify(nodes).insert(inserted.capture());
+        assertEquals("selected", inserted.getValue().getParentId());
+        assertEquals(2, inserted.getValue().getSegmentNo());
+        assertEquals("next", result.input());
+    }
+
+    @Test
     void editCreatesSiblingWithoutChangingInput() {
         MessageNode parent = node("parent", null, "other", "normal", 1);
         MessageNode target = node("target", "parent", "group", "normal", 1);
@@ -106,12 +121,14 @@ class MessageBranchServiceTests {
         assertEquals("group", inserted.getValue().getGroupId());
         assertEquals("edit", inserted.getValue().getKind());
         assertEquals(3, inserted.getValue().getVersion());
+        assertEquals(inserted.getValue().getId(), inserted.getValue().getAnswerGroupId());
         assertEquals(parent.getSegmentNo(), inserted.getValue().getSegmentNo());
     }
 
     @Test
     void retryUsesOriginalQuestionInsteadOfEmptyInput() {
         MessageNode target = node("target", null, "group", "normal", 1);
+        target.setAnswerGroupId("answers");
         target.setSegmentNo(2);
         when(nodes.selectOne(any())).thenReturn(target);
         when(messages.selectList(any())).thenReturn(List.of(message(11L, 2, "target", user("original"))));
@@ -122,6 +139,9 @@ class MessageBranchServiceTests {
         ArgumentCaptor<MessageNode> inserted = ArgumentCaptor.forClass(MessageNode.class);
         verify(nodes).insert(inserted.capture());
         assertEquals("retry", inserted.getValue().getKind());
+        assertEquals("answers", inserted.getValue().getAnswerGroupId());
+        org.junit.jupiter.api.Assertions.assertNotEquals("group", inserted.getValue().getGroupId());
+        assertEquals(1, inserted.getValue().getVersion());
         assertEquals(2, inserted.getValue().getSegmentNo());
     }
 
@@ -145,8 +165,9 @@ class MessageBranchServiceTests {
         assertEquals(10L, original.getLegacyTargetId());
         assertEquals(9L, original.getLegacyAnchorId());
         assertEquals(10L, original.getLegacyEndId());
-        assertEquals(original.getGroupId(), retry.getGroupId());
-        assertEquals(2, retry.getVersion());
+        org.junit.jupiter.api.Assertions.assertNotEquals(original.getGroupId(), retry.getGroupId());
+        assertEquals(original.getAnswerGroupId(), retry.getAnswerGroupId());
+        assertEquals(1, retry.getVersion());
         assertEquals(9L, retry.getLegacyAnchorId());
         assertEquals(retry.getId(), session.getActiveNodeId());
     }

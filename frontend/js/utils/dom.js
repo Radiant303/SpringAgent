@@ -166,7 +166,7 @@ export const ICONS = {
   check: '<path d="M5 12.25l4.5 4.5L19 7.25"/>',
   planCheck: '<circle cx="12" cy="12" r="10.875" stroke-width="2.25"/><path d="M7.125 12.6L10.65 16.125L17.025 8.85" stroke-width="2.25"/>',
   copy: '<rect x="8" y="8" width="12" height="12" rx="2.5"/><path d="M16 8V6.5A2.5 2.5 0 0 0 13.5 4h-7A2.5 2.5 0 0 0 4 6.5v7A2.5 2.5 0 0 0 6.5 16H8"/>',
-  retry: '<path d="M20 7v5h-5"/><path d="M19 12a7 7 0 1 0-1.7 4.6"/><path d="M20 12l-3-3-3 3"/>',
+  retry: '<path d="M303.104 315.392c114.688-114.688 303.104-114.688 417.792 0l-32.768 32.768c-20.48 20.48-4.096 57.344 24.576 57.344h118.784c16.384 0 32.768-16.384 32.768-32.768V253.952c0-28.672-36.864-45.056-57.344-24.576l-32.768 32.768c-143.36-143.36-376.832-143.36-520.192 0s-143.36 376.832 0 520.192 376.832 143.36 520.192 0c49.152-49.152 77.824-106.496 94.208-163.84 4.096-20.48-8.192-40.96-24.576-45.056-20.48-4.096-40.96 8.192-45.056 24.576-12.288 49.152-36.864 94.208-77.824 131.072-114.688 114.688-303.104 114.688-417.792 0-114.688-110.592-114.688-299.008 0-413.696z" fill="currentColor"></path>',
   tick: '<path d="M5 12.25l4.5 4.5L19 7.25"/>',
   prev: '<path d="M15 6l-6 6 6 6"/>',
   next: '<path d="M9 6l6 6-6 6"/>',
@@ -205,6 +205,7 @@ export const ICONS = {
 
 export function icon(name, className) {
   const span = el("span", "icon" + (className ? " " + className : ""));
-  span.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${ICONS[name] || ""}</svg>`;
+  const retry = name === "retry";
+  span.innerHTML = `<svg viewBox="${retry ? "0 0 1024 1024" : "0 0 24 24"}" fill="${retry ? "currentColor" : "none"}" stroke="${retry ? "none" : "currentColor"}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${ICONS[name] || ""}</svg>`;
   return span;
 }

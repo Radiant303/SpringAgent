@@ -89,7 +89,8 @@ export async function send() {
       }
       subscribeStream(sessionId);
     }
-    await rpc.request("turn/start", { sessionId, input: fullText });
+    const branchId = state.branchSelections.get(sessionId) || state.activeNodeId;
+    await rpc.request("turn/start", { sessionId, input: fullText, ...(branchId ? { branchId } : {}) });
     refreshSessionList();
   } catch (e) {
     if (rpc.ws === socket && state.connected) releaseBusy(sessionId);

@@ -85,6 +85,8 @@ function syncSessionSelection() {
 function selectSessionView(sid) {
   cancelSessionLoad();
   state.sessionId = sid;
+  state.messageNodes = [];
+  state.activeNodeId = null;
   state.sessionReady = false;
   state.sessionInitializing = true;
   setViewLoading(true);
@@ -436,6 +438,8 @@ export function newSession() {
   cancelSessionLoad();
   detachSession(state.sessionId);
   state.sessionId = null;
+  state.messageNodes = [];
+  state.activeNodeId = null;
   state.sessionReady = false;
   state.sessionInitializing = false;
   setViewLoading(false);

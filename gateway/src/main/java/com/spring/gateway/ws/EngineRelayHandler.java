@@ -338,8 +338,17 @@ public class EngineRelayHandler extends TextWebSocketHandler {
         }
         JsonNode inputNode = params.get("input");
         String input = inputNode == null ? "" : inputNode.asText();
+        JsonNode branchNode = params.get("branchId");
+        if (branchNode != null && !branchNode.isNull() && !branchNode.isTextual()) {
+            sendRpcError(session, idNode, INVALID_PARAMS, "branchId 必须是字符串");
+            return true;
+        }
+        String branchId = branchNode == null || branchNode.isNull() || branchNode.asText().isBlank()
+                ? null : branchNode.asText();
         return dispatchViaMq(session, idNode, "turn/start", () -> {
-            long turnId = turnDispatchService.dispatch(userId, sessionId, input, controlToken);
+            long turnId = branchId == null
+                    ? turnDispatchService.dispatch(userId, sessionId, input, controlToken)
+                    : turnDispatchService.dispatchAt(userId, sessionId, input, branchId, controlToken);
             log.info("turn 已派发 MQ: turnId={} sessionId={} userId={}", turnId, sessionId, userId);
         });
     }

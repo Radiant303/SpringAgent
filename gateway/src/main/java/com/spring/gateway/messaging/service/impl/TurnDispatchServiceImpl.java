@@ -50,6 +50,13 @@ public class TurnDispatchServiceImpl implements TurnDispatchService {
                 MessageBranchService.ACTION_NORMAL, null);
     }
 
+    /** 从指定节点派发普通对话。 */
+    public long dispatchAt(long userId, String sessionId, String input, String branchId,
+                           String controlToken) {
+        return publishTurn(userId, sessionId, input, controlToken,
+                MessageBranchService.ACTION_NORMAL, branchId);
+    }
+
     /**
      * 派发消息编辑或回答重试。
      *

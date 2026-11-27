@@ -315,7 +315,10 @@ class CloudAppServer(AppServer):
         assert registry is not None
         handle = registry.get(p.session_id)
         assert handle is not None
-        handle.start_turn(p.input, turn_id=f"ws-{uuid.uuid4().hex[:24]}", user_id=self._user_id)
+        handle.start_turn(
+            p.input, turn_id=f"ws-{uuid.uuid4().hex[:24]}", user_id=self._user_id,
+            branch_id=p.branch_id,
+        )
 
     async def _turn_edit(self, p: BranchTurnParams) -> None:
         await self._branch_start(p, "edit")

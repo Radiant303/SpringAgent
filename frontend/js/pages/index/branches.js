@@ -6,8 +6,6 @@ import { $, el, icon, showPending } from "../../utils/dom.js";
 import { rpc } from "../../api/rpc.js";
 import { UI } from "../../components/ui.js";
 
-let switching = false;
-
 export function branchInfo(message) {
   const value = message?.metadata?.springAgent;
   return value && typeof value.branchId === "string" ? value : null;
@@ -37,6 +35,13 @@ function versionPager(info, disabled) {
 export function branchToolbar(info, options) {
   if (!info) return null;
   const { kind, text = "", editLimit = 6, retryLimit = 6, busy = false } = options;
+  const view = kind === "assistant" ? {
+    ...info,
+    version: info.answerVersion ?? 1,
+    versionCount: info.answerVersionCount ?? 1,
+    previousBranchId: info.previousAnswerBranchId,
+    nextBranchId: info.nextAnswerBranchId,
+  } : info;
   const tools = el("div", `message-tools ${kind}`);
   const copy = toolButton("copy", "copy", "复制", false);
   copy.onclick = (event) => {
@@ -62,16 +67,17 @@ export function branchToolbar(info, options) {
     };
     tools.appendChild(retry);
   }
-  if (Number(info.versionCount || 1) > 1 && kind === "user") {
-    const pager = versionPager(info, busy || switching);
+  if (Number(view.versionCount || 1) > 1) {
+    const pager = versionPager(view, busy);
     pager.addEventListener("click", (event) => {
       const button = event.target.closest("button[data-action]");
       if (!button || button.disabled) return;
       event.stopPropagation();
-      const branchId = button.dataset.action === "previous" ? info.previousBranchId : info.nextBranchId;
+      const branchId = button.dataset.action === "previous" ? view.previousBranchId : view.nextBranchId;
       if (branchId) selectBranch(branchId);
     });
-    tools.appendChild(pager);
+    if (kind === "assistant") tools.prepend(pager);
+    else tools.appendChild(pager);
   }
   return tools;
 }
@@ -151,7 +157,7 @@ async function runBranchAction(action, branchId, text, anchor) {
   const [{ state, isBusy, setBusy, holdBusy, releaseBusy, resetFlow, ensureTurn }, input, chat] = await Promise.all([
     import("./state.js"), import("./input.js"), import("./chatView.js"),
   ]);
-  if (!anchor?.isConnected || !state.connected || !state.sessionReady || isBusy(state.sessionId) || switching) return;
+  if (!anchor?.isConnected || !state.connected || !state.sessionReady || isBusy(state.sessionId)) return;
   const sessionId = state.sessionId;
   const socket = rpc.ws;
   setBusy(sessionId, true);
@@ -180,18 +186,12 @@ async function runBranchAction(action, branchId, text, anchor) {
 }
 
 async function selectBranch(branchId) {
-  const [{ state, isBusy }, input] = await Promise.all([import("./state.js"), import("./input.js")]);
-  if (switching || !state.connected || !state.sessionReady || isBusy(state.sessionId)) return;
-  switching = true;
-  document.querySelectorAll(".message-tools button").forEach((button) => { button.disabled = true; });
-  try {
-    await rpc.request("session/select_branch", { sessionId: state.sessionId, branchId });
-    await reloadHistory();
-  } catch (error) {
-    UI.toast("版本切换失败", { type: "error", description: error.message });
-    await reloadHistory().catch(() => {});
-  } finally {
-    switching = false;
-    input.updateInputState();
-  }
+  const [{ state, isBusy }, history, input] = await Promise.all([
+    import("./state.js"), import("./history.js"), import("./input.js"),
+  ]);
+  if (!state.sessionReady || isBusy(state.sessionId)) return;
+  state.activeNodeId = branchId;
+  state.branchSelections.set(state.sessionId, branchId);
+  history.renderNodePath(branchId);
+  input.updateInputState();
 }

@@ -28,6 +28,7 @@ class AttachParams(_WireModel):
 class TurnStartParams(_WireModel):
     session_id: str = Field(validation_alias="sessionId", serialization_alias="sessionId")
     input: str
+    branch_id: str | None = Field(default=None, validation_alias="branchId", serialization_alias="branchId")
 
 
 class BranchTurnParams(SessionParams):

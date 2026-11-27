@@ -2073,14 +2073,15 @@ pre.tool-result.error { background: var(--diff-del-bg, rgba(192, 57, 43, 0.07));
   height: 28px;
   padding: 0;
   border: none;
-  border-radius: calc(6px * var(--corner-ratio));
+  border-radius: 50%;
+  --corner-shape: round;
   background: transparent;
   color: inherit;
   cursor: pointer;
 }
 .message-tool:hover:not(:disabled) { background: var(--icon-hover-bg, rgba(0, 0, 0, 0.03)); color: var(--text-dim); }
 .message-tool:disabled { cursor: default; opacity: 0.35; }
-.message-tool .icon { width: 17px; height: 17px; }
+.message-tool .icon { width: 20px; height: 20px; }
 .branch-pager { display: inline-flex; align-items: center; gap: 1px; margin-left: 5px; }
 .branch-version { min-width: 38px; text-align: center; font-size: 12px; font-variant-numeric: tabular-nums; }
 .user-entry.editing { width: 100%; max-width: 100%; }

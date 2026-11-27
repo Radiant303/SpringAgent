@@ -137,12 +137,14 @@ class MessageNodeRow(Base):
         Index("ix_message_nodes_session", "session_id", "created_at"),
         Index("ix_message_nodes_group", "session_id", "group_id", "version"),
         Index("ix_message_nodes_legacy_target", "session_id", "legacy_target_id"),
+        Index("ix_message_nodes_answer_group", "session_id", "answer_group_id", "created_at"),
     )
 
     id: Mapped[str] = mapped_column(CHAR(36), primary_key=True)
     session_id: Mapped[str] = mapped_column(CHAR(36), ForeignKey("sessions.id"), nullable=False)
     parent_id: Mapped[str | None] = mapped_column(CHAR(36), nullable=True)
     group_id: Mapped[str] = mapped_column(CHAR(36), nullable=False)
+    answer_group_id: Mapped[str] = mapped_column(CHAR(36), nullable=False)
     kind: Mapped[str] = mapped_column(String(16), nullable=False)
     version: Mapped[int] = mapped_column(Integer, nullable=False)
     segment_no: Mapped[int] = mapped_column(Integer, nullable=False)

@@ -52,12 +52,15 @@ public class SessionHistoryServiceImpl implements SessionHistoryService {
     private final SessionMapper sessionMapper;
     private final ObjectMapper objectMapper;
     private final MessageBranchService messageBranchService;
+    private final MessageTreeService messageTreeService;
 
     public SessionHistoryServiceImpl(SessionMapper sessionMapper, ObjectMapper objectMapper,
-                                     MessageBranchService messageBranchService) {
+                                     MessageBranchService messageBranchService,
+                                     MessageTreeService messageTreeService) {
         this.sessionMapper = sessionMapper;
         this.objectMapper = objectMapper;
         this.messageBranchService = messageBranchService;
+        this.messageTreeService = messageTreeService;
     }
 
     /**
@@ -97,6 +100,7 @@ public class SessionHistoryServiceImpl implements SessionHistoryService {
             ObjectNode result = buildResult(objectMapper,
                     new HistoryPage(total == 0 ? List.of() : segments, total == 0 ? null : 0, null, null, false));
             messageBranchService.decorateHistory(result, branchContext);
+            messageTreeService.append(result, row, branchContext);
             return result;
         }
         long anchor;

@@ -9,6 +9,8 @@ package com.spring.gateway.messaging.service;
 public interface TurnDispatchService {
     long dispatch(long userId, String sessionId, String input, String controlToken);
 
+    long dispatchAt(long userId, String sessionId, String input, String branchId, String controlToken);
+
     long dispatchBranch(long userId, String sessionId, String action, String branchId,
                         String input, String controlToken);
 
