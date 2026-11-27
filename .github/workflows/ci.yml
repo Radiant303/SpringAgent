@@ -108,6 +108,30 @@ jobs:
         working-directory: gateway
         run: bash ./mvnw -B test
 
+      - name: Report gateway test failures
+        if: failure()
+        working-directory: gateway
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import xml.etree.ElementTree as ET
+
+          def escape(value):
+              return value.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A')
+
+          for path in Path('target/surefire-reports').glob('*.xml'):
+              for case in ET.parse(path).getroot().iter('testcase'):
+                  failure = next((node for node in (case.find('error'), case.find('failure'))
+                                  if node is not None), None)
+                  if failure is None:
+                      continue
+                  name = f"{case.get('classname', path.stem)}.{case.get('name', 'unknown')}"
+                  detail = (failure.get('message') or failure.text or '测试失败').strip()
+                  print(f"::error title={escape(name)}::{escape(detail[:1000])}")
+                  print(f"{name}\n{detail[:4000]}")
+          PY
+
   frontend-checks:
     name: Frontend checks
     runs-on: ubuntu-24.04
