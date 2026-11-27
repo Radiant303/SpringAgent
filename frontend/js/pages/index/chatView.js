@@ -37,6 +37,7 @@ export function attachChipNode(att) {
 
 export function userNode(text, branch = null) {
   const entry = el("div", "user-entry");
+  entry._messageText = text || "";
   const wrap = el("div", "msg user");
   const body = el("div", "msg-text");
   let offset = 0;

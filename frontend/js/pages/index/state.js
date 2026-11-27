@@ -201,7 +201,7 @@ export function createAssistantTurnNode(isDynamic = false) {
     }
   }
   wrap.appendChild(content);
-  return { el: wrap, content, petBox, canvas, pet };
+  return { el: wrap, content, petBox, canvas, pet, answerText: "" };
 }
 
 export function updateLatestPet() {

@@ -79,6 +79,11 @@ export function branchToolbar(info, options) {
     if (kind === "assistant") tools.prepend(pager);
     else tools.appendChild(pager);
   }
+  if (kind === "assistant") {
+    const container = el("div", "assistant-tools");
+    container.appendChild(tools);
+    return container;
+  }
   return tools;
 }
 

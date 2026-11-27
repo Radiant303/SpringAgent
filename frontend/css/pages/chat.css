@@ -2048,12 +2048,20 @@ pre.tool-result.error { background: var(--diff-del-bg, rgba(192, 57, 43, 0.07));
 .msg-text { white-space: pre-wrap; }
 
 .user-entry {
+  position: relative;
+  z-index: 0;
   flex-shrink: 0;
   align-self: flex-end;
   display: flex;
   flex-direction: column;
   align-items: flex-end;
   max-width: 82%;
+}
+.user-entry::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: -8px -12px;
 }
 .user-entry > .msg.user { max-width: 100%; }
 .message-tools {
@@ -2063,8 +2071,13 @@ pre.tool-result.error { background: var(--diff-del-bg, rgba(192, 57, 43, 0.07));
   min-height: 30px;
   color: var(--text-faint, rgba(0, 0, 0, 0.45));
 }
-.message-tools.user { padding: 2px 4px 0; }
-.message-tools.assistant { align-self: flex-start; margin-top: -6px; }
+.message-tools.user { padding: 2px 4px 0; transition: opacity 0.15s ease; }
+.assistant-tools {
+  align-self: flex-start;
+  margin-left: -7.333px;
+  padding: 2px 0 4px;
+}
+.message-tools.assistant { align-self: flex-start; }
 .message-tool {
   display: inline-flex;
   align-items: center;
@@ -2083,7 +2096,24 @@ pre.tool-result.error { background: var(--diff-del-bg, rgba(192, 57, 43, 0.07));
 .message-tool:disabled { cursor: default; opacity: 0.35; }
 .message-tool .icon { width: 20px; height: 20px; }
 .branch-pager { display: inline-flex; align-items: center; gap: 1px; margin-left: 5px; }
-.branch-version { min-width: 38px; text-align: center; font-size: 12px; font-variant-numeric: tabular-nums; }
+.message-tools.assistant > .branch-pager { margin: 0 16px 0 0; }
+.branch-version {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 40px;
+  height: 28px;
+  padding: 0 2px;
+  color: var(--text-dim, rgba(0, 0, 0, 0.6));
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+@media (hover: hover) {
+  .message-tools.user { opacity: 0; pointer-events: none; }
+  .user-entry:is(:hover, :focus-within) .message-tools.user { opacity: 1; pointer-events: auto; }
+}
 .user-entry.editing { width: 100%; max-width: 100%; }
 .user-edit-form {
   box-sizing: border-box;

@@ -49,7 +49,8 @@ import {
 import { updateInputState } from "./input.js";
 import { refreshSessionList } from "./sessions.js";
 import { notifyStorageChanged } from "../../utils/storage.js";
-import { clearMessages, loadHistory } from "./history.js";
+import { refreshMessageTree } from "./history.js";
+import { branchToolbar } from "./branches.js";
 
 export const USAGE_RING_LEN = 56.5;
 
@@ -348,6 +349,7 @@ export function onSessionEvent(sid, event, seq) {
       settleFinishedTools();
       const a = ensureAssistant();
       if (!a.text && !pumps.has(a)) setActive(null);
+      state.currentTurn.answerText += event.text;
       pumpFor(a, (text) => {
         a.text += text;
         answerRenderer.schedule(a);
@@ -468,6 +470,30 @@ export function onSessionEvent(sid, event, seq) {
   }
 }
 
+function appendFinishedToolbars(turn, info) {
+  if (!turn?.el.isConnected) return;
+  const turns = $("messages")?.querySelectorAll(".assistant-turn");
+  if (!turns || turns[turns.length - 1] !== turn.el) return;
+  const user = turn.el.previousElementSibling;
+  if (user?.classList.contains("user-entry") && !user.querySelector(":scope > .message-tools")) {
+    const tools = branchToolbar(info, {
+      kind: "user",
+      text: user._messageText || "",
+      editLimit: state.messageEditLimit,
+    });
+    if (tools) user.appendChild(tools);
+  }
+  if (!turn.content.querySelector(":scope > .assistant-tools")) {
+    const tools = branchToolbar(info, {
+      kind: "assistant",
+      text: turn.answerText,
+      retryLimit: state.answerRetryLimit,
+    });
+    if (tools) turn.content.appendChild(tools);
+  }
+  maybeScroll(true);
+}
+
 export async function finishTurn(event) {
   hideCompactionStatus();
   const groups = new Set();
@@ -482,7 +508,8 @@ export async function finishTurn(event) {
   setActive(null);
   closeWork();
   foldTurnGroups(true);
-  if (state.currentTurn) foldTurnProcess(state.currentTurn.content, true);
+  const finishedTurn = state.currentTurn;
+  if (finishedTurn) foldTurnProcess(finishedTurn.content, true);
   state.assistant = null;
   state.tools.clear();
   discardEmptyTurn();
@@ -492,18 +519,21 @@ export async function finishTurn(event) {
   const generation = state.viewGeneration;
   const notice = event.cancelled ? "已中断，可继续输入"
     : event.error ? "运行出错：" + event.error : "";
-  releaseBusy(sessionId);
-  updateInputState();
-  notifyStorageChanged();
-  setTimeout(refreshPoints, 1500);
-  refreshSessionList();
-  clearMessages();
   try {
-    await Promise.all([loadHistory(undefined, generation), loadPlan(generation)]);
+    const [branch] = await Promise.all([refreshMessageTree(generation), loadPlan(generation)]);
+    if (branch && state.sessionId === sessionId && state.viewGeneration === generation) {
+      appendFinishedToolbars(finishedTurn, branch);
+    }
   } catch (error) {
     if (state.sessionId === sessionId && state.viewGeneration === generation) {
-      addSystem("历史加载失败：" + error.message, true);
+      addSystem("消息版本信息加载失败：" + error.message, true);
     }
+  } finally {
+    releaseBusy(sessionId);
+    updateInputState();
+    notifyStorageChanged();
+    setTimeout(refreshPoints, 1500);
+    refreshSessionList();
   }
   if (notice && state.sessionId === sessionId && state.viewGeneration === generation) {
     addSystem(notice, !!event.error);

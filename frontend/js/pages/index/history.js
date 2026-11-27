@@ -242,6 +242,24 @@ export function renderNodePath(branchId = null) {
   return true;
 }
 
+function applyMessageNodes(page, sessionId) {
+  if (!Array.isArray(page.nodes)) return null;
+  state.messageNodes = page.nodes;
+  state.activeNodeId = page.activeNodeId || page.nodes.at(-1)?.branchId || null;
+  state.branchSelections.set(sessionId, state.activeNodeId);
+  return page.nodes.find((node) => node.branchId === state.activeNodeId) || null;
+}
+
+export async function refreshMessageTree(generation) {
+  const sessionId = state.sessionId;
+  const workId = state.workId;
+  const socket = rpc.ws;
+  const page = await api(`/api/sessions/${encodeURIComponent(sessionId)}/history`);
+  if (sessionId !== state.sessionId || workId !== state.workId || socket !== rpc.ws
+      || !state.connected || generation !== state.viewGeneration) return null;
+  return applyMessageNodes(page, sessionId);
+}
+
 export async function loadHistory(cursor, generation, signal) {
   const sid = state.sessionId;
   const workId = state.workId;
@@ -258,9 +276,7 @@ export async function loadHistory(cursor, generation, signal) {
   state.historyCursor = null;
   state.historyHasMore = false;
   if (Array.isArray(page.nodes)) {
-    state.messageNodes = page.nodes;
-    state.activeNodeId = page.activeNodeId || page.nodes.at(-1)?.branchId || null;
-    state.branchSelections.set(sid, state.activeNodeId);
+    applyMessageNodes(page, sid);
     renderNodePath(state.activeNodeId);
   } else {
     renderHistory(page.segments || [], false);
